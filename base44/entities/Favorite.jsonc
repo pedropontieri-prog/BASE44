@@ -1,0 +1,41 @@
+{
+  "name": "Favorite",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "title": "ID do usu\u00e1rio"
+    },
+    "psychologist_id": {
+      "type": "string",
+      "title": "ID do psic\u00f3logo"
+    },
+    "psychologist_name": {
+      "type": "string",
+      "title": "Nome do psic\u00f3logo"
+    },
+    "psychologist_photo": {
+      "type": "string",
+      "format": "uri",
+      "title": "Foto do psic\u00f3logo"
+    }
+  },
+  "required": [
+    "user_id",
+    "psychologist_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}
