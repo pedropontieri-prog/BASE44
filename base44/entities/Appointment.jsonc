@@ -1,0 +1,69 @@
+{
+  "name": "Appointment",
+  "type": "object",
+  "properties": {
+    "psychologist_id": {
+      "type": "string",
+      "title": "ID do psic\u00f3logo"
+    },
+    "psychologist_name": {
+      "type": "string",
+      "title": "Nome do psic\u00f3logo"
+    },
+    "patient_name": {
+      "type": "string",
+      "title": "Nome do paciente"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Data da consulta"
+    },
+    "time": {
+      "type": "string",
+      "title": "Hor\u00e1rio"
+    },
+    "modality": {
+      "type": "string",
+      "enum": [
+        "online",
+        "in_person"
+      ],
+      "title": "Modalidade"
+    },
+    "address": {
+      "type": "string",
+      "title": "Endere\u00e7o (se presencial)"
+    },
+    "duration": {
+      "type": "number",
+      "default": 50,
+      "title": "Dura\u00e7\u00e3o (min)"
+    },
+    "price": {
+      "type": "number",
+      "title": "Valor"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "completed",
+        "cancelled",
+        "no_show"
+      ],
+      "default": "scheduled",
+      "title": "Status"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observa\u00e7\u00f5es"
+    }
+  },
+  "required": [
+    "psychologist_id",
+    "date",
+    "time",
+    "modality"
+  ]
+}
