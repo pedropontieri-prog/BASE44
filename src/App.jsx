@@ -42,7 +42,6 @@ const AuthenticatedApp = () => {
     navigateToLogin,
   } = useAuth();
 
-  // Carregando autenticação e configurações
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -51,7 +50,6 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Erros de autenticação
   if (authError) {
     if (authError.type === "user_not_registered") {
       return <UserNotRegisteredError />;
@@ -75,6 +73,12 @@ const AuthenticatedApp = () => {
       {/* ==================== PÚBLICO ==================== */}
 
       <Route path="/" element={<Home />} />
+
+      {/* CADASTRO DE PROFISSIONAL - PÚBLICO */}
+      <Route
+        path="/cadastro-profissional"
+        element={<ProfessionalOnboarding />}
+      />
 
       <Route
         path="/encontrar"
@@ -122,15 +126,9 @@ const AuthenticatedApp = () => {
           element={<PatientDashboard />}
         />
 
-        {/* Meu Diário */}
         <Route
           path="/diario"
           element={<Journal />}
-        />
-
-        <Route
-          path="/cadastro-profissional"
-          element={<ProfessionalOnboarding />}
         />
 
         <Route
