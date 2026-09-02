@@ -1,0 +1,66 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "title": "ID do destinat\u00e1rio"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "appointments",
+        "account",
+        "verification",
+        "privacy",
+        "system"
+      ],
+      "default": "system",
+      "title": "Categoria"
+    },
+    "title": {
+      "type": "string",
+      "title": "T\u00edtulo"
+    },
+    "body": {
+      "type": "string",
+      "title": "Mensagem"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false,
+      "title": "Lida"
+    },
+    "link": {
+      "type": "string",
+      "title": "Link"
+    }
+  },
+  "required": [
+    "user_id",
+    "title"
+  ],
+  "rls": {
+    "read": {
+      "data.user_id": "{{user.id}}"
+    },
+    "create": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "data.user_id": "{{user.id}}"
+    },
+    "delete": {
+      "data.user_id": "{{user.id}}"
+    }
+  }
+}
