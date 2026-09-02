@@ -12,6 +12,7 @@ import {
   Shield,
   ArrowRight,
   CheckCircle2,
+  BookHeart,
 } from 'lucide-react';
 import PageShell from '@/components/PageShell';
 import { supabase } from '@/api/base44Client';
@@ -21,6 +22,10 @@ const menu = [
   { label: 'Próxima consulta', icon: Clock, path: '/painel' },
   { label: 'Histórico', icon: History, path: '/painel' },
   { label: 'Favoritos', icon: Heart, path: '/favoritos' },
+
+  // Meu Diário
+  { label: 'Meu diário', icon: BookHeart, path: '/diario' },
+
   { label: 'Dados da conta', icon: User, path: '/painel' },
   { label: 'Privacidade', icon: Shield, path: '/privacidade' },
   { label: 'Notificações', icon: Bell, path: '/notificacoes' },
@@ -97,9 +102,10 @@ export default function PatientDashboard() {
   return (
     <PageShell>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
+
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-heading font-bold">
-            Olá, bem-vindo(a) de volta 
+            Olá, bem-vindo(a) de volta
           </h1>
 
           <p className="text-muted-foreground mt-1">
@@ -110,6 +116,7 @@ export default function PatientDashboard() {
         {confirmed && (
           <div className="mb-8 card-elevated p-6 border-emerald-200 bg-emerald-50/50 dark:bg-emerald-500/5 animate-scale-in">
             <div className="flex items-start gap-4">
+
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
                 <CheckCircle2 size={24} className="text-emerald-600" />
               </div>
@@ -124,6 +131,7 @@ export default function PatientDashboard() {
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
+
                   <Info
                     label="Profissional"
                     value={confirmed.psychologistName}
@@ -163,6 +171,7 @@ export default function PatientDashboard() {
                       </Link>
                     </div>
                   )}
+
                 </div>
               </div>
             </div>
@@ -170,12 +179,17 @@ export default function PatientDashboard() {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
+
           <div className="lg:col-span-2 space-y-6">
+
             <div className="card-elevated p-6 relative overflow-hidden">
+
               <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full gradient-brand opacity-10 blur-2xl" />
 
               <div className="flex items-center justify-between">
+
                 <div>
+
                   <span className="text-xs font-semibold text-primary uppercase tracking-wider">
                     Próxima consulta
                   </span>
@@ -189,6 +203,7 @@ export default function PatientDashboard() {
                       </h2>
 
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
+
                         <span className="inline-flex items-center gap-1.5">
                           <Calendar size={15} />
                           {next.date}
@@ -200,6 +215,7 @@ export default function PatientDashboard() {
                         </span>
 
                         <span className="inline-flex items-center gap-1.5">
+
                           {next.modality === 'online' ? (
                             <>
                               <Video size={15} />
@@ -211,11 +227,14 @@ export default function PatientDashboard() {
                               Presencial
                             </>
                           )}
+
                         </span>
+
                       </div>
                     </>
                   ) : (
                     <div className="mt-2">
+
                       <p className="text-muted-foreground">
                         Você não tem consultas agendadas.
                       </p>
@@ -227,8 +246,10 @@ export default function PatientDashboard() {
                         Encontrar psicólogo
                         <ArrowRight size={15} />
                       </Link>
+
                     </div>
                   )}
+
                 </div>
               </div>
 
@@ -250,35 +271,45 @@ export default function PatientDashboard() {
                   Entrar na sala
                 </Link>
               )}
+
             </div>
 
             <div className="card-elevated p-6">
+
               <h3 className="font-heading font-semibold mb-4">
                 Histórico de consultas
               </h3>
 
               {loading ? (
                 <div className="space-y-3">
+
                   {[0, 1, 2].map((i) => (
                     <div
                       key={i}
                       className="h-16 animate-shimmer rounded-xl"
                     />
                   ))}
+
                 </div>
               ) : appointments.length === 0 ? (
+
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   Nenhuma consulta ainda. Quando você agendar, o histórico
                   aparecerá aqui.
                 </p>
+
               ) : (
+
                 <div className="space-y-2">
+
                   {appointments.map((a) => (
                     <div
                       key={a.id}
                       className="flex items-center justify-between p-3 rounded-xl hover:bg-muted transition-colors"
                     >
+
                       <div>
+
                         <p className="text-sm font-medium">
                           {a.psychologist_name ||
                             a.psychologistName ||
@@ -291,25 +322,35 @@ export default function PatientDashboard() {
                             ? 'Online'
                             : 'Presencial'}
                         </p>
+
                       </div>
 
                       <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10">
-                        {a.status === 'scheduled' ? 'Agendada' : a.status}
+                        {a.status === 'scheduled'
+                          ? 'Agendada'
+                          : a.status}
                       </span>
+
                     </div>
                   ))}
+
                 </div>
               )}
+
             </div>
+
           </div>
 
           <div className="space-y-6">
+
             <div className="card-elevated p-5">
+
               <h3 className="font-heading font-semibold text-sm mb-3">
                 Atalhos
               </h3>
 
               <div className="space-y-1">
+
                 {menu.map((m, i) => (
                   <Link
                     key={i}
@@ -320,10 +361,36 @@ export default function PatientDashboard() {
                     {m.label}
                   </Link>
                 ))}
+
               </div>
+
             </div>
 
+            {/* Card do Diário */}
+            <Link
+              to="/diario"
+              className="block card-elevated p-5 hover:shadow-glow transition-all group"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <BookHeart size={22} className="text-primary" />
+              </div>
+
+              <h3 className="mt-4 font-heading font-semibold text-sm">
+                Meu diário
+              </h3>
+
+              <p className="text-xs text-muted-foreground mt-1">
+                Um espaço privado para registrar seus pensamentos e sentimentos.
+              </p>
+
+              <span className="mt-3 text-xs font-medium text-primary inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                Abrir diário
+                <ArrowRight size={13} />
+              </span>
+            </Link>
+
             <div className="card-elevated p-5 gradient-brand-soft">
+
               <Shield size={22} className="text-primary" />
 
               <h3 className="mt-3 font-heading font-semibold text-sm">
@@ -341,8 +408,11 @@ export default function PatientDashboard() {
                 Abrir central
                 <ArrowRight size={13} />
               </Link>
+
             </div>
+
           </div>
+
         </div>
       </div>
     </PageShell>
@@ -352,8 +422,13 @@ export default function PatientDashboard() {
 function Info({ label, value }) {
   return (
     <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium mt-0.5">{value}</p>
+      <p className="text-xs text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="font-medium mt-0.5">
+        {value}
+      </p>
     </div>
   );
 }
