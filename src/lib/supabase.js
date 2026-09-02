@@ -5,9 +5,7 @@ const supabasePublishableKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 
 if (!supabaseUrl) {
-  throw new Error(
-    'VITE_SUPABASE_URL não configurada'
-  )
+  throw new Error('VITE_SUPABASE_URL não configurada')
 }
 
 if (!supabasePublishableKey) {
