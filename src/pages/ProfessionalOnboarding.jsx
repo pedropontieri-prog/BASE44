@@ -10,19 +10,20 @@ import {
   Camera,
   Video,
   ShieldCheck,
-  Loader2
+  Loader2,
+  X,
 } from 'lucide-react';
 
 import PageShell from '@/components/PageShell';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabase';
+
 import {
   Field,
   TextInput,
   TextArea,
   SelectField,
-  ChipGroup
+  ChipGroup,
 } from '@/components/onboarding/FormFields';
-import { Image } from '@/components/ui/image';
 
 const STEPS = [
   { key: 'personal', label: 'Pessoal', icon: User },
@@ -48,7 +49,7 @@ const SPEC_OPTS = [
   'Pânico',
   'Autoconhecimento',
   'Burnout',
-  'Comportamento alimentar'
+  'Comportamento alimentar',
 ];
 
 const APPROACH_OPTS = [
@@ -60,7 +61,7 @@ const APPROACH_OPTS = [
   'Gestalt',
   'ACT',
   'Mindfulness',
-  'Integração'
+  'Integração',
 ];
 
 const THEME_OPTS = [
@@ -75,7 +76,7 @@ const THEME_OPTS = [
   'Sexualidade',
   'Carreira',
   'Família',
-  'Adicções'
+  'Adicções',
 ];
 
 const AUDIENCE_OPTS = [
@@ -83,7 +84,7 @@ const AUDIENCE_OPTS = [
   'Adolescentes',
   'Crianças',
   'Casais',
-  'Idosos'
+  'Idosos',
 ];
 
 const LANG_OPTS = [
@@ -91,7 +92,7 @@ const LANG_OPTS = [
   'Inglês',
   'Espanhol',
   'Libras',
-  'Francês'
+  'Francês',
 ];
 
 const DAY_OPTS = [
@@ -101,7 +102,7 @@ const DAY_OPTS = [
   'Qui',
   'Sex',
   'Sáb',
-  'Dom'
+  'Dom',
 ];
 
 const SLOT_OPTS = [
@@ -118,14 +119,14 @@ const SLOT_OPTS = [
   '18:00',
   '19:00',
   '20:00',
-  '21:00'
+  '21:00',
 ];
 
 const REGION_OPTS = Array.from(
   { length: 15 },
   (_, i) => ({
     v: String(i + 1).padStart(2, '0'),
-    l: `CRP ${String(i + 1).padStart(2, '0')}`
+    l: `CRP ${String(i + 1).padStart(2, '0')}`,
   })
 );
 
@@ -172,25 +173,38 @@ export default function ProfessionalOnboarding() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    base44.auth
-      .me()
-      .then((u) => {
-        if (!u) return;
-
-        setData((current) => ({
-          ...current,
-          email: u.email || current.email,
-          full_name:
-            u.full_name || current.full_name || '',
-        }));
-      })
-      .catch(() => {
-        // Usuário não está logado.
-        // O formulário continua funcionando.
-      });
+    loadUser();
   }, []);
+
+  /*
+   * Se já estiver logado, aproveita os dados da conta.
+   * Se não estiver logado, o formulário continua funcionando.
+   */
+  const loadUser = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      setData((current) => ({
+        ...current,
+        email: user.email || current.email,
+        full_name:
+          user.user_metadata?.full_name ||
+          current.full_name,
+      }));
+    } catch (error) {
+      console.error(
+        'Erro ao carregar usuário:',
+        error
+      );
+    }
+  };
 
   const set = (key, value) => {
     setData((current) => ({
@@ -199,6 +213,9 @@ export default function ProfessionalOnboarding() {
     }));
   };
 
+  /*
+   * VALIDAÇÃO DAS ETAPAS
+   */
   const validate = () => {
     if (step === 0) {
       return (
@@ -230,83 +247,147 @@ export default function ProfessionalOnboarding() {
   };
 
   /*
-   * UPLOAD DE ARQUIVO
-   *
-   * Esta versão permite selecionar o arquivo
-   * e mostrar a prévia imediatamente.
+   * UPLOAD PARA O SUPABASE STORAGE
    */
   const upload = async (file, key) => {
     if (!file) return;
 
-    // Limita tamanho da foto
+    setError('');
+
+    /*
+     * Limite da foto: 5 MB
+     */
     if (
       key === 'photo_url' &&
       file.size > 5 * 1024 * 1024
     ) {
-      alert('A foto deve ter no máximo 5 MB.');
+      setError(
+        'A foto deve ter no máximo 5 MB.'
+      );
       return;
     }
 
-    // Limita tamanho do vídeo
+    /*
+     * Limite do vídeo: 50 MB
+     */
     if (
       key === 'video_url' &&
       file.size > 50 * 1024 * 1024
     ) {
-      alert('O vídeo deve ter no máximo 50 MB.');
+      setError(
+        'O vídeo deve ter no máximo 50 MB.'
+      );
       return;
     }
 
     setUploading(true);
 
     try {
-      /*
-       * Cria uma URL temporária para mostrar
-       * a imagem/vídeo selecionado.
-       */
-      const file_url = URL.createObjectURL(file);
+      const extension =
+        file.name.split('.').pop()?.toLowerCase() ||
+        'file';
 
-      set(key, file_url);
+      const fileName =
+        `${crypto.randomUUID()}.${extension}`;
+
+      const filePath =
+        `professionals/${fileName}`;
+
+      /*
+       * ENVIA PARA O STORAGE
+       */
+      const { error: uploadError } =
+        await supabase.storage
+          .from('profiles')
+          .upload(
+            filePath,
+            file,
+            {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: file.type,
+            }
+          );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      /*
+       * PEGA A URL PÚBLICA
+       */
+      const {
+        data: publicUrlData,
+      } = supabase.storage
+        .from('profiles')
+        .getPublicUrl(filePath);
+
+      const publicUrl =
+        publicUrlData?.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error(
+          'Não foi possível obter a URL do arquivo.'
+        );
+      }
+
+      set(key, publicUrl);
+
     } catch (error) {
       console.error(
-        'Erro ao carregar arquivo:',
+        'Erro no upload:',
         error
       );
 
-      alert(
-        'Não foi possível carregar o arquivo.'
+      setError(
+        error?.message ||
+        'Não foi possível enviar o arquivo.'
       );
     } finally {
       setUploading(false);
     }
   };
 
+  /*
+   * ENVIA O CADASTRO PARA O SUPABASE
+   */
   const submit = async () => {
+    setError('');
+
     if (!data.email.trim()) {
-      alert('Informe seu e-mail.');
+      setError('Informe seu e-mail.');
       setStep(0);
       return;
     }
 
     if (!data.full_name.trim()) {
-      alert('Informe seu nome completo.');
+      setError(
+        'Informe seu nome completo.'
+      );
       setStep(0);
       return;
     }
 
     if (!data.crp_number.trim()) {
-      alert('Informe seu número do CRP.');
+      setError(
+        'Informe seu número do CRP.'
+      );
       setStep(1);
       return;
     }
 
     if (!data.crp_region) {
-      alert('Selecione a região do CRP.');
+      setError(
+        'Selecione a região do CRP.'
+      );
       setStep(1);
       return;
     }
 
     if (!data.photo_url) {
-      alert('Envie uma foto profissional.');
+      setError(
+        'Envie uma foto profissional.'
+      );
       setStep(3);
       return;
     }
@@ -315,30 +396,106 @@ export default function ProfessionalOnboarding() {
 
     try {
       /*
-       * Mantém a estrutura atual do projeto.
+       * Verifica se existe usuário autenticado.
        */
-      await base44.entities.Psychologist.create({
-        ...data,
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        verification_status: 'pending',
+      /*
+       * Dados preparados para a tabela psychologists.
+       *
+       * Os nomes abaixo seguem o padrão usado
+       * no restante do seu projeto.
+       */
+      const psychologistData = {
+        user_id: user?.id || null,
 
-        video_status: data.video_url
-          ? 'pending'
-          : 'approved',
+        professional_name:
+          data.professional_name ||
+          data.full_name,
 
-        rating: 5,
-      });
+        crp_number:
+          data.crp_number,
+
+        crp_region:
+          data.crp_region,
+
+        education:
+          data.education || null,
+
+        specializations:
+          data.specializations || [],
+
+        approaches:
+          data.approaches || [],
+
+        experience:
+          data.experience || null,
+
+        topics:
+          data.themes || [],
+
+        modalities:
+          data.modalities || [],
+
+        languages:
+          data.languages || [],
+
+        city:
+          data.city,
+
+        state:
+          data.state,
+
+        session_price:
+          Number(data.price) || 0,
+
+        bio:
+          data.about || null,
+
+        profile_photo_url:
+          data.photo_url,
+
+        presentation_video_url:
+          data.video_url || null,
+
+        presentation_video_status:
+          data.video_url
+            ? 'pending'
+            : 'approved',
+
+        verification_status:
+          'pending',
+
+        public_profile:
+          false,
+      };
+
+      /*
+       * Salva no banco.
+       */
+      const {
+        error: insertError,
+      } = await supabase
+        .from('psychologists')
+        .insert([psychologistData]);
+
+      if (insertError) {
+        throw insertError;
+      }
 
       setDone(true);
 
     } catch (error) {
       console.error(
-        'Erro ao cadastrar profissional:',
+        'Erro ao salvar profissional:',
         error
       );
 
-      alert(
-        'Não foi possível enviar o cadastro. Verifique os dados e tente novamente.'
+      setError(
+        error?.message ||
+        'Não foi possível enviar o cadastro.'
       );
 
     } finally {
@@ -355,7 +512,7 @@ export default function ProfessionalOnboarding() {
 
         <div className="max-w-xl mx-auto px-4 pt-20 pb-20 text-center">
 
-          <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6 animate-scale-in">
+          <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6">
 
             <Check
               size={40}
@@ -369,8 +526,8 @@ export default function ProfessionalOnboarding() {
           </h1>
 
           <p className="text-muted-foreground mt-3">
-            Recebemos seu perfil. Nossa equipe vai
-            revisar seu CRP e suas informações
+            Recebemos seu perfil. Nossa equipe
+            vai revisar seu CRP e suas informações
             profissionais. Você receberá uma
             notificação quando for aprovado(a).
           </p>
@@ -417,6 +574,23 @@ export default function ProfessionalOnboarding() {
           </p>
 
         </div>
+
+        {/* ERRO */}
+
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
+
+            <X
+              size={18}
+              className="shrink-0 mt-0.5"
+            />
+
+            <span>
+              {error}
+            </span>
+
+          </div>
+        )}
 
         {/* ETAPAS */}
 
@@ -472,12 +646,11 @@ export default function ProfessionalOnboarding() {
 
               </div>
             );
-
           })}
 
         </div>
 
-        {/* CARD */}
+        {/* CONTEÚDO */}
 
         <div
           className="card-elevated p-6 sm:p-8 animate-fade-in"
@@ -510,6 +683,7 @@ export default function ProfessionalOnboarding() {
               data={data}
               upload={upload}
               uploading={uploading}
+              set={set}
             />
           )}
 
@@ -518,6 +692,7 @@ export default function ProfessionalOnboarding() {
               data={data}
               upload={upload}
               uploading={uploading}
+              set={set}
             />
           )}
 
@@ -529,7 +704,7 @@ export default function ProfessionalOnboarding() {
 
         </div>
 
-        {/* NAVEGAÇÃO */}
+        {/* BOTÕES */}
 
         <div className="mt-6 flex items-center justify-between">
 
@@ -555,10 +730,38 @@ export default function ProfessionalOnboarding() {
             <button
               type="button"
               onClick={() => {
+
+                setError('');
+
                 if (validate()) {
                   setStep(
                     (current) => current + 1
                   );
+                } else {
+
+                  if (step === 0) {
+                    setError(
+                      'Preencha nome, e-mail, cidade e estado.'
+                    );
+                  }
+
+                  if (step === 1) {
+                    setError(
+                      'Informe o CRP e a região.'
+                    );
+                  }
+
+                  if (step === 2) {
+                    setError(
+                      'Selecione pelo menos uma modalidade.'
+                    );
+                  }
+
+                  if (step === 3) {
+                    setError(
+                      'Envie uma foto profissional.'
+                    );
+                  }
                 }
               }}
               disabled={!validate()}
@@ -576,7 +779,7 @@ export default function ProfessionalOnboarding() {
             <button
               type="button"
               onClick={submit}
-              disabled={submitting}
+              disabled={submitting || uploading}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
 
@@ -586,11 +789,13 @@ export default function ProfessionalOnboarding() {
                     size={16}
                     className="animate-spin"
                   />
+
                   Enviando...
                 </>
               ) : (
                 <>
                   <ShieldCheck size={16} />
+
                   Enviar para verificação
                 </>
               )}
@@ -609,7 +814,7 @@ export default function ProfessionalOnboarding() {
 
 
 /* =====================================================
-   ETAPA 1 — DADOS PESSOAIS
+   DADOS PESSOAIS
 ===================================================== */
 
 function StepPersonal({ data, set }) {
@@ -658,6 +863,7 @@ function StepPersonal({ data, set }) {
         <Field label="E-mail *">
 
           <TextInput
+            type="email"
             value={data.email}
             onChange={(e) =>
               set(
@@ -665,7 +871,6 @@ function StepPersonal({ data, set }) {
                 e.target.value
               )
             }
-            type="email"
             placeholder="seuemail@exemplo.com"
             autoComplete="email"
           />
@@ -675,6 +880,7 @@ function StepPersonal({ data, set }) {
         <Field label="Telefone">
 
           <TextInput
+            type="tel"
             value={data.phone}
             onChange={(e) =>
               set(
@@ -683,7 +889,6 @@ function StepPersonal({ data, set }) {
               )
             }
             placeholder="(11) 99999-9999"
-            type="tel"
           />
 
         </Field>
@@ -710,7 +915,7 @@ function StepPersonal({ data, set }) {
             onChange={(e) =>
               set(
                 'state',
-                e.target.value
+                e.target.value.toUpperCase()
               )
             }
             placeholder="SP"
@@ -741,7 +946,7 @@ function StepPersonal({ data, set }) {
 
 
 /* =====================================================
-   ETAPA 2 — DADOS PROFISSIONAIS
+   DADOS PROFISSIONAIS
 ===================================================== */
 
 function StepProfessional({ data, set }) {
@@ -943,7 +1148,7 @@ function StepProfessional({ data, set }) {
 
 
 /* =====================================================
-   ETAPA 3 — ATENDIMENTO
+   ATENDIMENTO
 ===================================================== */
 
 function StepService({ data, set }) {
@@ -959,7 +1164,7 @@ function StepService({ data, set }) {
         <ChipGroup
           options={[
             'online',
-            'in_person'
+            'in_person',
           ]}
           value={data.modalities}
           onChange={(value) =>
@@ -978,6 +1183,7 @@ function StepService({ data, set }) {
 
           <TextInput
             type="number"
+            min="0"
             value={data.price}
             onChange={(e) =>
               set(
@@ -986,7 +1192,6 @@ function StepService({ data, set }) {
               )
             }
             placeholder="200"
-            min="0"
           />
 
         </Field>
@@ -995,6 +1200,7 @@ function StepService({ data, set }) {
 
           <TextInput
             type="number"
+            min="1"
             value={data.session_duration}
             onChange={(e) =>
               set(
@@ -1002,7 +1208,6 @@ function StepService({ data, set }) {
                 Number(e.target.value)
               )
             }
-            min="1"
           />
 
         </Field>
@@ -1091,14 +1296,19 @@ function StepService({ data, set }) {
 
 
 /* =====================================================
-   ETAPA 4 — FOTO
+   FOTO
 ===================================================== */
 
 function StepPhoto({
   data,
   upload,
-  uploading
+  uploading,
+  set,
 }) {
+  const removePhoto = () => {
+    set('photo_url', '');
+  };
+
   return (
     <div className="space-y-5">
 
@@ -1108,7 +1318,7 @@ function StepPhoto({
 
       <p className="text-sm text-muted-foreground">
         Adicione uma foto profissional para
-        o seu perfil.
+        aparecer no seu perfil.
       </p>
 
       <div className="rounded-2xl border-2 border-dashed border-border p-6 text-center">
@@ -1121,8 +1331,8 @@ function StepPhoto({
 
               <img
                 src={data.photo_url}
-                className="w-full h-full object-cover"
                 alt="Prévia da foto profissional"
+                className="w-full h-full object-cover"
               />
 
             </div>
@@ -1135,7 +1345,7 @@ function StepPhoto({
 
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) =>
                     upload(
@@ -1150,12 +1360,7 @@ function StepPhoto({
 
               <button
                 type="button"
-                onClick={() =>
-                  window.confirm(
-                    'Remover esta foto?'
-                  ) &&
-                  setTimeout(() => {}, 0)
-                }
+                onClick={removePhoto}
                 className="px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50"
               >
                 Remover
@@ -1178,7 +1383,7 @@ function StepPhoto({
             <span className="text-sm font-medium">
 
               {uploading
-                ? 'Carregando foto...'
+                ? 'Enviando foto...'
                 : 'Enviar foto'}
 
             </span>
@@ -1189,7 +1394,7 @@ function StepPhoto({
 
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(e) =>
                 upload(
@@ -1213,27 +1418,16 @@ function StepPhoto({
         </p>
 
         <p>
-          Envie uma foto recente, nítida e
-          profissional do seu rosto.
+          Envie uma foto recente, nítida e profissional.
         </p>
 
         <ul className="list-disc pl-4 space-y-0.5">
 
-          <li>
-            Rosto visível e boa iluminação
-          </li>
-
-          <li>
-            Sem filtros ou imagens geradas por IA
-          </li>
-
-          <li>
-            Sem fotos de terceiros
-          </li>
-
-          <li>
-            Boa qualidade
-          </li>
+          <li>Rosto visível</li>
+          <li>Boa iluminação</li>
+          <li>Sem filtros</li>
+          <li>Sem fotos de terceiros</li>
+          <li>Boa qualidade</li>
 
         </ul>
 
@@ -1245,13 +1439,14 @@ function StepPhoto({
 
 
 /* =====================================================
-   ETAPA 5 — VÍDEO
+   VÍDEO
 ===================================================== */
 
 function StepVideo({
   data,
   upload,
-  uploading
+  uploading,
+  set,
 }) {
   return (
     <div className="space-y-5">
@@ -1268,7 +1463,7 @@ function StepVideo({
 
       <p className="text-sm text-muted-foreground">
         Apresente-se em até 60 segundos.
-        Esse vídeo passa por moderação antes
+        O vídeo passará por moderação antes
         de aparecer publicamente.
       </p>
 
@@ -1284,24 +1479,38 @@ function StepVideo({
               className="max-h-60 rounded-xl bg-black w-full"
             />
 
-            <label className="text-xs text-primary font-medium hover:underline cursor-pointer">
+            <div className="flex gap-3">
 
-              Trocar vídeo
+              <label className="px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-muted/70 cursor-pointer">
 
-              <input
-                type="file"
-                accept="video/mp4,video/webm,video/quicktime"
-                className="hidden"
-                onChange={(e) =>
-                  upload(
-                    e.target.files?.[0],
-                    'video_url'
-                  )
+                Trocar vídeo
+
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  className="hidden"
+                  onChange={(e) =>
+                    upload(
+                      e.target.files?.[0],
+                      'video_url'
+                    )
+                  }
+                  disabled={uploading}
+                />
+
+              </label>
+
+              <button
+                type="button"
+                onClick={() =>
+                  set('video_url', '')
                 }
-                disabled={uploading}
-              />
+                className="px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Remover
+              </button>
 
-            </label>
+            </div>
 
           </div>
 
@@ -1318,7 +1527,7 @@ function StepVideo({
             <span className="text-sm font-medium">
 
               {uploading
-                ? 'Carregando vídeo...'
+                ? 'Enviando vídeo...'
                 : 'Enviar vídeo'}
 
             </span>
@@ -1352,103 +1561,81 @@ function StepVideo({
 
 
 /* =====================================================
-   ETAPA 6 — REVISÃO
+   REVISÃO
 ===================================================== */
 
 function StepReview({ data }) {
-
   const rows = [
     ['Nome', data.full_name],
-
     [
       'Nome profissional',
-      data.professional_name
+      data.professional_name,
     ],
-
-    [
-      'E-mail',
-      data.email
-    ],
-
-    [
-      'Telefone',
-      data.phone
-    ],
-
+    ['E-mail', data.email],
+    ['Telefone', data.phone],
     [
       'CRP',
-      `${data.crp_region}/${data.crp_number}`
+      `${data.crp_region}/${data.crp_number}`,
     ],
-
     [
       'Cidade',
-      `${data.city}/${data.state}`
+      `${data.city}/${data.state}`,
     ],
-
-    [
-      'Formação',
-      data.education
-    ],
-
-    [
-      'Instituição',
-      data.institution
-    ],
-
+    ['Formação', data.education],
+    ['Instituição', data.institution],
     [
       'Abordagens',
-      (data.approaches || []).join(', ')
+      (data.approaches || []).join(', '),
     ],
-
     [
       'Especialidades',
-      (data.specialties || []).join(', ')
+      (data.specialties || []).join(', '),
     ],
-
     [
-      'Modalidades',
-      (data.modalities || []).join(', ')
+      'Temas',
+      (data.themes || []).join(', '),
     ],
-
     [
       'Público',
-      (data.audience || []).join(', ')
+      (data.audience || []).join(', '),
     ],
-
     [
       'Idiomas',
-      (data.languages || []).join(', ')
+      (data.languages || []).join(', '),
     ],
-
+    [
+      'Modalidades',
+      (data.modalities || []).join(', '),
+    ],
     [
       'Valor',
       data.price
         ? `R$ ${data.price}`
-        : '—'
+        : '—',
     ],
-
+    [
+      'Duração',
+      `${data.session_duration} minutos`,
+    ],
     [
       'Dias',
-      (data.available_days || []).join(', ')
+      (data.available_days || []).join(', '),
     ],
-
     [
       'Horários',
-      (data.available_slots || []).join(', ')
+      (data.available_slots || []).join(', '),
     ],
-
     [
       'Foto',
       data.photo_url
         ? 'Enviada'
-        : '—'
+        : '—',
     ],
-
     [
       'Vídeo',
       data.video_url
         ? 'Enviado'
-        : '—'
+        : 'Não enviado',
     ],
   ];
 
@@ -1460,8 +1647,8 @@ function StepReview({ data }) {
       </h2>
 
       <p className="text-sm text-muted-foreground">
-        Confira antes de enviar para verificação.
-        Você poderá editar depois.
+        Confira tudo antes de enviar para
+        verificação.
       </p>
 
       <div className="rounded-2xl bg-muted/40 divide-y divide-border">
@@ -1488,6 +1675,18 @@ function StepReview({ data }) {
         )}
 
       </div>
+
+      {data.photo_url && (
+        <div className="flex justify-center pt-2">
+
+          <img
+            src={data.photo_url}
+            alt="Foto profissional"
+            className="w-24 h-24 object-cover rounded-2xl"
+          />
+
+        </div>
+      )}
 
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-violet-soft/40 rounded-xl p-3">
 
