@@ -25,16 +25,17 @@ export default function Login() {
     if (loading) return;
 
     setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      setError("Digite seu e-mail e sua senha.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const cleanEmail = email.trim().toLowerCase();
-
-      if (!cleanEmail || !password) {
-        setError("Digite seu e-mail e sua senha.");
-        return;
-      }
-
       const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -50,13 +51,12 @@ export default function Login() {
       }
 
       /*
-       * O AuthContext recebe o evento SIGNED_IN
-       * automaticamente através do onAuthStateChange.
-       *
-       * Usamos React Router para navegar sem recarregar
-       * toda a aplicação.
+       * Se existir uma página de destino, volta para ela.
+       * Caso contrário, envia o usuário para o painel.
        */
-      navigate(returnTo || "/", { replace: true });
+      navigate(returnTo || "/painel", {
+        replace: true,
+      });
     } catch (err) {
       console.error("Erro no login:", err);
 
@@ -74,13 +74,17 @@ export default function Login() {
         setError(
           "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
         );
-      } else if (message.includes("too many requests")) {
+      } else if (
+        message.includes("too many requests") ||
+        message.includes("rate limit")
+      ) {
         setError(
           "Muitas tentativas. Aguarde alguns minutos e tente novamente."
         );
       } else {
         setError(
-          err?.message || "Não foi possível entrar. Tente novamente."
+          err?.message ||
+            "Não foi possível entrar. Tente novamente."
         );
       }
     } finally {
@@ -96,18 +100,17 @@ export default function Login() {
 
     try {
       /*
-       * Depois que o Google autenticar, o Supabase retorna
-       * para /login.
-       *
-       * O returnTo é preservado na URL para podermos
-       * continuar o fluxo depois da autenticação.
+       * Depois do login com Google, o Supabase retorna
+       * para esta página.
        */
+
       const params =
         returnTo && returnTo !== "/"
           ? `?returnTo=${encodeURIComponent(returnTo)}`
           : "";
 
-      const redirectUrl = `${window.location.origin}/login${params}`;
+      const redirectUrl =
+        `${window.location.origin}/login${params}`;
 
       const { error: googleError } =
         await supabase.auth.signInWithOAuth({
@@ -120,17 +123,12 @@ export default function Login() {
       if (googleError) {
         throw googleError;
       }
-
-      /*
-       * O navegador será redirecionado para o Google.
-       * Não desligamos o loading aqui porque a página
-       * normalmente será substituída pelo fluxo OAuth.
-       */
     } catch (err) {
       console.error("Erro no login com Google:", err);
 
       setError(
-        err?.message || "Não foi possível entrar com o Google."
+        err?.message ||
+          "Não foi possível entrar com o Google."
       );
 
       setLoading(false);
@@ -199,7 +197,9 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">
+            Email
+          </Label>
 
           <div className="relative">
             <Mail
@@ -215,7 +215,9 @@ export default function Login() {
               autoFocus
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
               className="pl-10 h-12"
               disabled={loading}
               required
@@ -225,7 +227,9 @@ export default function Login() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">
+              Password
+            </Label>
 
             <Link
               to="/forgot-password"
@@ -248,7 +252,9 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
               className="pl-10 h-12"
               disabled={loading}
               required
