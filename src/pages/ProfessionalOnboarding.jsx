@@ -259,7 +259,7 @@ export default function ProfessionalOnboarding() {
      */
     if (
       key === 'photo_url' &&
-      file.size > 5 * 1024 * 1024
+      file.size > 500 * 1024 * 1024
     ) {
       setError(
         'A foto deve ter no máximo 5 MB.'
