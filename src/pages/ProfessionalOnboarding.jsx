@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Loader2,
   X,
-  Upload,
 } from 'lucide-react';
 
 import PageShell from '@/components/PageShell';
@@ -180,21 +179,39 @@ export default function ProfessionalOnboarding() {
     loadUser();
   }, []);
 
+  /*
+   * CARREGA USUÁRIO AUTENTICADO
+   */
   const loadUser = async () => {
     try {
       const {
-        data: { user },
+        data: authData,
+        error: userError,
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (userError) {
+        throw userError;
+      }
+
+      const user = authData?.user;
+
+      if (!user) {
+        return;
+      }
 
       setData((current) => ({
         ...current,
-        email: user.email || current.email,
+
+        email:
+          user.email ||
+          current.email,
+
         full_name:
           user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
           current.full_name,
       }));
+
     } catch (error) {
       console.error(
         'Erro ao carregar usuário:',
@@ -203,6 +220,9 @@ export default function ProfessionalOnboarding() {
     }
   };
 
+  /*
+   * ALTERA DADOS DO FORMULÁRIO
+   */
   const set = (key, value) => {
     setData((current) => ({
       ...current,
@@ -216,23 +236,24 @@ export default function ProfessionalOnboarding() {
   const validate = () => {
     if (step === 0) {
       return (
-        data.full_name.trim() &&
-        data.email.trim() &&
-        data.city.trim() &&
-        data.state.trim()
+        !!data.full_name?.trim() &&
+        !!data.email?.trim() &&
+        !!data.city?.trim() &&
+        !!data.state?.trim()
       );
     }
 
     if (step === 1) {
       return (
-        data.crp_number.trim() &&
-        data.crp_region
+        !!data.crp_number?.trim() &&
+        !!data.crp_region
       );
     }
 
     if (step === 2) {
       return (
-        (data.modalities || []).length > 0
+        Array.isArray(data.modalities) &&
+        data.modalities.length > 0
       );
     }
 
@@ -244,17 +265,15 @@ export default function ProfessionalOnboarding() {
   };
 
   /*
-   * UPLOAD PARA O SUPABASE
+   * UPLOAD DE FOTO OU VÍDEO
    *
-   * FOTO:
-   * máximo 150 MB
-   *
-   * VÍDEO:
-   * nenhum limite definido neste código.
-   * O limite fica por conta do Supabase Storage.
+   * Bucket:
+   * profiles
    */
   const upload = async (file, key) => {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     setError('');
 
@@ -275,7 +294,7 @@ export default function ProfessionalOnboarding() {
     ];
 
     /*
-     * FOTO
+     * VALIDA FOTO
      */
     if (key === 'photo_url') {
       if (!PHOTO_TYPES.includes(file.type)) {
@@ -294,9 +313,7 @@ export default function ProfessionalOnboarding() {
     }
 
     /*
-     * VÍDEO
-     *
-     * Não existe limite de tamanho aqui.
+     * VALIDA VÍDEO
      */
     if (key === 'video_url') {
       if (!VIDEO_TYPES.includes(file.type)) {
@@ -310,25 +327,58 @@ export default function ProfessionalOnboarding() {
     setUploading(true);
 
     try {
+      /*
+       * GARANTE AUTENTICAÇÃO
+       */
+      const {
+        data: authData,
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      const user = authData?.user;
+
+      if (!user) {
+        throw new Error(
+          'Usuário não autenticado. Faça login novamente.'
+        );
+      }
+
+      /*
+       * EXTENSÃO
+       */
       const extension =
         file.name
           .split('.')
           .pop()
-          ?.toLowerCase() || 'file';
+          ?.toLowerCase() ||
+        'file';
 
+      /*
+       * NOME ÚNICO
+       */
       const fileName =
         `${crypto.randomUUID()}.${extension}`;
 
+      /*
+       * PASTA
+       *
+       * Cada usuário fica dentro
+       * de sua própria pasta.
+       */
       const folder =
         key === 'photo_url'
-          ? 'professionals/photos'
-          : 'professionals/videos';
+          ? `professionals/${user.id}/photos`
+          : `professionals/${user.id}/videos`;
 
       const filePath =
         `${folder}/${fileName}`;
 
       /*
-       * UPLOAD
+       * UPLOAD PARA BUCKET PROFILES
        */
       const {
         error: uploadError,
@@ -349,7 +399,7 @@ export default function ProfessionalOnboarding() {
       }
 
       /*
-       * URL PÚBLICA
+       * PEGA URL PÚBLICA
        */
       const {
         data: publicUrlData,
@@ -366,7 +416,13 @@ export default function ProfessionalOnboarding() {
         );
       }
 
-      set(key, publicUrl);
+      /*
+       * SALVA URL NO FORMULÁRIO
+       */
+      set(
+        key,
+        publicUrl
+      );
 
     } catch (error) {
       console.error(
@@ -378,6 +434,7 @@ export default function ProfessionalOnboarding() {
         error?.message ||
         'Não foi possível enviar o arquivo.'
       );
+
     } finally {
       setUploading(false);
     }
@@ -389,33 +446,54 @@ export default function ProfessionalOnboarding() {
   const submit = async () => {
     setError('');
 
-    if (!data.email.trim()) {
+    // ================================
+    // VALIDAÇÕES
+    // ================================
+
+    if (!data.email?.trim()) {
       setError('Informe seu e-mail.');
       setStep(0);
       return;
     }
 
-    if (!data.full_name.trim()) {
-      setError(
-        'Informe seu nome completo.'
-      );
+    if (!data.full_name?.trim()) {
+      setError('Informe seu nome completo.');
       setStep(0);
       return;
     }
 
-    if (!data.crp_number.trim()) {
-      setError(
-        'Informe seu número do CRP.'
-      );
+    if (!data.city?.trim()) {
+      setError('Informe sua cidade.');
+      setStep(0);
+      return;
+    }
+
+    if (!data.state?.trim()) {
+      setError('Informe seu estado.');
+      setStep(0);
+      return;
+    }
+
+    if (!data.crp_number?.trim()) {
+      setError('Informe seu número do CRP.');
       setStep(1);
       return;
     }
 
     if (!data.crp_region) {
-      setError(
-        'Selecione a região do CRP.'
-      );
+      setError('Selecione a região do CRP.');
       setStep(1);
+      return;
+    }
+
+    if (
+      !Array.isArray(data.modalities) ||
+      data.modalities.length === 0
+    ) {
+      setError(
+        'Selecione pelo menos uma modalidade.'
+      );
+      setStep(2);
       return;
     }
 
@@ -430,61 +508,200 @@ export default function ProfessionalOnboarding() {
     setSubmitting(true);
 
     try {
+      // ================================
+      // 1. PEGA USUÁRIO AUTENTICADO
+      // ================================
+
       const {
-        data: { user },
+        data: authData,
+        error: userError,
       } = await supabase.auth.getUser();
 
+      if (userError) {
+        throw userError;
+      }
+
+      const user = authData?.user;
+
+      if (!user) {
+        throw new Error(
+          'Usuário não autenticado. Faça login novamente.'
+        );
+      }
+
+      // ================================
+      // 2. ID DO AUTH
+      // ================================
+
+      const userId = user.id;
+
+      if (!userId) {
+        throw new Error(
+          'Não foi possível identificar o usuário autenticado.'
+        );
+      }
+
+      // ================================
+      // 3. DADOS DO PSICÓLOGO
+      // ================================
+
       const psychologistData = {
-        user_id: user?.id || null,
+        /*
+         * IMPORTANTE:
+         * o user_id vem EXCLUSIVAMENTE
+         * do Supabase Auth.
+         */
+        user_id: userId,
+
+        // ------------------------------
+        // DADOS PESSOAIS
+        // ------------------------------
 
         professional_name:
-          data.professional_name ||
-          data.full_name,
+          data.professional_name?.trim() ||
+          data.full_name.trim(),
+
+        phone:
+          data.phone?.trim() ||
+          null,
+
+        gender:
+          data.gender?.trim() ||
+          null,
+
+        city:
+          data.city.trim(),
+
+        state:
+          data.state
+            .trim()
+            .toUpperCase(),
+
+        address:
+          data.address?.trim() ||
+          null,
+
+        // ------------------------------
+        // DADOS PROFISSIONAIS
+        // ------------------------------
 
         crp_number:
-          data.crp_number,
+          data.crp_number.trim(),
 
         crp_region:
           data.crp_region,
 
         education:
-          data.education || null,
+          data.education?.trim() ||
+          null,
 
-        specializations:
-          data.specializations || [],
+        institution:
+          data.institution?.trim() ||
+          null,
 
-        approaches:
-          data.approaches || [],
+        graduation_year:
+          data.graduation_year
+            ? Number(data.graduation_year)
+            : null,
 
         experience:
-          data.experience || null,
+          data.experience?.trim() ||
+          null,
+
+        // ------------------------------
+        // ESPECIALIZAÇÕES
+        // ------------------------------
+
+        specializations:
+          Array.isArray(
+            data.specializations
+          )
+            ? data.specializations
+            : [],
+
+        approaches:
+          Array.isArray(
+            data.approaches
+          )
+            ? data.approaches
+            : [],
 
         topics:
-          data.themes || [],
+          Array.isArray(
+            data.themes
+          )
+            ? data.themes
+            : [],
 
-        modalities:
-          data.modalities || [],
+        audience:
+          Array.isArray(
+            data.audience
+          )
+            ? data.audience
+            : [],
 
         languages:
-          data.languages || [],
+          Array.isArray(
+            data.languages
+          )
+            ? data.languages
+            : [],
 
-        city:
-          data.city,
+        modalities:
+          Array.isArray(
+            data.modalities
+          )
+            ? data.modalities
+            : [],
 
-        state:
-          data.state,
+        // ------------------------------
+        // ATENDIMENTO
+        // ------------------------------
 
         session_price:
           Number(data.price) || 0,
 
+        session_duration:
+          Number(
+            data.session_duration
+          ) || 50,
+
+        available_days:
+          Array.isArray(
+            data.available_days
+          )
+            ? data.available_days
+            : [],
+
+        available_slots:
+          Array.isArray(
+            data.available_slots
+          )
+            ? data.available_slots
+            : [],
+
+        cancellation_policy:
+          data.cancellation_policy?.trim() ||
+          null,
+
+        // ------------------------------
+        // PERFIL
+        // ------------------------------
+
         bio:
-          data.about || null,
+          data.about?.trim() ||
+          null,
 
         profile_photo_url:
           data.photo_url,
 
         presentation_video_url:
-          data.video_url || null,
+          data.video_url ||
+          null,
+
+        // ------------------------------
+        // STATUS
+        // ------------------------------
 
         presentation_video_status:
           data.video_url
@@ -494,19 +711,118 @@ export default function ProfessionalOnboarding() {
         verification_status:
           'pending',
 
+        /*
+         * Nunca publica automaticamente.
+         */
         public_profile:
           false,
       };
 
+      console.log(
+        'Salvando psicólogo:',
+        psychologistData
+      );
+
+      // ================================
+      // 4. PROCURA CADASTRO EXISTENTE
+      // ================================
+
       const {
-        error: insertError,
+        data: existingPsychologist,
+        error: existingError,
       } = await supabase
         .from('psychologists')
-        .insert([psychologistData]);
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (insertError) {
-        throw insertError;
+      if (existingError) {
+        throw existingError;
       }
+
+      // ================================
+      // 5. SALVA NO BANCO
+      // ================================
+
+      let saveError = null;
+
+      if (
+        existingPsychologist?.id
+      ) {
+        /*
+         * JÁ EXISTE:
+         * atualiza o cadastro.
+         */
+
+        const {
+          error,
+        } = await supabase
+          .from('psychologists')
+          .update(
+            psychologistData
+          )
+          .eq(
+            'id',
+            existingPsychologist.id
+          )
+          .eq(
+            'user_id',
+            userId
+          );
+
+        saveError = error;
+
+      } else {
+        /*
+         * NÃO EXISTE:
+         * cria o cadastro.
+         */
+
+        const {
+          error,
+        } = await supabase
+          .from('psychologists')
+          .insert([
+            psychologistData,
+          ]);
+
+        saveError = error;
+      }
+
+      // ================================
+      // 6. TRATA ERROS
+      // ================================
+
+      if (saveError) {
+        console.error(
+          'Erro Supabase:',
+          saveError
+        );
+
+        if (
+          saveError.code ===
+          '42501'
+        ) {
+          throw new Error(
+            'O Supabase bloqueou o cadastro por causa das políticas de segurança (RLS). Verifique a política INSERT de psychologists.'
+          );
+        }
+
+        if (
+          saveError.code ===
+          '23505'
+        ) {
+          throw new Error(
+            'Este usuário já possui um cadastro profissional.'
+          );
+        }
+
+        throw saveError;
+      }
+
+      // ================================
+      // 7. SUCESSO
+      // ================================
 
       setDone(true);
 
@@ -520,6 +836,7 @@ export default function ProfessionalOnboarding() {
         error?.message ||
         'Não foi possível enviar o cadastro.'
       );
+
     } finally {
       setSubmitting(false);
     }
@@ -734,10 +1051,17 @@ export default function ProfessionalOnboarding() {
             type="button"
             onClick={() =>
               setStep((current) =>
-                Math.max(0, current - 1)
+                Math.max(
+                  0,
+                  current - 1
+                )
               )
             }
-            disabled={step === 0 || uploading}
+            disabled={
+              step === 0 ||
+              uploading ||
+              submitting
+            }
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted transition-all"
           >
 
@@ -747,7 +1071,8 @@ export default function ProfessionalOnboarding() {
 
           </button>
 
-          {step < STEPS.length - 1 ? (
+          {step <
+          STEPS.length - 1 ? (
 
             <button
               type="button"
@@ -756,10 +1081,12 @@ export default function ProfessionalOnboarding() {
                 setError('');
 
                 if (validate()) {
+
                   setStep(
                     (current) =>
                       current + 1
                   );
+
                 } else {
 
                   if (step === 0) {
@@ -789,7 +1116,8 @@ export default function ProfessionalOnboarding() {
               }}
               disabled={
                 !validate() ||
-                uploading
+                uploading ||
+                submitting
               }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
@@ -874,7 +1202,9 @@ function StepPersonal({ data, set }) {
           hint="Como quer ser conhecido(a)"
         >
           <TextInput
-            value={data.professional_name}
+            value={
+              data.professional_name
+            }
             onChange={(e) =>
               set(
                 'professional_name',
@@ -964,7 +1294,10 @@ function StepPersonal({ data, set }) {
    DADOS PROFISSIONAIS
 ===================================================== */
 
-function StepProfessional({ data, set }) {
+function StepProfessional({
+  data,
+  set,
+}) {
   return (
     <div className="space-y-5">
 
@@ -1030,7 +1363,9 @@ function StepProfessional({ data, set }) {
         <Field label="Ano de formação">
           <TextInput
             type="number"
-            value={data.graduation_year}
+            value={
+              data.graduation_year
+            }
             onChange={(e) =>
               set(
                 'graduation_year',
@@ -1062,7 +1397,9 @@ function StepProfessional({ data, set }) {
       >
         <ChipGroup
           options={SPEC_OPTS}
-          value={data.specializations}
+          value={
+            data.specializations
+          }
           onChange={(value) =>
             set(
               'specializations',
@@ -1072,12 +1409,12 @@ function StepProfessional({ data, set }) {
         />
       </Field>
 
-      <Field
-        label="Abordagens"
-      >
+      <Field label="Abordagens">
         <ChipGroup
           options={APPROACH_OPTS}
-          value={data.approaches}
+          value={
+            data.approaches
+          }
           onChange={(value) =>
             set(
               'approaches',
@@ -1096,7 +1433,10 @@ function StepProfessional({ data, set }) {
    ATENDIMENTO
 ===================================================== */
 
-function StepService({ data, set }) {
+function StepService({
+  data,
+  set,
+}) {
   return (
     <div className="space-y-5">
 
@@ -1110,7 +1450,9 @@ function StepService({ data, set }) {
             'online',
             'presencial',
           ]}
-          value={data.modalities}
+          value={
+            data.modalities
+          }
           onChange={(value) =>
             set(
               'modalities',
@@ -1123,7 +1465,9 @@ function StepService({ data, set }) {
       <Field label="Público">
         <ChipGroup
           options={AUDIENCE_OPTS}
-          value={data.audience}
+          value={
+            data.audience
+          }
           onChange={(value) =>
             set(
               'audience',
@@ -1136,7 +1480,9 @@ function StepService({ data, set }) {
       <Field label="Idiomas">
         <ChipGroup
           options={LANG_OPTS}
-          value={data.languages}
+          value={
+            data.languages
+          }
           onChange={(value) =>
             set(
               'languages',
@@ -1149,7 +1495,9 @@ function StepService({ data, set }) {
       <Field label="Temas">
         <ChipGroup
           options={THEME_OPTS}
-          value={data.themes}
+          value={
+            data.themes
+          }
           onChange={(value) =>
             set(
               'themes',
@@ -1177,7 +1525,9 @@ function StepService({ data, set }) {
 
         <Field label="Duração da sessão">
           <SelectField
-            value={String(data.session_duration)}
+            value={String(
+              data.session_duration
+            )}
             onChange={(value) =>
               set(
                 'session_duration',
@@ -1214,7 +1564,9 @@ function StepService({ data, set }) {
       <Field label="Dias disponíveis">
         <ChipGroup
           options={DAY_OPTS}
-          value={data.available_days}
+          value={
+            data.available_days
+          }
           onChange={(value) =>
             set(
               'available_days',
@@ -1227,7 +1579,9 @@ function StepService({ data, set }) {
       <Field label="Horários disponíveis">
         <ChipGroup
           options={SLOT_OPTS}
-          value={data.available_slots}
+          value={
+            data.available_slots
+          }
           onChange={(value) =>
             set(
               'available_slots',
@@ -1470,7 +1824,9 @@ function StepVideo({
    REVISÃO
 ===================================================== */
 
-function StepReview({ data }) {
+function StepReview({
+  data,
+}) {
   return (
     <div className="space-y-6">
 
@@ -1502,6 +1858,11 @@ function StepReview({ data }) {
         />
 
         <ReviewItem
+          label="Telefone"
+          value={data.phone}
+        />
+
+        <ReviewItem
           label="Localização"
           value={`${data.city} - ${data.state}`}
         />
@@ -1509,6 +1870,16 @@ function StepReview({ data }) {
         <ReviewItem
           label="CRP"
           value={`CRP ${data.crp_region} - ${data.crp_number}`}
+        />
+
+        <ReviewItem
+          label="Formação"
+          value={data.education}
+        />
+
+        <ReviewItem
+          label="Experiência"
+          value={data.experience}
         />
 
         <ReviewItem
@@ -1528,6 +1899,14 @@ function StepReview({ data }) {
         />
 
         <ReviewItem
+          label="Idiomas"
+          value={
+            data.languages?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
           label="Especializações"
           value={
             data.specializations?.join(', ') ||
@@ -1540,6 +1919,32 @@ function StepReview({ data }) {
           value={
             data.approaches?.join(', ') ||
             'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Temas"
+          value={
+            data.themes?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Valor"
+          value={
+            data.price
+              ? `R$ ${data.price}`
+              : 'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Duração"
+          value={
+            data.session_duration
+              ? `${data.session_duration} minutos`
+              : 'Não informado'
           }
         />
 
