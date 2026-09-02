@@ -1,11 +1,20 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import {
+  UserPlus,
+  Mail,
+  Lock,
+  Loader2,
+} from "lucide-react";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
@@ -15,24 +24,88 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError("Informe seu e-mail.");
       return;
     }
+
+    if (password.length < 6) {
+      setError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("As senhas não coincidem.");
+      return;
+    }
+
     setLoading(true);
+
     try {
-      await base44.auth.register({ email, password });
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            full_name: "",
+            role: "patient",
+          },
+        },
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      /*
+       * Quando a confirmação de e-mail está ativada no Supabase,
+       * o usuário recebe um código por e-mail.
+       */
+      if (data.user && !data.session) {
+        setEmail(normalizedEmail);
+        setShowOtp(true);
+
+        toast({
+          title: "Código enviado",
+          description:
+            "Confira seu e-mail para confirmar sua conta.",
+        });
+
+        return;
+      }
+
+      /*
+       * Se a confirmação de e-mail estiver desativada,
+       * o Supabase já cria a sessão.
+       */
+      if (data.session) {
+        window.location.href = safeReturnTo();
+        return;
+      }
+
+      setEmail(normalizedEmail);
       setShowOtp(true);
     } catch (err) {
-      setError(err.message || "Registration failed");
+      console.error("Erro ao cadastrar:", err);
+
+      setError(
+        err?.message ||
+          "Não foi possível criar sua conta."
+      );
     } finally {
       setLoading(false);
     }
@@ -40,15 +113,46 @@ export default function Register() {
 
   const handleVerify = async () => {
     setError("");
+
+    if (otpCode.length !== 6) {
+      setError("Digite o código de 6 dígitos.");
+      return;
+    }
+
     setLoading(true);
+
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
+      const { data, error: verifyError } =
+        await supabase.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token: otpCode,
+          type: "signup",
+        });
+
+      if (verifyError) {
+        throw verifyError;
       }
+
+      if (!data.session) {
+        throw new Error(
+          "E-mail confirmado, mas não foi possível iniciar sua sessão."
+        );
+      }
+
+      toast({
+        title: "Conta confirmada!",
+        description:
+          "Sua conta foi criada com sucesso.",
+      });
+
       window.location.href = safeReturnTo();
     } catch (err) {
-      setError(err.message || "Invalid verification code");
+      console.error("Erro ao verificar código:", err);
+
+      setError(
+        err?.message ||
+          "Código inválido ou expirado."
+      );
     } finally {
       setLoading(false);
     }
@@ -56,33 +160,88 @@ export default function Register() {
 
   const handleResend = async () => {
     setError("");
+    setLoading(true);
+
     try {
-      await base44.auth.resendOtp(email);
+      const { error: resendError } =
+        await supabase.auth.resend({
+          type: "signup",
+          email: email.trim().toLowerCase(),
+        });
+
+      if (resendError) {
+        throw resendError;
+      }
+
       toast({
-        title: "Code sent",
-        description: "Check your email for the new code.",
+        title: "Código reenviado",
+        description:
+          "Confira seu e-mail para receber o novo código.",
       });
     } catch (err) {
-      setError(err.message || "Failed to resend code");
+      console.error(
+        "Erro ao reenviar código:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Não foi possível reenviar o código."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", safeReturnTo());
+  const handleGoogle = async () => {
+    setError("");
+
+    try {
+      const returnTo = safeReturnTo();
+
+      const redirectUrl =
+        `${window.location.origin}/login` +
+        (returnTo !== "/"
+          ? `?returnTo=${encodeURIComponent(returnTo)}`
+          : "");
+
+      const { error: oauthError } =
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: redirectUrl,
+          },
+        });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+    } catch (err) {
+      console.error(
+        "Erro no login com Google:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Não foi possível continuar com o Google."
+      );
+    }
   };
 
   if (showOtp) {
     return (
       <AuthLayout
         icon={Mail}
-        title="Verify your email"
-        subtitle={`We sent a code to ${email}`}
+        title="Confirme seu e-mail"
+        subtitle={`Enviamos um código para ${email}`}
       >
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
             {error}
           </div>
         )}
+
         <div className="flex justify-center mb-6">
           <InputOTP
             maxLength={6}
@@ -101,26 +260,48 @@ export default function Register() {
             </InputOTPGroup>
           </InputOTP>
         </div>
+
         <Button
           className="w-full h-12 font-medium"
           onClick={handleVerify}
-          disabled={loading || otpCode.length < 6}
+          disabled={
+            loading ||
+            otpCode.length !== 6
+          }
         >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Verifying...
+              Verificando...
             </>
           ) : (
-            "Verify"
+            "Confirmar e-mail"
           )}
         </Button>
+
         <p className="text-center text-sm text-muted-foreground mt-4">
-          Didn't receive the code?{" "}
-          <button onClick={handleResend} className="text-primary font-medium hover:underline">
-            Resend
+          Não recebeu o código?{" "}
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={loading}
+            className="text-primary font-medium hover:underline disabled:opacity-50"
+          >
+            Reenviar
           </button>
         </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowOtp(false);
+            setOtpCode("");
+            setError("");
+          }}
+          className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground"
+        >
+          Voltar
+        </button>
       </AuthLayout>
     );
   }
@@ -128,16 +309,23 @@ export default function Register() {
   return (
     <AuthLayout
       icon={UserPlus}
-      title="Create your account"
-      subtitle="Sign up to get started"
+      title="Crie sua conta"
+      subtitle="Cadastre-se para começar"
       footer={
         <>
-          Already have an account?{" "}
+          Já possui uma conta?{" "}
           <Link
-            to={"/login" + (safeReturnTo() !== "/" ? "?returnTo=" + encodeURIComponent(safeReturnTo()) : "")}
+            to={
+              "/login" +
+              (safeReturnTo() !== "/"
+                ? `?returnTo=${encodeURIComponent(
+                    safeReturnTo()
+                  )}`
+                : "")
+            }
             className="text-primary font-medium hover:underline"
           >
-            Log in
+            Entrar
           </Link>
         </>
       }
@@ -146,17 +334,21 @@ export default function Register() {
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
         onClick={handleGoogle}
+        disabled={loading}
       >
         <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
+        Continuar com Google
       </Button>
 
       <div className="relative mb-6">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-border" />
         </div>
+
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-3 text-muted-foreground">or</span>
+          <span className="bg-card px-3 text-muted-foreground">
+            ou
+          </span>
         </div>
       </div>
 
@@ -166,64 +358,103 @@ export default function Register() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">
+            E-mail
+          </Label>
+
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Mail
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+
             <Input
               id="email"
               type="email"
               autoComplete="email"
               autoFocus
-              placeholder="you@example.com"
+              placeholder="voce@exemplo.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
               className="pl-10 h-12"
               required
             />
           </div>
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">
+            Senha
+          </Label>
+
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+
             <Input
               id="password"
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
               className="pl-10 h-12"
               required
+              minLength={6}
             />
           </div>
         </div>
+
         <div className="space-y-2">
-          <Label htmlFor="confirm">Confirm Password</Label>
+          <Label htmlFor="confirm">
+            Confirmar senha
+          </Label>
+
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+            <Lock
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+              aria-hidden="true"
+            />
+
             <Input
               id="confirm"
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) =>
+                setConfirmPassword(e.target.value)
+              }
               className="pl-10 h-12"
               required
+              minLength={6}
             />
           </div>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
+
+        <Button
+          type="submit"
+          className="w-full h-12 font-medium"
+          disabled={loading}
+        >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating account...
+              Criando conta...
             </>
           ) : (
-            "Create account"
+            "Criar conta"
           )}
         </Button>
       </form>
