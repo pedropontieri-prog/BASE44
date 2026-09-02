@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -19,23 +19,79 @@ export default function Login() {
 
   const returnTo = safeReturnTo();
 
+  /*
+   * Quando o Google termina a autenticação, o Supabase
+   * retorna para /login.
+   *
+   * Aqui verificamos se já existe uma sessão e,
+   * se existir, mandamos o usuário para o destino correto.
+   */
+  useEffect(() => {
+    let mounted = true;
+
+    const checkSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!mounted || !session?.user) {
+          return;
+        }
+
+        const destination =
+          returnTo && returnTo !== "/"
+            ? returnTo
+            : "/painel";
+
+        navigate(destination, { replace: true });
+      } catch (err) {
+        console.error("Erro ao verificar sessão:", err);
+      }
+    };
+
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        session?.user
+      ) {
+        const destination =
+          returnTo && returnTo !== "/"
+            ? returnTo
+            : "/painel";
+
+        navigate(destination, { replace: true });
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate, returnTo]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (loading) return;
 
     setError("");
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail || !password) {
-      setError("Digite seu e-mail e sua senha.");
-      return;
-    }
-
     setLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (!cleanEmail || !password) {
+        setError("Digite seu e-mail e sua senha.");
+        return;
+      }
+
       const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -50,13 +106,12 @@ export default function Login() {
         throw new Error("Não foi possível identificar o usuário.");
       }
 
-      /*
-       * Se existir uma página de destino, volta para ela.
-       * Caso contrário, envia o usuário para o painel.
-       */
-      navigate(returnTo || "/painel", {
-        replace: true,
-      });
+      const destination =
+        returnTo && returnTo !== "/"
+          ? returnTo
+          : "/painel";
+
+      navigate(destination, { replace: true });
     } catch (err) {
       console.error("Erro no login:", err);
 
@@ -74,17 +129,13 @@ export default function Login() {
         setError(
           "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
         );
-      } else if (
-        message.includes("too many requests") ||
-        message.includes("rate limit")
-      ) {
+      } else if (message.includes("too many requests")) {
         setError(
           "Muitas tentativas. Aguarde alguns minutos e tente novamente."
         );
       } else {
         setError(
-          err?.message ||
-            "Não foi possível entrar. Tente novamente."
+          err?.message || "Não foi possível entrar. Tente novamente."
         );
       }
     } finally {
@@ -100,10 +151,10 @@ export default function Login() {
 
     try {
       /*
-       * Depois do login com Google, o Supabase retorna
-       * para esta página.
+       * Depois do Google, voltamos para /login.
+       * O useEffect acima detecta a sessão e envia
+       * automaticamente para /painel.
        */
-
       const params =
         returnTo && returnTo !== "/"
           ? `?returnTo=${encodeURIComponent(returnTo)}`
@@ -127,8 +178,7 @@ export default function Login() {
       console.error("Erro no login com Google:", err);
 
       setError(
-        err?.message ||
-          "Não foi possível entrar com o Google."
+        err?.message || "Não foi possível entrar com o Google."
       );
 
       setLoading(false);
@@ -144,16 +194,16 @@ export default function Login() {
   return (
     <AuthLayout
       icon={LogIn}
-      title="Welcome back"
-      subtitle="Log in to your account"
+      title="Bem-vindo de volta"
+      subtitle="Faça login na sua conta."
       footer={
         <>
-          Don't have an account?{" "}
+          Não tem uma conta?{" "}
           <Link
             to={registerUrl}
             className="text-primary font-medium hover:underline"
           >
-            Create one
+            Crie uma.
           </Link>
         </>
       }
@@ -171,7 +221,7 @@ export default function Login() {
           <GoogleIcon className="w-5 h-5 mr-2" />
         )}
 
-        Continue with Google
+        Continuar com o Google
       </Button>
 
       <div className="relative mb-6">
@@ -181,7 +231,7 @@ export default function Login() {
 
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-card px-3 text-muted-foreground">
-            or
+            ou
           </span>
         </div>
       </div>
@@ -197,9 +247,7 @@ export default function Login() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="email">
-            Email
-          </Label>
+          <Label htmlFor="email">E-mail</Label>
 
           <div className="relative">
             <Mail
@@ -213,11 +261,9 @@ export default function Login() {
               type="email"
               autoComplete="email"
               autoFocus
-              placeholder="you@example.com"
+              placeholder="você@exemplo.com"
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
+              onChange={(e) => setEmail(e.target.value)}
               className="pl-10 h-12"
               disabled={loading}
               required
@@ -227,15 +273,13 @@ export default function Login() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">
-              Password
-            </Label>
+            <Label htmlFor="password">Senha</Label>
 
             <Link
               to="/forgot-password"
               className="text-xs text-primary hover:underline"
             >
-              Forgot password?
+              Esqueceu sua senha?
             </Link>
           </div>
 
@@ -252,9 +296,7 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) =>
-                setPassword(e.target.value)
-              }
+              onChange={(e) => setPassword(e.target.value)}
               className="pl-10 h-12"
               disabled={loading}
               required
@@ -270,10 +312,10 @@ export default function Login() {
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Logging in...
+              Entrando...
             </>
           ) : (
-            "Log in"
+            "Conecte-se"
           )}
         </Button>
       </form>
