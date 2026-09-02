@@ -99,7 +99,7 @@ export default function PatientDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-heading font-bold">
-            Olá, bem-vindo(a) de volta 👋
+            Olá, bem-vindo(a) de volta 
           </h1>
 
           <p className="text-muted-foreground mt-1">
