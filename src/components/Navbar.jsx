@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
 } from "lucide-react";
-import Logo from "./Logo";
 import { useAuth } from "@/lib/AuthContext";
 
 const navLinks = [
@@ -42,15 +41,6 @@ export default function Navbar() {
     setOpen(false);
   }, [location.pathname]);
 
-  /*
-   * Define qual painel o usuário deve acessar.
-   *
-   * Profissional:
-   * /painel-profissional
-   *
-   * Usuário comum:
-   * /painel
-   */
   const painelPath =
     user?.role === "psychologist"
       ? "/painel-profissional"
@@ -81,7 +71,11 @@ export default function Navbar() {
           className="flex items-center"
           aria-label="EntreNós início"
         >
-          <Logo />
+          <img
+            src="/logo.png"
+            alt="EntreNós"
+            className="h-10 w-auto object-contain"
+          />
         </Link>
 
         {/* MENU DESKTOP */}
@@ -101,7 +95,6 @@ export default function Navbar() {
             </Link>
           ))}
 
-          {/* SOU PROFISSIONAL APENAS PARA QUEM NÃO ESTÁ LOGADO */}
           {!isAuthenticated && (
             <Link
               to="/cadastro-profissional"
@@ -214,11 +207,10 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {/* MOBILE LOGADO */}
+            {/* USUÁRIO LOGADO */}
             {isAuthenticated ? (
               <div className="pt-3 border-t border-border space-y-1">
 
-                {/* PAINEL */}
                 <Link
                   to={painelPath}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
@@ -227,7 +219,6 @@ export default function Navbar() {
                   Meu painel
                 </Link>
 
-                {/* FAVORITOS */}
                 <Link
                   to="/favoritos"
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
@@ -236,7 +227,6 @@ export default function Navbar() {
                   Favoritos
                 </Link>
 
-                {/* NOTIFICAÇÕES */}
                 <Link
                   to="/notificacoes"
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
@@ -245,7 +235,6 @@ export default function Navbar() {
                   Notificações
                 </Link>
 
-                {/* SAIR */}
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -254,9 +243,10 @@ export default function Navbar() {
                   <LogOut size={18} />
                   Sair
                 </button>
+
               </div>
             ) : (
-              /* MOBILE NÃO LOGADO */
+              /* USUÁRIO NÃO LOGADO */
               <div className="pt-3 border-t border-border flex gap-3">
 
                 <Link
@@ -275,6 +265,7 @@ export default function Navbar() {
 
               </div>
             )}
+
           </div>
         </div>
       )}
