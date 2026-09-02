@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Loader2,
   X,
+  Upload,
 } from 'lucide-react';
 
 import PageShell from '@/components/PageShell';
@@ -179,10 +180,6 @@ export default function ProfessionalOnboarding() {
     loadUser();
   }, []);
 
-  /*
-   * Se já estiver logado, aproveita os dados da conta.
-   * Se não estiver logado, o formulário continua funcionando.
-   */
   const loadUser = async () => {
     try {
       const {
@@ -247,74 +244,112 @@ export default function ProfessionalOnboarding() {
   };
 
   /*
-   * UPLOAD PARA O SUPABASE STORAGE
+   * UPLOAD PARA O SUPABASE
+   *
+   * FOTO:
+   * máximo 150 MB
+   *
+   * VÍDEO:
+   * nenhum limite definido neste código.
+   * O limite fica por conta do Supabase Storage.
    */
   const upload = async (file, key) => {
     if (!file) return;
 
     setError('');
 
+    const MAX_PHOTO_SIZE =
+      150 * 1024 * 1024;
+
+    const PHOTO_TYPES = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+    ];
+
+    const VIDEO_TYPES = [
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
+    ];
+
     /*
-     * Limite da foto: 5 MB
+     * FOTO
      */
-    if (
-      key === 'photo_url' &&
-      file.size > 500 * 1024 * 1024
-    ) {
-      setError(
-        'A foto deve ter no máximo 5 MB.'
-      );
-      return;
+    if (key === 'photo_url') {
+      if (!PHOTO_TYPES.includes(file.type)) {
+        setError(
+          'Formato de foto não permitido. Envie JPG, PNG ou WEBP.'
+        );
+        return;
+      }
+
+      if (file.size > MAX_PHOTO_SIZE) {
+        setError(
+          'A foto deve ter no máximo 150 MB.'
+        );
+        return;
+      }
     }
 
     /*
-     * Limite do vídeo: 50 MB
+     * VÍDEO
+     *
+     * Não existe limite de tamanho aqui.
      */
-    if (
-      key === 'video_url' &&
-      file.size > 50 * 1024 * 1024
-    ) {
-      setError(
-        'O vídeo deve ter no máximo 50 MB.'
-      );
-      return;
+    if (key === 'video_url') {
+      if (!VIDEO_TYPES.includes(file.type)) {
+        setError(
+          'Formato de vídeo não permitido. Envie MP4, WEBM ou MOV.'
+        );
+        return;
+      }
     }
 
     setUploading(true);
 
     try {
       const extension =
-        file.name.split('.').pop()?.toLowerCase() ||
-        'file';
+        file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() || 'file';
 
       const fileName =
         `${crypto.randomUUID()}.${extension}`;
 
+      const folder =
+        key === 'photo_url'
+          ? 'professionals/photos'
+          : 'professionals/videos';
+
       const filePath =
-        `professionals/${fileName}`;
+        `${folder}/${fileName}`;
 
       /*
-       * ENVIA PARA O STORAGE
+       * UPLOAD
        */
-      const { error: uploadError } =
-        await supabase.storage
-          .from('profiles')
-          .upload(
-            filePath,
-            file,
-            {
-              cacheControl: '3600',
-              upsert: false,
-              contentType: file.type,
-            }
-          );
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from('profiles')
+        .upload(
+          filePath,
+          file,
+          {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type,
+          }
+        );
 
       if (uploadError) {
         throw uploadError;
       }
 
       /*
-       * PEGA A URL PÚBLICA
+       * URL PÚBLICA
        */
       const {
         data: publicUrlData,
@@ -349,7 +384,7 @@ export default function ProfessionalOnboarding() {
   };
 
   /*
-   * ENVIA O CADASTRO PARA O SUPABASE
+   * ENVIA O CADASTRO
    */
   const submit = async () => {
     setError('');
@@ -395,19 +430,10 @@ export default function ProfessionalOnboarding() {
     setSubmitting(true);
 
     try {
-      /*
-       * Verifica se existe usuário autenticado.
-       */
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      /*
-       * Dados preparados para a tabela psychologists.
-       *
-       * Os nomes abaixo seguem o padrão usado
-       * no restante do seu projeto.
-       */
       const psychologistData = {
         user_id: user?.id || null,
 
@@ -472,9 +498,6 @@ export default function ProfessionalOnboarding() {
           false,
       };
 
-      /*
-       * Salva no banco.
-       */
       const {
         error: insertError,
       } = await supabase
@@ -497,7 +520,6 @@ export default function ProfessionalOnboarding() {
         error?.message ||
         'Não foi possível enviar o cadastro.'
       );
-
     } finally {
       setSubmitting(false);
     }
@@ -715,7 +737,7 @@ export default function ProfessionalOnboarding() {
                 Math.max(0, current - 1)
               )
             }
-            disabled={step === 0}
+            disabled={step === 0 || uploading}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted transition-all"
           >
 
@@ -735,7 +757,8 @@ export default function ProfessionalOnboarding() {
 
                 if (validate()) {
                   setStep(
-                    (current) => current + 1
+                    (current) =>
+                      current + 1
                   );
                 } else {
 
@@ -764,7 +787,10 @@ export default function ProfessionalOnboarding() {
                   }
                 }
               }}
-              disabled={!validate()}
+              disabled={
+                !validate() ||
+                uploading
+              }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
 
@@ -779,7 +805,10 @@ export default function ProfessionalOnboarding() {
             <button
               type="button"
               onClick={submit}
-              disabled={submitting || uploading}
+              disabled={
+                submitting ||
+                uploading
+              }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
 
@@ -828,7 +857,6 @@ function StepPersonal({ data, set }) {
       <div className="grid sm:grid-cols-2 gap-4">
 
         <Field label="Nome completo *">
-
           <TextInput
             value={data.full_name}
             onChange={(e) =>
@@ -839,14 +867,12 @@ function StepPersonal({ data, set }) {
             }
             placeholder="Seu nome completo"
           />
-
         </Field>
 
         <Field
           label="Nome profissional"
           hint="Como quer ser conhecido(a)"
         >
-
           <TextInput
             value={data.professional_name}
             onChange={(e) =>
@@ -857,11 +883,9 @@ function StepPersonal({ data, set }) {
             }
             placeholder="Dra. Maria Silva"
           />
-
         </Field>
 
         <Field label="E-mail *">
-
           <TextInput
             type="email"
             value={data.email}
@@ -874,11 +898,9 @@ function StepPersonal({ data, set }) {
             placeholder="seuemail@exemplo.com"
             autoComplete="email"
           />
-
         </Field>
 
         <Field label="Telefone">
-
           <TextInput
             type="tel"
             value={data.phone}
@@ -890,11 +912,9 @@ function StepPersonal({ data, set }) {
             }
             placeholder="(11) 99999-9999"
           />
-
         </Field>
 
         <Field label="Cidade *">
-
           <TextInput
             value={data.city}
             onChange={(e) =>
@@ -905,11 +925,9 @@ function StepPersonal({ data, set }) {
             }
             placeholder="São Paulo"
           />
-
         </Field>
 
         <Field label="Estado *">
-
           <TextInput
             value={data.state}
             onChange={(e) =>
@@ -921,11 +939,9 @@ function StepPersonal({ data, set }) {
             placeholder="SP"
             maxLength={2}
           />
-
         </Field>
 
         <Field label="Gênero (opcional)">
-
           <TextInput
             value={data.gender}
             onChange={(e) =>
@@ -935,7 +951,6 @@ function StepPersonal({ data, set }) {
               )
             }
           />
-
         </Field>
 
       </div>
@@ -951,7 +966,7 @@ function StepPersonal({ data, set }) {
 
 function StepProfessional({ data, set }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
 
       <h2 className="font-heading font-semibold text-lg">
         Dados profissionais
@@ -960,7 +975,6 @@ function StepProfessional({ data, set }) {
       <div className="grid sm:grid-cols-2 gap-4">
 
         <Field label="Número do CRP *">
-
           <TextInput
             value={data.crp_number}
             onChange={(e) =>
@@ -971,11 +985,9 @@ function StepProfessional({ data, set }) {
             }
             placeholder="00000"
           />
-
         </Field>
 
         <Field label="Região do CRP *">
-
           <SelectField
             value={data.crp_region}
             onChange={(value) =>
@@ -987,11 +999,9 @@ function StepProfessional({ data, set }) {
             options={REGION_OPTS}
             placeholder="Selecione"
           />
-
         </Field>
 
         <Field label="Formação">
-
           <TextInput
             value={data.education}
             onChange={(e) =>
@@ -1002,11 +1012,9 @@ function StepProfessional({ data, set }) {
             }
             placeholder="Psicologia"
           />
-
         </Field>
 
         <Field label="Instituição">
-
           <TextInput
             value={data.institution}
             onChange={(e) =>
@@ -1015,13 +1023,13 @@ function StepProfessional({ data, set }) {
                 e.target.value
               )
             }
+            placeholder="Nome da instituição"
           />
-
         </Field>
 
         <Field label="Ano de formação">
-
           <TextInput
+            type="number"
             value={data.graduation_year}
             onChange={(e) =>
               set(
@@ -1029,15 +1037,29 @@ function StepProfessional({ data, set }) {
                 e.target.value
               )
             }
-            placeholder="2018"
+            placeholder="2020"
           />
+        </Field>
 
+        <Field label="Experiência">
+          <TextInput
+            value={data.experience}
+            onChange={(e) =>
+              set(
+                'experience',
+                e.target.value
+              )
+            }
+            placeholder="Ex.: 5 anos"
+          />
         </Field>
 
       </div>
 
-      <Field label="Especializações">
-
+      <Field
+        label="Especializações"
+        hint="Selecione as áreas em que atua"
+      >
         <ChipGroup
           options={SPEC_OPTS}
           value={data.specializations}
@@ -1048,11 +1070,11 @@ function StepProfessional({ data, set }) {
             )
           }
         />
-
       </Field>
 
-      <Field label="Abordagens terapêuticas">
-
+      <Field
+        label="Abordagens"
+      >
         <ChipGroup
           options={APPROACH_OPTS}
           value={data.approaches}
@@ -1063,83 +1085,6 @@ function StepProfessional({ data, set }) {
             )
           }
         />
-
-      </Field>
-
-      <Field label="Especialidades">
-
-        <ChipGroup
-          options={SPEC_OPTS}
-          value={data.specialties}
-          onChange={(value) =>
-            set(
-              'specialties',
-              value
-            )
-          }
-        />
-
-      </Field>
-
-      <Field label="Temas de atuação">
-
-        <ChipGroup
-          options={THEME_OPTS}
-          value={data.themes}
-          onChange={(value) =>
-            set(
-              'themes',
-              value
-            )
-          }
-        />
-
-      </Field>
-
-      <Field label="Público atendido">
-
-        <ChipGroup
-          options={AUDIENCE_OPTS}
-          value={data.audience}
-          onChange={(value) =>
-            set(
-              'audience',
-              value
-            )
-          }
-        />
-
-      </Field>
-
-      <Field label="Idiomas">
-
-        <ChipGroup
-          options={LANG_OPTS}
-          value={data.languages}
-          onChange={(value) =>
-            set(
-              'languages',
-              value
-            )
-          }
-        />
-
-      </Field>
-
-      <Field label="Experiência profissional">
-
-        <TextArea
-          value={data.experience}
-          onChange={(e) =>
-            set(
-              'experience',
-              e.target.value
-            )
-          }
-          rows={3}
-          placeholder="Conte sobre sua trajetória"
-        />
-
       </Field>
 
     </div>
@@ -1153,18 +1098,17 @@ function StepProfessional({ data, set }) {
 
 function StepService({ data, set }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
 
       <h2 className="font-heading font-semibold text-lg">
-        Atendimento
+        Como você atende
       </h2>
 
       <Field label="Modalidades *">
-
         <ChipGroup
           options={[
             'online',
-            'in_person',
+            'presencial',
           ]}
           value={data.modalities}
           onChange={(value) =>
@@ -1174,48 +1118,100 @@ function StepService({ data, set }) {
             )
           }
         />
+      </Field>
 
+      <Field label="Público">
+        <ChipGroup
+          options={AUDIENCE_OPTS}
+          value={data.audience}
+          onChange={(value) =>
+            set(
+              'audience',
+              value
+            )
+          }
+        />
+      </Field>
+
+      <Field label="Idiomas">
+        <ChipGroup
+          options={LANG_OPTS}
+          value={data.languages}
+          onChange={(value) =>
+            set(
+              'languages',
+              value
+            )
+          }
+        />
+      </Field>
+
+      <Field label="Temas">
+        <ChipGroup
+          options={THEME_OPTS}
+          value={data.themes}
+          onChange={(value) =>
+            set(
+              'themes',
+              value
+            )
+          }
+        />
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
 
-        <Field label="Valor da sessão (R$)">
-
+        <Field label="Valor da sessão">
           <TextInput
             type="number"
-            min="0"
             value={data.price}
             onChange={(e) =>
               set(
                 'price',
-                Number(e.target.value)
+                e.target.value
               )
             }
-            placeholder="200"
+            placeholder="150"
           />
-
         </Field>
 
-        <Field label="Duração (min)">
-
-          <TextInput
-            type="number"
-            min="1"
-            value={data.session_duration}
-            onChange={(e) =>
+        <Field label="Duração da sessão">
+          <SelectField
+            value={String(data.session_duration)}
+            onChange={(value) =>
               set(
                 'session_duration',
-                Number(e.target.value)
+                Number(value)
               )
             }
+            options={[
+              {
+                v: '30',
+                l: '30 minutos',
+              },
+              {
+                v: '40',
+                l: '40 minutos',
+              },
+              {
+                v: '50',
+                l: '50 minutos',
+              },
+              {
+                v: '60',
+                l: '60 minutos',
+              },
+              {
+                v: '90',
+                l: '90 minutos',
+              },
+            ]}
           />
-
         </Field>
 
       </div>
 
       <Field label="Dias disponíveis">
-
         <ChipGroup
           options={DAY_OPTS}
           value={data.available_days}
@@ -1226,11 +1222,9 @@ function StepService({ data, set }) {
             )
           }
         />
-
       </Field>
 
       <Field label="Horários disponíveis">
-
         <ChipGroup
           options={SLOT_OPTS}
           value={data.available_slots}
@@ -1241,41 +1235,9 @@ function StepService({ data, set }) {
             )
           }
         />
-
       </Field>
 
-      <Field label="Endereço (se presencial)">
-
-        <TextInput
-          value={data.address}
-          onChange={(e) =>
-            set(
-              'address',
-              e.target.value
-            )
-          }
-          placeholder="Rua, número, cidade"
-        />
-
-      </Field>
-
-      <Field label="Política de cancelamento">
-
-        <TextArea
-          value={data.cancellation_policy}
-          onChange={(e) =>
-            set(
-              'cancellation_policy',
-              e.target.value
-            )
-          }
-          rows={2}
-        />
-
-      </Field>
-
-      <Field label="Sobre mim">
-
+      <Field label="Sobre você">
         <TextArea
           value={data.about}
           onChange={(e) =>
@@ -1284,10 +1246,9 @@ function StepService({ data, set }) {
               e.target.value
             )
           }
-          rows={4}
-          placeholder="Apresente-se para seus pacientes"
+          placeholder="Conte um pouco sobre sua experiência e forma de trabalho..."
+          rows={5}
         />
-
       </Field>
 
     </div>
@@ -1305,131 +1266,91 @@ function StepPhoto({
   uploading,
   set,
 }) {
-  const removePhoto = () => {
-    set('photo_url', '');
-  };
-
   return (
     <div className="space-y-5">
 
-      <h2 className="font-heading font-semibold text-lg">
-        Foto profissional
-      </h2>
+      <div>
 
-      <p className="text-sm text-muted-foreground">
-        Adicione uma foto profissional para
-        aparecer no seu perfil.
-      </p>
+        <h2 className="font-heading font-semibold text-lg">
+          Sua foto profissional
+        </h2>
 
-      <div className="rounded-2xl border-2 border-dashed border-border p-6 text-center">
+        <p className="text-sm text-muted-foreground mt-1">
+          Escolha uma foto clara e profissional.
+        </p>
+
+      </div>
+
+      <div className="rounded-2xl border border-dashed border-border p-6 text-center">
 
         {data.photo_url ? (
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="space-y-4">
 
-            <div className="w-40 h-40 rounded-3xl overflow-hidden bg-muted">
+            <img
+              src={data.photo_url}
+              alt="Foto profissional"
+              className="w-40 h-40 rounded-3xl object-cover mx-auto"
+            />
 
-              <img
-                src={data.photo_url}
-                alt="Prévia da foto profissional"
-                className="w-full h-full object-cover"
-              />
-
-            </div>
-
-            <div className="flex gap-3">
-
-              <label className="px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-muted/70 cursor-pointer">
-
-                Trocar foto
-
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) =>
-                    upload(
-                      e.target.files?.[0],
-                      'photo_url'
-                    )
-                  }
-                  disabled={uploading}
-                />
-
-              </label>
-
-              <button
-                type="button"
-                onClick={removePhoto}
-                className="px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                Remover
-              </button>
-
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                set(
+                  'photo_url',
+                  ''
+                )
+              }
+              className="text-sm text-red-600 hover:underline"
+            >
+              Remover foto
+            </button>
 
           </div>
 
         ) : (
 
-          <label className="cursor-pointer flex flex-col items-center gap-3">
+          <label className="cursor-pointer block">
 
-            <div className="w-16 h-16 rounded-2xl gradient-brand-soft flex items-center justify-center text-primary">
+            <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
 
-              <Camera size={26} />
+              {uploading ? (
+                <Loader2
+                  size={28}
+                  className="animate-spin"
+                />
+              ) : (
+                <Camera size={28} />
+              )}
 
             </div>
 
-            <span className="text-sm font-medium">
-
+            <div className="font-semibold">
               {uploading
                 ? 'Enviando foto...'
-                : 'Enviar foto'}
+                : 'Selecionar foto'}
+            </div>
 
-            </span>
-
-            <span className="text-xs text-muted-foreground">
-              JPG, PNG ou WEBP · Máximo 5 MB
-            </span>
+            <p className="text-xs text-muted-foreground mt-2">
+              JPG, PNG ou WEBP · máximo 150 MB
+            </p>
 
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
               className="hidden"
+              disabled={uploading}
               onChange={(e) =>
                 upload(
                   e.target.files?.[0],
                   'photo_url'
                 )
               }
-              disabled={uploading}
             />
 
           </label>
 
         )}
-
-      </div>
-
-      <div className="bg-muted/40 rounded-xl p-4 text-xs text-muted-foreground space-y-1.5">
-
-        <p className="font-medium text-foreground">
-          Orientações
-        </p>
-
-        <p>
-          Envie uma foto recente, nítida e profissional.
-        </p>
-
-        <ul className="list-disc pl-4 space-y-0.5">
-
-          <li>Rosto visível</li>
-          <li>Boa iluminação</li>
-          <li>Sem filtros</li>
-          <li>Sem fotos de terceiros</li>
-          <li>Boa qualidade</li>
-
-        </ul>
 
       </div>
 
@@ -1451,102 +1372,87 @@ function StepVideo({
   return (
     <div className="space-y-5">
 
-      <h2 className="font-heading font-semibold text-lg">
+      <div>
 
-        Vídeo de apresentação
+        <h2 className="font-heading font-semibold text-lg">
+          Vídeo de apresentação
+        </h2>
 
-        <span className="text-xs font-normal text-muted-foreground">
-          {' '}(opcional)
-        </span>
+        <p className="text-sm text-muted-foreground mt-1">
+          Apresente-se brevemente aos pacientes.
+        </p>
 
-      </h2>
+      </div>
 
-      <p className="text-sm text-muted-foreground">
-        Apresente-se em até 60 segundos.
-        O vídeo passará por moderação antes
-        de aparecer publicamente.
-      </p>
-
-      <div className="rounded-2xl border-2 border-dashed border-border p-6 text-center">
+      <div className="rounded-2xl border border-dashed border-border p-6">
 
         {data.video_url ? (
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="space-y-4">
 
             <video
               src={data.video_url}
               controls
-              className="max-h-60 rounded-xl bg-black w-full"
+              className="w-full max-h-96 rounded-2xl bg-black"
             />
 
-            <div className="flex gap-3">
-
-              <label className="px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-muted/70 cursor-pointer">
-
-                Trocar vídeo
-
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm,video/quicktime"
-                  className="hidden"
-                  onChange={(e) =>
-                    upload(
-                      e.target.files?.[0],
-                      'video_url'
-                    )
-                  }
-                  disabled={uploading}
-                />
-
-              </label>
-
-              <button
-                type="button"
-                onClick={() =>
-                  set('video_url', '')
-                }
-                className="px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                Remover
-              </button>
-
-            </div>
+            <button
+              type="button"
+              onClick={() =>
+                set(
+                  'video_url',
+                  ''
+                )
+              }
+              className="text-sm text-red-600 hover:underline"
+            >
+              Remover vídeo
+            </button>
 
           </div>
 
         ) : (
 
-          <label className="cursor-pointer flex flex-col items-center gap-3">
+          <label className="cursor-pointer block text-center">
 
-            <div className="w-16 h-16 rounded-2xl gradient-brand-soft flex items-center justify-center text-primary">
+            <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
 
-              <Video size={26} />
+              {uploading ? (
+                <Loader2
+                  size={28}
+                  className="animate-spin"
+                />
+              ) : (
+                <Video size={28} />
+              )}
 
             </div>
 
-            <span className="text-sm font-medium">
-
+            <div className="font-semibold">
               {uploading
                 ? 'Enviando vídeo...'
-                : 'Enviar vídeo'}
+                : 'Selecionar vídeo'}
+            </div>
 
-            </span>
+            <p className="text-xs text-muted-foreground mt-2">
+              MP4, WEBM ou MOV
+            </p>
 
-            <span className="text-xs text-muted-foreground">
-              MP4, WEBM ou MOV · Máximo 50 MB
-            </span>
+            <p className="text-xs text-muted-foreground mt-1">
+              O limite é definido pelo Supabase Storage.
+            </p>
 
             <input
               type="file"
               accept="video/mp4,video/webm,video/quicktime"
               className="hidden"
+              disabled={uploading}
               onChange={(e) =>
                 upload(
                   e.target.files?.[0],
                   'video_url'
                 )
               }
-              disabled={uploading}
             />
 
           </label>
@@ -1565,145 +1471,145 @@ function StepVideo({
 ===================================================== */
 
 function StepReview({ data }) {
-  const rows = [
-    ['Nome', data.full_name],
-    [
-      'Nome profissional',
-      data.professional_name,
-    ],
-    ['E-mail', data.email],
-    ['Telefone', data.phone],
-    [
-      'CRP',
-      `${data.crp_region}/${data.crp_number}`,
-    ],
-    [
-      'Cidade',
-      `${data.city}/${data.state}`,
-    ],
-    ['Formação', data.education],
-    ['Instituição', data.institution],
-    [
-      'Abordagens',
-      (data.approaches || []).join(', '),
-    ],
-    [
-      'Especialidades',
-      (data.specialties || []).join(', '),
-    ],
-    [
-      'Temas',
-      (data.themes || []).join(', '),
-    ],
-    [
-      'Público',
-      (data.audience || []).join(', '),
-    ],
-    [
-      'Idiomas',
-      (data.languages || []).join(', '),
-    ],
-    [
-      'Modalidades',
-      (data.modalities || []).join(', '),
-    ],
-    [
-      'Valor',
-      data.price
-        ? `R$ ${data.price}`
-        : '—',
-    ],
-    [
-      'Duração',
-      `${data.session_duration} minutos`,
-    ],
-    [
-      'Dias',
-      (data.available_days || []).join(', '),
-    ],
-    [
-      'Horários',
-      (data.available_slots || []).join(', '),
-    ],
-    [
-      'Foto',
-      data.photo_url
-        ? 'Enviada'
-        : '—',
-    ],
-    [
-      'Vídeo',
-      data.video_url
-        ? 'Enviado'
-        : 'Não enviado',
-    ],
-  ];
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
 
-      <h2 className="font-heading font-semibold text-lg">
-        Revise suas informações
-      </h2>
+      <div>
 
-      <p className="text-sm text-muted-foreground">
-        Confira tudo antes de enviar para
-        verificação.
-      </p>
+        <h2 className="font-heading font-semibold text-lg">
+          Revise seu cadastro
+        </h2>
 
-      <div className="rounded-2xl bg-muted/40 divide-y divide-border">
-
-        {rows.map(([key, value]) =>
-          value ? (
-
-            <div
-              key={key}
-              className="flex justify-between gap-4 px-4 py-2.5 text-sm"
-            >
-
-              <span className="text-muted-foreground">
-                {key}
-              </span>
-
-              <span className="font-medium text-right break-all">
-                {value}
-              </span>
-
-            </div>
-
-          ) : null
-        )}
+        <p className="text-sm text-muted-foreground mt-1">
+          Confira as informações antes de enviar.
+        </p>
 
       </div>
 
-      {data.photo_url && (
-        <div className="flex justify-center pt-2">
+      <div className="space-y-4">
 
-          <img
-            src={data.photo_url}
-            alt="Foto profissional"
-            className="w-24 h-24 object-cover rounded-2xl"
-          />
-
-        </div>
-      )}
-
-      <div className="flex items-start gap-2 text-xs text-muted-foreground bg-violet-soft/40 rounded-xl p-3">
-
-        <ShieldCheck
-          size={14}
-          className="shrink-0 mt-0.5 text-primary"
+        <ReviewItem
+          label="Nome"
+          value={
+            data.professional_name ||
+            data.full_name
+          }
         />
 
-        <span>
-          Seu perfil será analisado pela equipe
-          EntreNós. Após a aprovação, ficará
-          visível para pacientes com o selo
-          de verificação.
-        </span>
+        <ReviewItem
+          label="E-mail"
+          value={data.email}
+        />
+
+        <ReviewItem
+          label="Localização"
+          value={`${data.city} - ${data.state}`}
+        />
+
+        <ReviewItem
+          label="CRP"
+          value={`CRP ${data.crp_region} - ${data.crp_number}`}
+        />
+
+        <ReviewItem
+          label="Modalidades"
+          value={
+            data.modalities?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Público"
+          value={
+            data.audience?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Especializações"
+          value={
+            data.specializations?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Abordagens"
+          value={
+            data.approaches?.join(', ') ||
+            'Não informado'
+          }
+        />
+
+        <ReviewItem
+          label="Foto"
+          value={
+            data.photo_url
+              ? 'Enviada ✓'
+              : 'Não enviada'
+          }
+        />
+
+        <ReviewItem
+          label="Vídeo"
+          value={
+            data.video_url
+              ? 'Enviado ✓'
+              : 'Não enviado'
+          }
+        />
+
+      </div>
+
+      <div className="rounded-2xl bg-muted/50 p-4 text-sm">
+
+        <div className="flex gap-3">
+
+          <ShieldCheck
+            size={20}
+            className="shrink-0"
+          />
+
+          <p>
+            Seu cadastro será analisado pela
+            equipe antes que o perfil seja
+            disponibilizado publicamente.
+          </p>
+
+        </div>
 
       </div>
 
     </div>
   );
 }
+
+
+/* =====================================================
+   ITEM DE REVISÃO
+===================================================== */
+
+function ReviewItem({
+  label,
+  value,
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-border pb-3">
+
+      <span className="text-sm font-medium">
+        {label}
+      </span>
+
+      <span className="text-sm text-muted-foreground sm:text-right">
+        {value || 'Não informado'}
+      </span>
+
+    </div>
+  );
+}
+
+Atenção: esse código remove o limite de tamanho do vídeo somente do frontend. Se o Supabase estiver configurado, por exemplo, para 50 MB, um vídeo de 100 MB continuará sendo recusado pelo Storage.
+
+Para deixar realmente no maior limite que o seu Supabase permite, precisamos conferir a configuração do Storage → File size limit no seu projeto.
