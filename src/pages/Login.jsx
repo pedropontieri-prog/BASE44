@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 export default function Login() {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,13 +21,23 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError("");
     setLoading(true);
 
     try {
-      const { error: loginError } =
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (!cleanEmail || !password) {
+        setError("Digite seu e-mail e sua senha.");
+        return;
+      }
+
+      const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
-          email: email.trim(),
+          email: cleanEmail,
           password,
         });
 
@@ -33,22 +45,43 @@ export default function Login() {
         throw loginError;
       }
 
-      window.location.href = returnTo;
+      if (!data?.user) {
+        throw new Error("Não foi possível identificar o usuário.");
+      }
+
+      /*
+       * O AuthContext recebe o evento SIGNED_IN
+       * automaticamente através do onAuthStateChange.
+       *
+       * Usamos React Router para navegar sem recarregar
+       * toda a aplicação.
+       */
+      navigate(returnTo || "/", { replace: true });
     } catch (err) {
       console.error("Erro no login:", err);
 
+      const message = String(err?.message || "").toLowerCase();
+
       if (
-        err?.message?.toLowerCase().includes("invalid login credentials")
+        message.includes("invalid login credentials") ||
+        message.includes("invalid login")
       ) {
         setError("E-mail ou senha incorretos.");
       } else if (
-        err?.message?.toLowerCase().includes("email not confirmed")
+        message.includes("email not confirmed") ||
+        message.includes("email_not_confirmed")
       ) {
         setError(
           "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
         );
+      } else if (message.includes("too many requests")) {
+        setError(
+          "Muitas tentativas. Aguarde alguns minutos e tente novamente."
+        );
       } else {
-        setError(err?.message || "Não foi possível entrar.");
+        setError(
+          err?.message || "Não foi possível entrar. Tente novamente."
+        );
       }
     } finally {
       setLoading(false);
@@ -56,15 +89,25 @@ export default function Login() {
   };
 
   const handleGoogle = async () => {
+    if (loading) return;
+
     setError("");
     setLoading(true);
 
     try {
-      const redirectUrl =
-        `${window.location.origin}/login` +
-        (returnTo !== "/"
+      /*
+       * Depois que o Google autenticar, o Supabase retorna
+       * para /login.
+       *
+       * O returnTo é preservado na URL para podermos
+       * continuar o fluxo depois da autenticação.
+       */
+      const params =
+        returnTo && returnTo !== "/"
           ? `?returnTo=${encodeURIComponent(returnTo)}`
-          : "");
+          : "";
+
+      const redirectUrl = `${window.location.origin}/login${params}`;
 
       const { error: googleError } =
         await supabase.auth.signInWithOAuth({
@@ -77,14 +120,28 @@ export default function Login() {
       if (googleError) {
         throw googleError;
       }
+
+      /*
+       * O navegador será redirecionado para o Google.
+       * Não desligamos o loading aqui porque a página
+       * normalmente será substituída pelo fluxo OAuth.
+       */
     } catch (err) {
       console.error("Erro no login com Google:", err);
+
       setError(
         err?.message || "Não foi possível entrar com o Google."
       );
+
       setLoading(false);
     }
   };
+
+  const registerUrl =
+    "/register" +
+    (returnTo && returnTo !== "/"
+      ? `?returnTo=${encodeURIComponent(returnTo)}`
+      : "");
 
   return (
     <AuthLayout
@@ -95,13 +152,7 @@ export default function Login() {
         <>
           Don't have an account?{" "}
           <Link
-            to={
-              "/register" +
-              (returnTo !== "/"
-                ? "?returnTo=" +
-                  encodeURIComponent(returnTo)
-                : "")
-            }
+            to={registerUrl}
             className="text-primary font-medium hover:underline"
           >
             Create one
@@ -110,6 +161,7 @@ export default function Login() {
       }
     >
       <Button
+        type="button"
         variant="outline"
         className="w-full h-12 text-sm font-medium mb-6"
         onClick={handleGoogle}
@@ -137,7 +189,10 @@ export default function Login() {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div
+          role="alert"
+          className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"
+        >
           {error}
         </div>
       )}
@@ -154,6 +209,7 @@ export default function Login() {
 
             <Input
               id="email"
+              name="email"
               type="email"
               autoComplete="email"
               autoFocus
@@ -161,6 +217,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="pl-10 h-12"
+              disabled={loading}
               required
             />
           </div>
@@ -186,12 +243,14 @@ export default function Login() {
 
             <Input
               id="password"
+              name="password"
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="pl-10 h-12"
+              disabled={loading}
               required
             />
           </div>
