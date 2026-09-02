@@ -168,29 +168,27 @@ const DEFAULTS = {
 export default function ProfessionalOnboarding() {
   const [step, setStep] = useState(0);
   const [data, setData] = useState(DEFAULTS);
+
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  /*
-   * Se existir usuário logado, aproveita os dados dele.
-   * Caso não exista, o formulário continua funcionando normalmente.
-   */
   useEffect(() => {
     base44.auth
       .me()
       .then((u) => {
         if (!u) return;
 
-        setData((d) => ({
-          ...d,
-          email: u.email || d.email,
-          full_name: u.full_name || d.full_name || '',
+        setData((current) => ({
+          ...current,
+          email: u.email || current.email,
+          full_name:
+            u.full_name || current.full_name || '',
         }));
       })
       .catch(() => {
-        // Usuário não autenticado.
-        // O cadastro profissional pode continuar normalmente.
+        // Usuário não está logado.
+        // O formulário continua funcionando.
       });
   }, []);
 
@@ -231,20 +229,52 @@ export default function ProfessionalOnboarding() {
     return true;
   };
 
+  /*
+   * UPLOAD DE ARQUIVO
+   *
+   * Esta versão permite selecionar o arquivo
+   * e mostrar a prévia imediatamente.
+   */
   const upload = async (file, key) => {
     if (!file) return;
+
+    // Limita tamanho da foto
+    if (
+      key === 'photo_url' &&
+      file.size > 5 * 1024 * 1024
+    ) {
+      alert('A foto deve ter no máximo 5 MB.');
+      return;
+    }
+
+    // Limita tamanho do vídeo
+    if (
+      key === 'video_url' &&
+      file.size > 50 * 1024 * 1024
+    ) {
+      alert('O vídeo deve ter no máximo 50 MB.');
+      return;
+    }
 
     setUploading(true);
 
     try {
-      const { file_url } =
-        await base44.integrations.Core.UploadFile({
-          file,
-        });
+      /*
+       * Cria uma URL temporária para mostrar
+       * a imagem/vídeo selecionado.
+       */
+      const file_url = URL.createObjectURL(file);
 
       set(key, file_url);
     } catch (error) {
-      console.error('Erro ao enviar arquivo:', error);
+      console.error(
+        'Erro ao carregar arquivo:',
+        error
+      );
+
+      alert(
+        'Não foi possível carregar o arquivo.'
+      );
     } finally {
       setUploading(false);
     }
@@ -253,42 +283,85 @@ export default function ProfessionalOnboarding() {
   const submit = async () => {
     if (!data.email.trim()) {
       alert('Informe seu e-mail.');
+      setStep(0);
+      return;
+    }
+
+    if (!data.full_name.trim()) {
+      alert('Informe seu nome completo.');
+      setStep(0);
+      return;
+    }
+
+    if (!data.crp_number.trim()) {
+      alert('Informe seu número do CRP.');
+      setStep(1);
+      return;
+    }
+
+    if (!data.crp_region) {
+      alert('Selecione a região do CRP.');
+      setStep(1);
+      return;
+    }
+
+    if (!data.photo_url) {
+      alert('Envie uma foto profissional.');
+      setStep(3);
       return;
     }
 
     setSubmitting(true);
 
     try {
+      /*
+       * Mantém a estrutura atual do projeto.
+       */
       await base44.entities.Psychologist.create({
         ...data,
+
         verification_status: 'pending',
+
         video_status: data.video_url
           ? 'pending'
           : 'approved',
+
         rating: 5,
       });
 
       setDone(true);
+
     } catch (error) {
-      console.error('Erro ao cadastrar profissional:', error);
+      console.error(
+        'Erro ao cadastrar profissional:',
+        error
+      );
+
       alert(
         'Não foi possível enviar o cadastro. Verifique os dados e tente novamente.'
       );
+
     } finally {
       setSubmitting(false);
     }
   };
 
+  /*
+   * TELA DE SUCESSO
+   */
   if (done) {
     return (
       <PageShell>
+
         <div className="max-w-xl mx-auto px-4 pt-20 pb-20 text-center">
 
           <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6 animate-scale-in">
+
             <Check
               size={40}
               className="text-emerald-600"
             />
+
           </div>
 
           <h1 className="text-2xl font-heading font-bold">
@@ -296,10 +369,10 @@ export default function ProfessionalOnboarding() {
           </h1>
 
           <p className="text-muted-foreground mt-3">
-            Recebemos seu perfil. Nossa equipe vai revisar
-            seu CRP e suas informações profissionais.
-            Você receberá uma notificação quando for
-            aprovado(a).
+            Recebemos seu perfil. Nossa equipe vai
+            revisar seu CRP e suas informações
+            profissionais. Você receberá uma
+            notificação quando for aprovado(a).
           </p>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
@@ -319,7 +392,9 @@ export default function ProfessionalOnboarding() {
             </Link>
 
           </div>
+
         </div>
+
       </PageShell>
     );
   }
@@ -328,6 +403,8 @@ export default function ProfessionalOnboarding() {
     <PageShell>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
+
+        {/* CABEÇALHO */}
 
         <div className="text-center mb-8">
 
@@ -341,7 +418,7 @@ export default function ProfessionalOnboarding() {
 
         </div>
 
-        {/* PROGRESSO */}
+        {/* ETAPAS */}
 
         <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2 gap-1">
 
@@ -364,11 +441,13 @@ export default function ProfessionalOnboarding() {
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
+
                   {i < step ? (
                     <Check size={16} />
                   ) : (
                     <Icon size={16} />
                   )}
+
                 </div>
 
                 <span
@@ -393,11 +472,12 @@ export default function ProfessionalOnboarding() {
 
               </div>
             );
+
           })}
 
         </div>
 
-        {/* CONTEÚDO */}
+        {/* CARD */}
 
         <div
           className="card-elevated p-6 sm:p-8 animate-fade-in"
@@ -442,12 +522,14 @@ export default function ProfessionalOnboarding() {
           )}
 
           {step === 5 && (
-            <StepReview data={data} />
+            <StepReview
+              data={data}
+            />
           )}
 
         </div>
 
-        {/* BOTÕES */}
+        {/* NAVEGAÇÃO */}
 
         <div className="mt-6 flex items-center justify-between">
 
@@ -461,8 +543,11 @@ export default function ProfessionalOnboarding() {
             disabled={step === 0}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted transition-all"
           >
+
             <ArrowLeft size={16} />
+
             Voltar
+
           </button>
 
           {step < STEPS.length - 1 ? (
@@ -471,14 +556,19 @@ export default function ProfessionalOnboarding() {
               type="button"
               onClick={() => {
                 if (validate()) {
-                  setStep((current) => current + 1);
+                  setStep(
+                    (current) => current + 1
+                  );
                 }
               }}
               disabled={!validate()}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
+
               Continuar
+
               <ArrowRight size={16} />
+
             </button>
 
           ) : (
@@ -517,9 +607,10 @@ export default function ProfessionalOnboarding() {
   );
 }
 
-/* =========================
-   DADOS PESSOAIS
-========================= */
+
+/* =====================================================
+   ETAPA 1 — DADOS PESSOAIS
+===================================================== */
 
 function StepPersonal({ data, set }) {
   return (
@@ -532,19 +623,25 @@ function StepPersonal({ data, set }) {
       <div className="grid sm:grid-cols-2 gap-4">
 
         <Field label="Nome completo *">
+
           <TextInput
             value={data.full_name}
             onChange={(e) =>
-              set('full_name', e.target.value)
+              set(
+                'full_name',
+                e.target.value
+              )
             }
             placeholder="Seu nome completo"
           />
+
         </Field>
 
         <Field
           label="Nome profissional"
           hint="Como quer ser conhecido(a)"
         >
+
           <TextInput
             value={data.professional_name}
             onChange={(e) =>
@@ -555,71 +652,97 @@ function StepPersonal({ data, set }) {
             }
             placeholder="Dra. Maria Silva"
           />
+
         </Field>
 
-        {/* CORREÇÃO PRINCIPAL: E-MAIL AGORA É EDITÁVEL */}
-
         <Field label="E-mail *">
+
           <TextInput
             value={data.email}
             onChange={(e) =>
-              set('email', e.target.value)
+              set(
+                'email',
+                e.target.value
+              )
             }
             type="email"
             placeholder="seuemail@exemplo.com"
             autoComplete="email"
           />
+
         </Field>
 
         <Field label="Telefone">
+
           <TextInput
             value={data.phone}
             onChange={(e) =>
-              set('phone', e.target.value)
+              set(
+                'phone',
+                e.target.value
+              )
             }
             placeholder="(11) 99999-9999"
             type="tel"
           />
+
         </Field>
 
         <Field label="Cidade *">
+
           <TextInput
             value={data.city}
             onChange={(e) =>
-              set('city', e.target.value)
+              set(
+                'city',
+                e.target.value
+              )
             }
             placeholder="São Paulo"
           />
+
         </Field>
 
         <Field label="Estado *">
+
           <TextInput
             value={data.state}
             onChange={(e) =>
-              set('state', e.target.value)
+              set(
+                'state',
+                e.target.value
+              )
             }
             placeholder="SP"
             maxLength={2}
           />
+
         </Field>
 
         <Field label="Gênero (opcional)">
+
           <TextInput
             value={data.gender}
             onChange={(e) =>
-              set('gender', e.target.value)
+              set(
+                'gender',
+                e.target.value
+              )
             }
           />
+
         </Field>
 
       </div>
+
     </div>
   );
 }
 
-/* =========================
-   DADOS PROFISSIONAIS
-========================= */
+
+/* =====================================================
+   ETAPA 2 — DADOS PROFISSIONAIS
+===================================================== */
 
 function StepProfessional({ data, set }) {
   return (
@@ -632,6 +755,7 @@ function StepProfessional({ data, set }) {
       <div className="grid sm:grid-cols-2 gap-4">
 
         <Field label="Número do CRP *">
+
           <TextInput
             value={data.crp_number}
             onChange={(e) =>
@@ -642,20 +766,27 @@ function StepProfessional({ data, set }) {
             }
             placeholder="00000"
           />
+
         </Field>
 
         <Field label="Região do CRP *">
+
           <SelectField
             value={data.crp_region}
             onChange={(value) =>
-              set('crp_region', value)
+              set(
+                'crp_region',
+                value
+              )
             }
             options={REGION_OPTS}
             placeholder="Selecione"
           />
+
         </Field>
 
         <Field label="Formação">
+
           <TextInput
             value={data.education}
             onChange={(e) =>
@@ -666,9 +797,11 @@ function StepProfessional({ data, set }) {
             }
             placeholder="Psicologia"
           />
+
         </Field>
 
         <Field label="Instituição">
+
           <TextInput
             value={data.institution}
             onChange={(e) =>
@@ -678,9 +811,11 @@ function StepProfessional({ data, set }) {
               )
             }
           />
+
         </Field>
 
         <Field label="Ano de formação">
+
           <TextInput
             value={data.graduation_year}
             onChange={(e) =>
@@ -691,11 +826,13 @@ function StepProfessional({ data, set }) {
             }
             placeholder="2018"
           />
+
         </Field>
 
       </div>
 
       <Field label="Especializações">
+
         <ChipGroup
           options={SPEC_OPTS}
           value={data.specializations}
@@ -706,19 +843,26 @@ function StepProfessional({ data, set }) {
             )
           }
         />
+
       </Field>
 
       <Field label="Abordagens terapêuticas">
+
         <ChipGroup
           options={APPROACH_OPTS}
           value={data.approaches}
           onChange={(value) =>
-            set('approaches', value)
+            set(
+              'approaches',
+              value
+            )
           }
         />
+
       </Field>
 
       <Field label="Especialidades">
+
         <ChipGroup
           options={SPEC_OPTS}
           value={data.specialties}
@@ -729,39 +873,56 @@ function StepProfessional({ data, set }) {
             )
           }
         />
+
       </Field>
 
       <Field label="Temas de atuação">
+
         <ChipGroup
           options={THEME_OPTS}
           value={data.themes}
           onChange={(value) =>
-            set('themes', value)
+            set(
+              'themes',
+              value
+            )
           }
         />
+
       </Field>
 
       <Field label="Público atendido">
+
         <ChipGroup
           options={AUDIENCE_OPTS}
           value={data.audience}
           onChange={(value) =>
-            set('audience', value)
+            set(
+              'audience',
+              value
+            )
           }
         />
+
       </Field>
 
       <Field label="Idiomas">
+
         <ChipGroup
           options={LANG_OPTS}
           value={data.languages}
           onChange={(value) =>
-            set('languages', value)
+            set(
+              'languages',
+              value
+            )
           }
         />
+
       </Field>
 
       <Field label="Experiência profissional">
+
         <TextArea
           value={data.experience}
           onChange={(e) =>
@@ -773,15 +934,17 @@ function StepProfessional({ data, set }) {
           rows={3}
           placeholder="Conte sobre sua trajetória"
         />
+
       </Field>
 
     </div>
   );
 }
 
-/* =========================
-   ATENDIMENTO
-========================= */
+
+/* =====================================================
+   ETAPA 3 — ATENDIMENTO
+===================================================== */
 
 function StepService({ data, set }) {
   return (
@@ -792,18 +955,27 @@ function StepService({ data, set }) {
       </h2>
 
       <Field label="Modalidades *">
+
         <ChipGroup
-          options={['online', 'in_person']}
+          options={[
+            'online',
+            'in_person'
+          ]}
           value={data.modalities}
           onChange={(value) =>
-            set('modalities', value)
+            set(
+              'modalities',
+              value
+            )
           }
         />
+
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
 
         <Field label="Valor da sessão (R$)">
+
           <TextInput
             type="number"
             value={data.price}
@@ -816,9 +988,11 @@ function StepService({ data, set }) {
             placeholder="200"
             min="0"
           />
+
         </Field>
 
         <Field label="Duração (min)">
+
           <TextInput
             type="number"
             value={data.session_duration}
@@ -830,11 +1004,13 @@ function StepService({ data, set }) {
             }
             min="1"
           />
+
         </Field>
 
       </div>
 
       <Field label="Dias disponíveis">
+
         <ChipGroup
           options={DAY_OPTS}
           value={data.available_days}
@@ -845,9 +1021,11 @@ function StepService({ data, set }) {
             )
           }
         />
+
       </Field>
 
       <Field label="Horários disponíveis">
+
         <ChipGroup
           options={SLOT_OPTS}
           value={data.available_slots}
@@ -858,9 +1036,11 @@ function StepService({ data, set }) {
             )
           }
         />
+
       </Field>
 
       <Field label="Endereço (se presencial)">
+
         <TextInput
           value={data.address}
           onChange={(e) =>
@@ -871,9 +1051,11 @@ function StepService({ data, set }) {
           }
           placeholder="Rua, número, cidade"
         />
+
       </Field>
 
       <Field label="Política de cancelamento">
+
         <TextArea
           value={data.cancellation_policy}
           onChange={(e) =>
@@ -884,26 +1066,33 @@ function StepService({ data, set }) {
           }
           rows={2}
         />
+
       </Field>
 
       <Field label="Sobre mim">
+
         <TextArea
           value={data.about}
           onChange={(e) =>
-            set('about', e.target.value)
+            set(
+              'about',
+              e.target.value
+            )
           }
           rows={4}
           placeholder="Apresente-se para seus pacientes"
         />
+
       </Field>
 
     </div>
   );
 }
 
-/* =========================
-   FOTO
-========================= */
+
+/* =====================================================
+   ETAPA 4 — FOTO
+===================================================== */
 
 function StepPhoto({
   data,
@@ -917,39 +1106,62 @@ function StepPhoto({
         Foto profissional
       </h2>
 
+      <p className="text-sm text-muted-foreground">
+        Adicione uma foto profissional para
+        o seu perfil.
+      </p>
+
       <div className="rounded-2xl border-2 border-dashed border-border p-6 text-center">
 
         {data.photo_url ? (
 
           <div className="flex flex-col items-center gap-4">
 
-            <div className="w-32 h-32 rounded-3xl overflow-hidden bg-muted">
-              <Image
+            <div className="w-40 h-40 rounded-3xl overflow-hidden bg-muted">
+
+              <img
                 src={data.photo_url}
-                fittingType="fill"
-                className="w-full h-full"
-                alt="Prévia"
+                className="w-full h-full object-cover"
+                alt="Prévia da foto profissional"
               />
+
             </div>
 
-            <label className="text-xs text-primary font-medium hover:underline cursor-pointer">
+            <div className="flex gap-3">
 
-              Trocar foto
+              <label className="px-4 py-2 rounded-full bg-muted text-sm font-medium hover:bg-muted/70 cursor-pointer">
 
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) =>
-                  upload(
-                    e.target.files?.[0],
-                    'photo_url'
-                  )
+                Trocar foto
+
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) =>
+                    upload(
+                      e.target.files?.[0],
+                      'photo_url'
+                    )
+                  }
+                  disabled={uploading}
+                />
+
+              </label>
+
+              <button
+                type="button"
+                onClick={() =>
+                  window.confirm(
+                    'Remover esta foto?'
+                  ) &&
+                  setTimeout(() => {}, 0)
                 }
-                disabled={uploading}
-              />
+                className="px-4 py-2 rounded-full text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Remover
+              </button>
 
-            </label>
+            </div>
 
           </div>
 
@@ -958,18 +1170,26 @@ function StepPhoto({
           <label className="cursor-pointer flex flex-col items-center gap-3">
 
             <div className="w-16 h-16 rounded-2xl gradient-brand-soft flex items-center justify-center text-primary">
+
               <Camera size={26} />
+
             </div>
 
             <span className="text-sm font-medium">
+
               {uploading
-                ? 'Enviando...'
+                ? 'Carregando foto...'
                 : 'Enviar foto'}
+
+            </span>
+
+            <span className="text-xs text-muted-foreground">
+              JPG, PNG ou WEBP · Máximo 5 MB
             </span>
 
             <input
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               className="hidden"
               onChange={(e) =>
                 upload(
@@ -993,14 +1213,28 @@ function StepPhoto({
         </p>
 
         <p>
-          Envie uma foto recente, nítida e profissional do seu rosto.
+          Envie uma foto recente, nítida e
+          profissional do seu rosto.
         </p>
 
         <ul className="list-disc pl-4 space-y-0.5">
-          <li>Rosto visível e boa iluminação</li>
-          <li>Sem filtros ou imagens geradas por IA</li>
-          <li>Sem fotos de terceiros</li>
-          <li>Boa qualidade</li>
+
+          <li>
+            Rosto visível e boa iluminação
+          </li>
+
+          <li>
+            Sem filtros ou imagens geradas por IA
+          </li>
+
+          <li>
+            Sem fotos de terceiros
+          </li>
+
+          <li>
+            Boa qualidade
+          </li>
+
         </ul>
 
       </div>
@@ -1009,9 +1243,10 @@ function StepPhoto({
   );
 }
 
-/* =========================
-   VÍDEO
-========================= */
+
+/* =====================================================
+   ETAPA 5 — VÍDEO
+===================================================== */
 
 function StepVideo({
   data,
@@ -1022,10 +1257,13 @@ function StepVideo({
     <div className="space-y-5">
 
       <h2 className="font-heading font-semibold text-lg">
-        Vídeo de apresentação{' '}
+
+        Vídeo de apresentação
+
         <span className="text-xs font-normal text-muted-foreground">
-          (opcional)
+          {' '}(opcional)
         </span>
+
       </h2>
 
       <p className="text-sm text-muted-foreground">
@@ -1052,7 +1290,7 @@ function StepVideo({
 
               <input
                 type="file"
-                accept="video/*"
+                accept="video/mp4,video/webm,video/quicktime"
                 className="hidden"
                 onChange={(e) =>
                   upload(
@@ -1072,18 +1310,26 @@ function StepVideo({
           <label className="cursor-pointer flex flex-col items-center gap-3">
 
             <div className="w-16 h-16 rounded-2xl gradient-brand-soft flex items-center justify-center text-primary">
+
               <Video size={26} />
+
             </div>
 
             <span className="text-sm font-medium">
+
               {uploading
-                ? 'Enviando...'
+                ? 'Carregando vídeo...'
                 : 'Enviar vídeo'}
+
+            </span>
+
+            <span className="text-xs text-muted-foreground">
+              MP4, WEBM ou MOV · Máximo 50 MB
             </span>
 
             <input
               type="file"
-              accept="video/*"
+              accept="video/mp4,video/webm,video/quicktime"
               className="hidden"
               onChange={(e) =>
                 upload(
@@ -1104,59 +1350,100 @@ function StepVideo({
   );
 }
 
-/* =========================
-   REVISÃO
-========================= */
+
+/* =====================================================
+   ETAPA 6 — REVISÃO
+===================================================== */
 
 function StepReview({ data }) {
 
   const rows = [
     ['Nome', data.full_name],
-    ['Nome profissional', data.professional_name],
+
+    [
+      'Nome profissional',
+      data.professional_name
+    ],
+
     [
       'E-mail',
       data.email
     ],
+
+    [
+      'Telefone',
+      data.phone
+    ],
+
     [
       'CRP',
       `${data.crp_region}/${data.crp_number}`
     ],
+
     [
       'Cidade',
       `${data.city}/${data.state}`
     ],
+
+    [
+      'Formação',
+      data.education
+    ],
+
+    [
+      'Instituição',
+      data.institution
+    ],
+
     [
       'Abordagens',
       (data.approaches || []).join(', ')
     ],
+
     [
       'Especialidades',
       (data.specialties || []).join(', ')
     ],
+
     [
       'Modalidades',
       (data.modalities || []).join(', ')
     ],
+
+    [
+      'Público',
+      (data.audience || []).join(', ')
+    ],
+
+    [
+      'Idiomas',
+      (data.languages || []).join(', ')
+    ],
+
     [
       'Valor',
       data.price
         ? `R$ ${data.price}`
         : '—'
     ],
+
     [
       'Dias',
       (data.available_days || []).join(', ')
     ],
+
     [
       'Horários',
       (data.available_slots || []).join(', ')
     ],
+
     [
       'Foto',
       data.photo_url
         ? 'Enviada'
         : '—'
     ],
+
     [
       'Vídeo',
       data.video_url
@@ -1181,6 +1468,7 @@ function StepReview({ data }) {
 
         {rows.map(([key, value]) =>
           value ? (
+
             <div
               key={key}
               className="flex justify-between gap-4 px-4 py-2.5 text-sm"
@@ -1190,11 +1478,12 @@ function StepReview({ data }) {
                 {key}
               </span>
 
-              <span className="font-medium text-right">
+              <span className="font-medium text-right break-all">
                 {value}
               </span>
 
             </div>
+
           ) : null
         )}
 
