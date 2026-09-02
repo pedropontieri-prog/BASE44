@@ -1609,7 +1609,3 @@ function ReviewItem({
     </div>
   );
 }
-
-Atenção: esse código remove o limite de tamanho do vídeo somente do frontend. Se o Supabase estiver configurado, por exemplo, para 50 MB, um vídeo de 100 MB continuará sendo recusado pelo Storage.
-
-Para deixar realmente no maior limite que o seu Supabase permite, precisamos conferir a configuração do Storage → File size limit no seu projeto.
