@@ -4,7 +4,12 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import {
+  LogIn,
+  Mail,
+  Lock,
+  Loader2,
+} from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
@@ -19,13 +24,10 @@ export default function Login() {
 
   const returnTo = safeReturnTo();
 
-  /*
-   * Quando o Google termina a autenticação, o Supabase
-   * retorna para /login.
-   *
-   * Aqui verificamos se já existe uma sessão e,
-   * se existir, mandamos o usuário para o destino correto.
-   */
+  // ============================================================
+  // VERIFICAR SESSÃO EXISTENTE
+  // ============================================================
+
   useEffect(() => {
     let mounted = true;
 
@@ -33,7 +35,16 @@ export default function Login() {
       try {
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error(
+            "Erro ao verificar sessão:",
+            sessionError
+          );
+          return;
+        }
 
         if (!mounted || !session?.user) {
           return;
@@ -44,31 +55,49 @@ export default function Login() {
             ? returnTo
             : "/painel";
 
-        navigate(destination, { replace: true });
+        navigate(destination, {
+          replace: true,
+        });
       } catch (err) {
-        console.error("Erro ao verificar sessão:", err);
+        console.error(
+          "Erro ao verificar sessão:",
+          err
+        );
       }
     };
 
     checkSession();
 
+    // ============================================================
+    // OBSERVAR ALTERAÇÕES DE AUTENTICAÇÃO
+    // ============================================================
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) {
+          return;
+        }
 
-      if (
-        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
-        session?.user
-      ) {
-        const destination =
-          returnTo && returnTo !== "/"
-            ? returnTo
-            : "/painel";
+        if (
+          (
+            event === "SIGNED_IN" ||
+            event === "INITIAL_SESSION"
+          ) &&
+          session?.user
+        ) {
+          const destination =
+            returnTo && returnTo !== "/"
+              ? returnTo
+              : "/painel";
 
-        navigate(destination, { replace: true });
+          navigate(destination, {
+            replace: true,
+          });
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -76,23 +105,39 @@ export default function Login() {
     };
   }, [navigate, returnTo]);
 
+  // ============================================================
+  // LOGIN COM E-MAIL E SENHA
+  // ============================================================
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     setError("");
     setLoading(true);
 
     try {
-      const cleanEmail = email.trim().toLowerCase();
+      const cleanEmail =
+        email.trim().toLowerCase();
 
       if (!cleanEmail || !password) {
-        setError("Digite seu e-mail e sua senha.");
+        setError(
+          "Digite seu e-mail e sua senha."
+        );
         return;
       }
 
-      const { data, error: loginError } =
+      // ========================================================
+      // FAZER LOGIN
+      // ========================================================
+
+      const {
+        data: loginData,
+        error: loginError,
+      } =
         await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password,
@@ -102,70 +147,147 @@ export default function Login() {
         throw loginError;
       }
 
-      if (!data?.user) {
-        throw new Error("Não foi possível identificar o usuário.");
+      if (!loginData?.user) {
+        throw new Error(
+          "Não foi possível identificar o usuário."
+        );
       }
+
+      // ========================================================
+      // CONFIRMAR SESSÃO
+      // ========================================================
+
+      const {
+        data: sessionData,
+        error: sessionError,
+      } =
+        await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (!sessionData?.session) {
+        throw new Error(
+          "Login realizado, mas a sessão não foi criada. Tente novamente."
+        );
+      }
+
+      console.log(
+        "Login realizado com sucesso.",
+        {
+          userId:
+            sessionData.session.user.id,
+        }
+      );
+
+      // ========================================================
+      // DESTINO
+      // ========================================================
 
       const destination =
         returnTo && returnTo !== "/"
           ? returnTo
           : "/painel";
 
-      navigate(destination, { replace: true });
-    } catch (err) {
-      console.error("Erro no login:", err);
+      navigate(destination, {
+        replace: true,
+      });
 
-      const message = String(err?.message || "").toLowerCase();
+    } catch (err) {
+      console.error(
+        "Erro no login:",
+        err
+      );
+
+      const message =
+        String(
+          err?.message || ""
+        ).toLowerCase();
 
       if (
-        message.includes("invalid login credentials") ||
-        message.includes("invalid login")
+        message.includes(
+          "invalid login credentials"
+        ) ||
+        message.includes(
+          "invalid login"
+        )
       ) {
-        setError("E-mail ou senha incorretos.");
+        setError(
+          "E-mail ou senha incorretos."
+        );
+
       } else if (
-        message.includes("email not confirmed") ||
-        message.includes("email_not_confirmed")
+        message.includes(
+          "email not confirmed"
+        ) ||
+        message.includes(
+          "email_not_confirmed"
+        )
       ) {
         setError(
           "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
         );
-      } else if (message.includes("too many requests")) {
+
+      } else if (
+        message.includes(
+          "too many requests"
+        )
+      ) {
         setError(
           "Muitas tentativas. Aguarde alguns minutos e tente novamente."
         );
+
+      } else if (
+        message.includes(
+          "network"
+        )
+      ) {
+        setError(
+          "Erro de conexão. Verifique sua internet e tente novamente."
+        );
+
       } else {
         setError(
-          err?.message || "Não foi possível entrar. Tente novamente."
+          err?.message ||
+          "Não foi possível entrar. Tente novamente."
         );
       }
+
     } finally {
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // LOGIN COM GOOGLE
+  // ============================================================
+
   const handleGoogle = async () => {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
     setError("");
     setLoading(true);
 
     try {
-      /*
-       * Depois do Google, voltamos para /login.
-       * O useEffect acima detecta a sessão e envia
-       * automaticamente para /painel.
-       */
       const params =
         returnTo && returnTo !== "/"
-          ? `?returnTo=${encodeURIComponent(returnTo)}`
+          ? `?returnTo=${encodeURIComponent(
+              returnTo
+            )}`
           : "";
 
       const redirectUrl =
         `${window.location.origin}/login${params}`;
 
-      const { error: googleError } =
+      const {
+        error: googleError,
+      } =
         await supabase.auth.signInWithOAuth({
           provider: "google",
+
           options: {
             redirectTo: redirectUrl,
           },
@@ -174,22 +296,40 @@ export default function Login() {
       if (googleError) {
         throw googleError;
       }
+
     } catch (err) {
-      console.error("Erro no login com Google:", err);
+      console.error(
+        "Erro no login com Google:",
+        err
+      );
 
       setError(
-        err?.message || "Não foi possível entrar com o Google."
+        err?.message ||
+        "Não foi possível entrar com o Google."
       );
 
       setLoading(false);
     }
   };
 
+  // ============================================================
+  // LINK DE CADASTRO
+  // ============================================================
+
   const registerUrl =
     "/register" +
-    (returnTo && returnTo !== "/"
-      ? `?returnTo=${encodeURIComponent(returnTo)}`
-      : "");
+    (
+      returnTo &&
+      returnTo !== "/"
+    )
+      ? `?returnTo=${encodeURIComponent(
+          returnTo
+        )}`
+      : "";
+
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <AuthLayout
@@ -208,6 +348,10 @@ export default function Login() {
         </>
       }
     >
+      {/* ======================================================
+          GOOGLE
+      ====================================================== */}
+
       <Button
         type="button"
         variant="outline"
@@ -216,13 +360,21 @@ export default function Login() {
         disabled={loading}
       >
         {loading ? (
-          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          <Loader2
+            className="w-5 h-5 mr-2 animate-spin"
+          />
         ) : (
-          <GoogleIcon className="w-5 h-5 mr-2" />
+          <GoogleIcon
+            className="w-5 h-5 mr-2"
+          />
         )}
 
         Continuar com o Google
       </Button>
+
+      {/* ======================================================
+          DIVISOR
+      ====================================================== */}
 
       <div className="relative mb-6">
         <div className="absolute inset-0 flex items-center">
@@ -236,6 +388,10 @@ export default function Login() {
         </div>
       </div>
 
+      {/* ======================================================
+          ERRO
+      ====================================================== */}
+
       {error && (
         <div
           role="alert"
@@ -245,9 +401,22 @@ export default function Login() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* ======================================================
+          FORMULÁRIO
+      ====================================================== */}
+
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        {/* ====================================================
+            E-MAIL
+        ==================================================== */}
+
         <div className="space-y-2">
-          <Label htmlFor="email">E-mail</Label>
+          <Label htmlFor="email">
+            E-mail
+          </Label>
 
           <div className="relative">
             <Mail
@@ -263,7 +432,11 @@ export default function Login() {
               autoFocus
               placeholder="você@exemplo.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(
+                  e.target.value
+                )
+              }
               className="pl-10 h-12"
               disabled={loading}
               required
@@ -271,9 +444,15 @@ export default function Login() {
           </div>
         </div>
 
+        {/* ====================================================
+            SENHA
+        ==================================================== */}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Senha</Label>
+            <Label htmlFor="password">
+              Senha
+            </Label>
 
             <Link
               to="/forgot-password"
@@ -296,13 +475,21 @@ export default function Login() {
               autoComplete="current-password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(
+                  e.target.value
+                )
+              }
               className="pl-10 h-12"
               disabled={loading}
               required
             />
           </div>
         </div>
+
+        {/* ====================================================
+            BOTÃO
+        ==================================================== */}
 
         <Button
           type="submit"
@@ -311,7 +498,10 @@ export default function Login() {
         >
           {loading ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2
+                className="w-4 h-4 mr-2 animate-spin"
+              />
+
               Entrando...
             </>
           ) : (
