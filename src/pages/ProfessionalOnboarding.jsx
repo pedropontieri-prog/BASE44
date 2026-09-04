@@ -8,6 +8,7 @@ import {
   Check,
   Eye,
   EyeOff,
+  ExternalLink,
   Loader2,
   LogIn,
   Lock,
@@ -17,7 +18,6 @@ import {
   UserPlus,
   Video,
   X,
-  ExternalLink,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
@@ -25,10 +25,10 @@ import { supabase } from "@/lib/supabase";
 
 const STEPS = [
   { title: "Pessoal", icon: User },
-  { title: "Profissional", icon: ShieldCheck },
+  { title: "Registro profissional", icon: ShieldCheck },
+  { title: "Atuação", icon: User },
   { title: "Atendimento", icon: Calendar },
-  { title: "Foto", icon: Camera },
-  { title: "Vídeo", icon: Video },
+  { title: "Foto e vídeo", icon: Camera },
   { title: "Revisão", icon: Check },
 ];
 
@@ -60,6 +60,7 @@ const APPROACH_OPTS = [
   "ACT",
   "Mindfulness",
   "Integração",
+  "Outra",
 ];
 
 const THEME_OPTS = [
@@ -120,48 +121,71 @@ const SLOT_OPTS = [
   "21:00",
 ];
 
-const REGION_OPTS = Array.from(
-  { length: 24 },
-  (_, i) => {
-    const value = String(i + 1).padStart(2, "0");
+const REGION_OPTS = Array.from({ length: 24 }, (_, i) => {
+  const value = String(i + 1).padStart(2, "0");
 
-    return {
-      value,
-      label: `CRP ${value}`,
-    };
-  }
-);
+  return {
+    value,
+    label: `CRP ${value}`,
+  };
+});
 
 const DEFAULTS = {
   full_name: "",
   professional_name: "",
   email: "",
   phone: "",
+  whatsapp: "",
   city: "",
   state: "",
   gender: "",
+
   crp_number: "",
   crp_region: "",
+  crp_status: "active",
+  crp_verified: false,
+
   education: "Psicologia",
   institution: "",
   graduation_year: "",
+  experience: "",
+
   specializations: [],
   approaches: [],
   specialties: [],
   themes: [],
-  modalities: ["online"],
-  languages: ["Português"],
   audience: ["Adultos"],
-  experience: "",
+  languages: ["Português"],
+
+  modalities: ["online"],
+  epsico_registered: false,
+
   price: "",
   session_duration: 50,
+
   available_days: [],
   available_slots: [],
+
   cancellation_policy: "",
+
   address: "",
+  address_number: "",
+  address_complement: "",
+  neighborhood: "",
+  zip_code: "",
+
   about: "",
+
   photo_url: "",
   video_url: "",
+
+  instagram: "",
+  linkedin: "",
+  website: "",
+
+  ethical_commitment: false,
+  information_truthful: false,
+  privacy_commitment: false,
 };
 
 function getFriendlyError(error) {
@@ -229,11 +253,8 @@ function getFriendlyError(error) {
 }
 
 function makeFileName(file) {
-  const originalName =
-    file && file.name ? file.name : "arquivo";
-
+  const originalName = file?.name || "arquivo";
   const parts = originalName.split(".");
-
   const extension =
     parts.length > 1
       ? parts[parts.length - 1].toLowerCase()
@@ -242,9 +263,7 @@ function makeFileName(file) {
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}`;
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   return `${id}.${extension}`;
 }
@@ -256,23 +275,23 @@ function Input({
   type = "text",
   placeholder = "",
   required = false,
+  disabled = false,
 }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium">
         {label}{" "}
-        {required && (
-          <span className="text-red-500">*</span>
-        )}
+        {required && <span className="text-red-500">*</span>}
       </span>
 
       <input
         type={type}
-        value={value || ""}
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+        disabled={disabled}
+        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
       />
     </label>
   );
@@ -289,9 +308,7 @@ function Select({
     <label className="block">
       <span className="mb-2 block text-sm font-medium">
         {label}{" "}
-        {required && (
-          <span className="text-red-500">*</span>
-        )}
+        {required && <span className="text-red-500">*</span>}
       </span>
 
       <select
@@ -321,11 +338,13 @@ function TextArea({
   onChange,
   placeholder = "",
   rows = 5,
+  required = false,
 }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium">
-        {label}
+        {label}{" "}
+        {required && <span className="text-red-500">*</span>}
       </span>
 
       <textarea
@@ -333,8 +352,24 @@ function TextArea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
+        required={required}
         className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
       />
+    </label>
+  );
+}
+
+function Checkbox({ checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-4">
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-1 h-4 w-4 accent-primary"
+      />
+
+      <span className="text-sm leading-6">{children}</span>
     </label>
   );
 }
@@ -348,19 +383,12 @@ function Chips({
 }) {
   function toggle(option) {
     if (!multiple) {
-      if (values.includes(option)) {
-        onChange([]);
-      } else {
-        onChange([option]);
-      }
-
+      onChange(values.includes(option) ? [] : [option]);
       return;
     }
 
     if (values.includes(option)) {
-      onChange(
-        values.filter((item) => item !== option)
-      );
+      onChange(values.filter((item) => item !== option));
     } else {
       onChange([...values, option]);
     }
@@ -368,9 +396,7 @@ function Chips({
 
   return (
     <div>
-      <span className="mb-3 block text-sm font-medium">
-        {label}
-      </span>
+      <span className="mb-3 block text-sm font-medium">{label}</span>
 
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
@@ -410,15 +436,13 @@ function MediaUploadCard({
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="mb-4">
         <h3 className="font-semibold">
-          {isPhoto
-            ? "Foto de perfil"
-            : "Vídeo de apresentação"}
+          {isPhoto ? "Foto de perfil" : "Vídeo de apresentação"}
         </h3>
 
         <p className="mt-1 text-sm text-muted-foreground">
           {isPhoto
             ? "Use uma foto profissional, clara e atual."
-            : "Apresente-se brevemente para que os pacientes conheçam você."}
+            : "Apresente brevemente sua formação, abordagem e forma de trabalho."}
         </p>
       </div>
 
@@ -427,7 +451,7 @@ function MediaUploadCard({
           {isPhoto ? (
             <img
               src={preview}
-              alt="Pré-visualização da foto"
+              alt="Pré-visualização da foto profissional"
               className="h-72 w-full object-cover"
             />
           ) : (
@@ -473,16 +497,8 @@ function MediaUploadCard({
 
           <span className="font-medium">
             {uploading
-              ? `Enviando ${
-                  isPhoto ? "foto" : "vídeo"
-                }...`
-              : file
-              ? "Trocar arquivo"
-              : `Adicionar ${
-                  isPhoto
-                    ? "foto de perfil"
-                    : "vídeo de apresentação"
-                }`}
+              ? `Enviando ${isPhoto ? "foto" : "vídeo"}...`
+              : `Adicionar ${isPhoto ? "foto de perfil" : "vídeo de apresentação"}`}
           </span>
 
           <span className="mt-2 text-xs text-muted-foreground">
@@ -496,11 +512,7 @@ function MediaUploadCard({
   );
 }
 
-function InfoCard({
-  icon: Icon,
-  title,
-  children,
-}) {
+function InfoCard({ icon: Icon, title, children }) {
   return (
     <div className="rounded-2xl border border-border bg-muted/30 p-5">
       <div className="flex gap-3">
@@ -510,6 +522,7 @@ function InfoCard({
 
         <div>
           <h3 className="font-semibold">{title}</h3>
+
           <div className="mt-1 text-sm leading-6 text-muted-foreground">
             {children}
           </div>
@@ -527,22 +540,18 @@ export default function ProfessionalOnboarding() {
 
   const [authLoading, setAuthLoading] = useState(true);
   const [authMode, setAuthMode] = useState("register");
-  const [authenticatedUser, setAuthenticatedUser] =
-    useState(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [showPassword, setShowPassword] =
-    useState(false);
-  const [authSubmitting, setAuthSubmitting] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
-  const [confirmationSent, setConfirmationSent] =
-    useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
   const [error, setError] = useState("");
 
   const [photoFile, setPhotoFile] = useState(null);
@@ -555,36 +564,14 @@ export default function ProfessionalOnboarding() {
   );
 
   const displayName = useMemo(() => {
-    if (data.professional_name) {
-      return data.professional_name;
-    }
-
-    if (data.full_name) {
-      return data.full_name;
-    }
-
-    if (
-      authenticatedUser &&
-      authenticatedUser.user_metadata &&
-      authenticatedUser.user_metadata.full_name
-    ) {
-      return authenticatedUser.user_metadata.full_name;
-    }
-
-    if (
-      authenticatedUser &&
-      authenticatedUser.user_metadata &&
-      authenticatedUser.user_metadata.name
-    ) {
-      return authenticatedUser.user_metadata.name;
-    }
-
-    return "Profissional";
-  }, [
-    data.professional_name,
-    data.full_name,
-    authenticatedUser,
-  ]);
+    return (
+      data.professional_name ||
+      data.full_name ||
+      authenticatedUser?.user_metadata?.full_name ||
+      authenticatedUser?.user_metadata?.name ||
+      "Profissional"
+    );
+  }, [data, authenticatedUser]);
 
   function set(key, value) {
     setData((current) => ({
@@ -598,23 +585,14 @@ export default function ProfessionalOnboarding() {
 
     async function loadSession() {
       try {
-        const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
 
-        if (sessionError) {
-          throw sessionError;
-        }
+        if (sessionError) throw sessionError;
 
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
-        const user =
-          sessionData && sessionData.session
-            ? sessionData.session.user
-            : null;
+        const user = sessionData?.session?.user || null;
 
         setAuthenticatedUser(user);
 
@@ -632,12 +610,7 @@ export default function ProfessionalOnboarding() {
           }));
 
           setAuthEmail(user.email || "");
-
-          setAuthName(
-            metadata.full_name ||
-              metadata.name ||
-              ""
-          );
+          setAuthName(metadata.full_name || metadata.name || "");
         }
       } catch (sessionError) {
         if (mounted) {
@@ -652,15 +625,11 @@ export default function ProfessionalOnboarding() {
 
     loadSession();
 
-    const {
-      data: authSubscription,
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) {
-          return;
-        }
+    const { data: authSubscription } =
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (!mounted) return;
 
-        const user = session ? session.user : null;
+        const user = session?.user || null;
 
         setAuthenticatedUser(user);
 
@@ -679,37 +648,23 @@ export default function ProfessionalOnboarding() {
 
           setAuthEmail(user.email || "");
         }
-      }
-    );
+      });
 
     return () => {
       mounted = false;
-
-      if (
-        authSubscription &&
-        authSubscription.subscription
-      ) {
-        authSubscription.subscription.unsubscribe();
-      }
+      authSubscription?.subscription?.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview);
-      }
-
-      if (videoPreview) {
-        URL.revokeObjectURL(videoPreview);
-      }
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
     };
   }, [photoPreview, videoPreview]);
 
   function validatePhoto(file) {
-    if (!file) {
-      return "Selecione uma foto.";
-    }
+    if (!file) return "Selecione uma foto.";
 
     const allowedTypes = [
       "image/jpeg",
@@ -730,9 +685,7 @@ export default function ProfessionalOnboarding() {
   }
 
   function validateVideo(file) {
-    if (!file) {
-      return "Selecione um vídeo.";
-    }
+    if (!file) return "Selecione um vídeo.";
 
     const allowedTypes = [
       "video/mp4",
@@ -752,11 +705,7 @@ export default function ProfessionalOnboarding() {
   }
 
   function handlePhotoChange(event) {
-    const file =
-      event.target.files && event.target.files[0]
-        ? event.target.files[0]
-        : null;
-
+    const file = event.target.files?.[0] || null;
     const validationError = validatePhoto(file);
 
     if (validationError) {
@@ -776,11 +725,7 @@ export default function ProfessionalOnboarding() {
   }
 
   function handleVideoChange(event) {
-    const file =
-      event.target.files && event.target.files[0]
-        ? event.target.files[0]
-        : null;
-
+    const file = event.target.files?.[0] || null;
     const validationError = validateVideo(file);
 
     if (validationError) {
@@ -841,10 +786,7 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    if (
-      authMode === "register" &&
-      !authName.trim()
-    ) {
+    if (authMode === "register" && !authName.trim()) {
       setError("Digite seu nome completo.");
       return;
     }
@@ -853,40 +795,30 @@ export default function ProfessionalOnboarding() {
 
     try {
       if (authMode === "register") {
-        const {
-          data: signUpData,
-          error: signUpError,
-        } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: authName.trim(),
-              name: authName.trim(),
-              role: "psychologist",
-              account_type: "professional",
-              user_type: "professional",
+        const { data: signUpData, error: signUpError } =
+          await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: authName.trim(),
+                name: authName.trim(),
+                role: "psychologist",
+                account_type: "professional",
+                user_type: "professional",
+              },
             },
-          },
-        });
+          });
 
-        if (signUpError) {
-          throw signUpError;
-        }
+        if (signUpError) throw signUpError;
 
-        if (
-          signUpData.session &&
-          signUpData.user
-        ) {
+        if (signUpData.session && signUpData.user) {
           setAuthenticatedUser(signUpData.user);
 
           setData((current) => ({
             ...current,
-            email:
-              signUpData.user.email || email,
-            full_name:
-              authName.trim() ||
-              current.full_name,
+            email: signUpData.user.email || email,
+            full_name: authName.trim() || current.full_name,
           }));
 
           setStep(0);
@@ -897,17 +829,13 @@ export default function ProfessionalOnboarding() {
           );
         }
       } else {
-        const {
-          data: loginData,
-          error: loginError,
-        } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data: loginData, error: loginError } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-        if (loginError) {
-          throw loginError;
-        }
+        if (loginError) throw loginError;
 
         const user = loginData.user;
 
@@ -943,16 +871,12 @@ export default function ProfessionalOnboarding() {
     }
 
     try {
-      const {
-        error: resendError,
-      } = await supabase.auth.resend({
+      const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: authEmail.trim().toLowerCase(),
       });
 
-      if (resendError) {
-        throw resendError;
-      }
+      if (resendError) throw resendError;
 
       setConfirmationSent(true);
     } catch (resendError) {
@@ -962,6 +886,9 @@ export default function ProfessionalOnboarding() {
 
   async function logoutProfessional() {
     await supabase.auth.signOut();
+
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
 
     setAuthenticatedUser(null);
     setData(DEFAULTS);
@@ -973,35 +900,19 @@ export default function ProfessionalOnboarding() {
     setAuthPassword("");
     setPhotoFile(null);
     setVideoFile(null);
-
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
-    }
-
-    if (videoPreview) {
-      URL.revokeObjectURL(videoPreview);
-    }
-
     setPhotoPreview("");
     setVideoPreview("");
   }
 
-  async function uploadFileToStorage(
-    file,
-    type,
-    userId
-  ) {
+  async function uploadFileToStorage(file, type, userId) {
     const folder =
       type === "photo"
         ? `professionals/${userId}/photos`
         : `professionals/${userId}/videos`;
 
-    const filePath =
-      `${folder}/${makeFileName(file)}`;
+    const filePath = `${folder}/${makeFileName(file)}`;
 
-    const {
-      error: uploadError,
-    } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("profiles")
       .upload(filePath, file, {
         cacheControl: "3600",
@@ -1009,13 +920,9 @@ export default function ProfessionalOnboarding() {
         contentType: file.type,
       });
 
-    if (uploadError) {
-      throw uploadError;
-    }
+    if (uploadError) throw uploadError;
 
-    const {
-      data: publicData,
-    } = supabase.storage
+    const { data: publicData } = supabase.storage
       .from("profiles")
       .getPublicUrl(filePath);
 
@@ -1023,17 +930,14 @@ export default function ProfessionalOnboarding() {
   }
 
   async function uploadPendingFiles(userId) {
-    let nextData = {
-      ...data,
-    };
+    let nextData = { ...data };
 
     if (photoFile) {
-      const photoUrl =
-        await uploadFileToStorage(
-          photoFile,
-          "photo",
-          userId
-        );
+      const photoUrl = await uploadFileToStorage(
+        photoFile,
+        "photo",
+        userId
+      );
 
       nextData = {
         ...nextData,
@@ -1042,12 +946,11 @@ export default function ProfessionalOnboarding() {
     }
 
     if (videoFile) {
-      const videoUrl =
-        await uploadFileToStorage(
-          videoFile,
-          "video",
-          userId
-        );
+      const videoUrl = await uploadFileToStorage(
+        videoFile,
+        "video",
+        userId
+      );
 
       nextData = {
         ...nextData,
@@ -1070,14 +973,15 @@ export default function ProfessionalOnboarding() {
         return "Informe seu e-mail.";
       }
 
+      if (!data.phone.trim()) {
+        return "Informe seu telefone profissional.";
+      }
+
       if (!data.city.trim()) {
         return "Informe sua cidade.";
       }
 
-      if (
-        !data.state.trim() ||
-        data.state.trim().length !== 2
-      ) {
+      if (!data.state.trim() || data.state.trim().length !== 2) {
         return "Informe o estado com 2 letras.";
       }
     }
@@ -1091,39 +995,82 @@ export default function ProfessionalOnboarding() {
         return "Selecione a região do CRP.";
       }
 
-      if (
-        !data.approaches ||
-        data.approaches.length === 0
-      ) {
-        return "Selecione pelo menos uma abordagem terapêutica.";
-      }
-
-      if (
-        !data.audience ||
-        data.audience.length === 0
-      ) {
-        return "Selecione pelo menos um público.";
+      if (data.crp_status !== "active") {
+        return "O cadastro profissional exige que o CRP esteja ativo.";
       }
     }
 
     if (stepNumber === 2) {
-      if (
-        !data.modalities ||
-        data.modalities.length === 0
-      ) {
-        return "Selecione pelo menos uma modalidade de atendimento.";
+      if (!data.education.trim()) {
+        return "Informe sua formação.";
+      }
+
+      if (!data.institution.trim()) {
+        return "Informe a instituição de formação.";
+      }
+
+      if (!data.approaches.length) {
+        return "Selecione pelo menos uma abordagem teórica.";
+      }
+
+      if (!data.audience.length) {
+        return "Selecione pelo menos um público.";
+      }
+
+      if (!data.about.trim()) {
+        return "Escreva uma apresentação profissional.";
       }
     }
 
     if (stepNumber === 3) {
-      if (!data.photo_url && !photoFile) {
-        return "Adicione uma foto de perfil.";
+      if (!data.modalities.length) {
+        return "Selecione pelo menos uma modalidade de atendimento.";
+      }
+
+      if (
+        data.modalities.includes("online") &&
+        !data.epsico_registered
+      ) {
+        return "Confirme o cadastro no e-Psi para informar atendimento online.";
+      }
+
+      if (
+        data.modalities.includes("presencial") &&
+        !data.address.trim()
+      ) {
+        return "Informe o endereço do consultório para atendimento presencial.";
+      }
+
+      if (!data.available_days.length) {
+        return "Selecione pelo menos um dia de atendimento.";
+      }
+
+      if (!data.available_slots.length) {
+        return "Selecione pelo menos um horário disponível.";
       }
     }
 
     if (stepNumber === 4) {
+      if (!data.photo_url && !photoFile) {
+        return "Adicione uma foto de perfil.";
+      }
+
       if (!data.video_url && !videoFile) {
         return "Adicione um vídeo de apresentação.";
+      }
+    }
+
+    if (stepNumber === 5) {
+      if (!data.ethical_commitment) {
+        return "Confirme seu compromisso com o sigilo e as normas éticas da profissão.";
+      }
+
+      if (!data.information_truthful) {
+        return "Confirme que as informações fornecidas são verdadeiras.";
+      }
+
+      if (!data.privacy_commitment) {
+        return "Confirme o compromisso com a privacidade e proteção de dados.";
       }
     }
 
@@ -1154,9 +1101,7 @@ export default function ProfessionalOnboarding() {
   }
 
   async function submit() {
-    if (submitting) {
-      return;
-    }
+    if (submitting) return;
 
     setError("");
 
@@ -1165,9 +1110,8 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    for (let index = 0; index < 5; index += 1) {
-      const validationError =
-        validateStep(index);
+    for (let index = 0; index < STEPS.length; index += 1) {
+      const validationError = validateStep(index);
 
       if (validationError) {
         setStep(index);
@@ -1177,94 +1121,106 @@ export default function ProfessionalOnboarding() {
     }
 
     setSubmitting(true);
-
-    setUploading(
-      Boolean(photoFile || videoFile)
-    );
+    setUploading(Boolean(photoFile || videoFile));
 
     try {
-      const {
-        data: currentUserData,
-        error: currentUserError,
-      } = await supabase.auth.getUser();
+      const { data: currentUserData, error: currentUserError } =
+        await supabase.auth.getUser();
 
-      if (currentUserError) {
-        throw currentUserError;
-      }
+      if (currentUserError) throw currentUserError;
 
       const user = currentUserData.user;
 
       if (!user) {
-        throw new Error(
-          "Sua sessão expirou. Entre novamente."
-        );
+        throw new Error("Sua sessão expirou. Entre novamente.");
       }
 
-      const finalData =
-        await uploadPendingFiles(user.id);
+      const finalData = await uploadPendingFiles(user.id);
 
-      const {
-        error: metadataError,
-      } = await supabase.auth.updateUser({
-        data: {
-          full_name: finalData.full_name,
-          name:
-            finalData.professional_name ||
-            finalData.full_name,
-          role: "psychologist",
-          account_type: "professional",
-          user_type: "professional",
-        },
-      });
+      const { error: metadataError } =
+        await supabase.auth.updateUser({
+          data: {
+            full_name: finalData.full_name,
+            name:
+              finalData.professional_name ||
+              finalData.full_name,
+            role: "psychologist",
+            account_type: "professional",
+            user_type: "professional",
+          },
+        });
 
-      if (metadataError) {
-        throw metadataError;
-      }
+      if (metadataError) throw metadataError;
 
       const psychologistData = {
         user_id: user.id,
+
         professional_name:
           finalData.professional_name ||
           finalData.full_name,
+
         crp_number: finalData.crp_number,
         crp_region: finalData.crp_region,
+        crp_status: finalData.crp_status,
+        crp_verified: false,
+
         education: finalData.education,
         institution: finalData.institution,
-        graduation_year:
-          finalData.graduation_year,
-        specializations:
-          finalData.specializations,
-        approaches: finalData.approaches,
+        graduation_year: finalData.graduation_year,
         experience: finalData.experience,
+
+        specializations: finalData.specializations,
+        approaches: finalData.approaches,
+        specialties: finalData.specialties,
         topics: finalData.themes,
+
         modalities: finalData.modalities,
         languages: finalData.languages,
         audience: finalData.audience,
+
+        epsico_registered: finalData.epsico_registered,
+
         city: finalData.city,
         state: finalData.state,
+
         phone: finalData.phone,
+        whatsapp: finalData.whatsapp,
         gender: finalData.gender,
+
         session_price: finalData.price
           ? Number(finalData.price)
           : null,
+
         session_duration:
-          Number(finalData.session_duration) ||
-          50,
-        available_days:
-          finalData.available_days,
-        available_slots:
-          finalData.available_slots,
+          Number(finalData.session_duration) || 50,
+
+        available_days: finalData.available_days,
+        available_slots: finalData.available_slots,
+
         cancellation_policy:
           finalData.cancellation_policy,
+
         address: finalData.address,
+        address_number: finalData.address_number,
+        address_complement:
+          finalData.address_complement,
+        neighborhood: finalData.neighborhood,
+        zip_code: finalData.zip_code,
+
         bio: finalData.about,
+
         photo_url: finalData.photo_url,
-        profile_photo_url:
-          finalData.photo_url,
+        profile_photo_url: finalData.photo_url,
+
         presentation_video_url:
           finalData.video_url,
-        presentation_video_status:
-          "pending",
+
+        presentation_video_status: "pending",
+
+        instagram: finalData.instagram,
+        linkedin: finalData.linkedin,
+        website: finalData.website,
+
         verification_status: "pending",
         public_profile: false,
       };
@@ -1278,34 +1234,21 @@ export default function ProfessionalOnboarding() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (existingError) {
-        throw existingError;
-      }
+      if (existingError) throw existingError;
 
       if (existingProfessional) {
-        const {
-          error: updateError,
-        } = await supabase
+        const { error: updateError } = await supabase
           .from("psychologists")
           .update(psychologistData)
-          .eq(
-            "id",
-            existingProfessional.id
-          );
+          .eq("id", existingProfessional.id);
 
-        if (updateError) {
-          throw updateError;
-        }
+        if (updateError) throw updateError;
       } else {
-        const {
-          error: insertError,
-        } = await supabase
+        const { error: insertError } = await supabase
           .from("psychologists")
           .insert(psychologistData);
 
-        if (insertError) {
-          throw insertError;
-        }
+        if (insertError) throw insertError;
       }
 
       setDone(true);
@@ -1331,7 +1274,7 @@ export default function ProfessionalOnboarding() {
     return (
       <PageShell>
         <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-5xl">
             <div className="mb-10 text-center">
               <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 {authMode === "register" ? (
@@ -1352,9 +1295,9 @@ export default function ProfessionalOnboarding() {
               </h1>
 
               <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-                {authMode === "register"
-                  ? "Crie sua conta profissional e apresente seu trabalho de forma segura, clara e responsável."
-                  : "Acesse sua conta e continue seu cadastro profissional."}
+                Crie seu perfil profissional com informações de
+                identificação, registro, formação, abordagem,
+                serviços e contato.
               </p>
             </div>
 
@@ -1367,10 +1310,7 @@ export default function ProfessionalOnboarding() {
                       value={authName}
                       onChange={(value) => {
                         setAuthName(value);
-                        set(
-                          "full_name",
-                          value
-                        );
+                        set("full_name", value);
                       }}
                       placeholder="Digite seu nome completo"
                       required
@@ -1396,16 +1336,10 @@ export default function ProfessionalOnboarding() {
 
                     <div className="relative">
                       <input
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
+                        type={showPassword ? "text" : "password"}
                         value={authPassword}
                         onChange={(e) =>
-                          setAuthPassword(
-                            e.target.value
-                          )
+                          setAuthPassword(e.target.value)
                         }
                         placeholder="Mínimo de 6 caracteres"
                         className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
@@ -1414,9 +1348,7 @@ export default function ProfessionalOnboarding() {
                       <button
                         type="button"
                         onClick={() =>
-                          setShowPassword(
-                            (current) => !current
-                          )
+                          setShowPassword((current) => !current)
                         }
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                         aria-label={
@@ -1434,32 +1366,6 @@ export default function ProfessionalOnboarding() {
                     </div>
                   </div>
 
-                  {authMode === "register" && (
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <MediaUploadCard
-                        type="photo"
-                        file={photoFile}
-                        preview={photoPreview}
-                        uploading={authSubmitting}
-                        onChange={
-                          handlePhotoChange
-                        }
-                        onRemove={removePhoto}
-                      />
-
-                      <MediaUploadCard
-                        type="video"
-                        file={videoFile}
-                        preview={videoPreview}
-                        uploading={authSubmitting}
-                        onChange={
-                          handleVideoChange
-                        }
-                        onRemove={removeVideo}
-                      />
-                    </div>
-                  )}
-
                   {confirmationSent && (
                     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
                       <p className="font-medium">
@@ -1467,14 +1373,12 @@ export default function ProfessionalOnboarding() {
                       </p>
 
                       <p className="mt-1 text-muted-foreground">
-                        Verifique seu e-mail e confirme sua conta antes de entrar.
+                        Verifique seu e-mail antes de entrar.
                       </p>
 
                       <button
                         type="button"
-                        onClick={
-                          resendConfirmation
-                        }
+                        onClick={resendConfirmation}
                         className="mt-3 font-medium text-primary hover:underline"
                       >
                         Reenviar confirmação
@@ -1490,16 +1394,13 @@ export default function ProfessionalOnboarding() {
 
                   <button
                     type="button"
-                    onClick={
-                      authenticateProfessional
-                    }
+                    onClick={authenticateProfessional}
                     disabled={authSubmitting}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {authSubmitting ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : authMode ===
-                      "register" ? (
+                    ) : authMode === "register" ? (
                       <UserPlus className="h-5 w-5" />
                     ) : (
                       <LogIn className="h-5 w-5" />
@@ -1513,16 +1414,13 @@ export default function ProfessionalOnboarding() {
                   <button
                     type="button"
                     onClick={() => {
-                      setAuthMode(
-                        (current) =>
-                          current === "register"
-                            ? "login"
-                            : "register"
+                      setAuthMode((current) =>
+                        current === "register"
+                          ? "login"
+                          : "register"
                       );
                       setError("");
-                      setConfirmationSent(
-                        false
-                      );
+                      setConfirmationSent(false);
                     }}
                     className="w-full text-sm text-muted-foreground transition hover:text-foreground"
                   >
@@ -1535,7 +1433,9 @@ export default function ProfessionalOnboarding() {
                     <Lock className="mt-0.5 h-5 w-5 shrink-0" />
 
                     <span>
-                      Seus dados são protegidos e utilizados para o funcionamento da plataforma e para o processo de verificação profissional.
+                      Seus dados são utilizados para o funcionamento
+                      da plataforma e para o processo de verificação
+                      profissional.
                     </span>
                   </div>
                 </div>
@@ -1544,32 +1444,48 @@ export default function ProfessionalOnboarding() {
               <div className="space-y-4">
                 <InfoCard
                   icon={ShieldCheck}
-                  title="Identificação profissional"
+                  title="CRP e identificação profissional"
                 >
-                  Para manter um perfil profissional confiável, o cadastro solicita nome, foto, número do CRP, região do CRP, formação e informações sobre sua atuação.
+                  O cadastro profissional deverá conter nome
+                  completo, número do CRP, região do CRP e demais
+                  informações necessárias para a verificação.
                 </InfoCard>
 
                 <InfoCard
                   icon={User}
-                  title="Informações claras"
+                  title="Formação e atuação"
                 >
-                  Seu perfil poderá apresentar abordagem teórica, público atendido, temas de atuação e modalidades de atendimento.
+                  O profissional deverá informar formação,
+                  instituição, abordagem teórica, público atendido
+                  e áreas de atuação.
+                </InfoCard>
+
+                <InfoCard
+                  icon={Video}
+                  title="Atendimento online"
+                >
+                  Caso ofereça atendimento online, o profissional
+                  deverá informar a situação do cadastro aplicável
+                  no e-Psi.
                 </InfoCard>
 
                 <InfoCard
                   icon={Lock}
-                  title="Compromisso ético"
+                  title="Ética e privacidade"
                 >
-                  A comunicação profissional deve respeitar o sigilo, a privacidade e as normas éticas aplicáveis à Psicologia.
+                  O perfil deverá respeitar o sigilo profissional,
+                  a privacidade, a proteção de dados e as normas
+                  éticas aplicáveis à Psicologia.
                 </InfoCard>
 
                 <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
                   <p className="font-semibold">
-                    Validação do registro
+                    Consulte seu registro
                   </p>
 
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    O número do CRP informado será utilizado no processo de verificação do perfil profissional.
+                    O cadastro profissional será submetido à
+                    verificação antes da publicação do perfil.
                   </p>
 
                   <a
@@ -1578,7 +1494,7 @@ export default function ProfessionalOnboarding() {
                     rel="noreferrer"
                     className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                   >
-                    Consultar Cadastro Nacional de Psicólogas(os)
+                    Cadastro Nacional de Psicólogas(os)
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 </div>
@@ -1608,23 +1524,27 @@ export default function ProfessionalOnboarding() {
             </h1>
 
             <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-              Seu perfil profissional foi cadastrado e enviado para análise. A equipe poderá verificar suas informações e o registro profissional antes da publicação.
+              Seu cadastro profissional foi enviado para análise.
+              O perfil permanecerá não publicado até a conclusão
+              da verificação.
             </p>
 
-            <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5 text-left">
-              <div className="flex gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="mt-8 space-y-3 text-left">
+              <InfoCard
+                icon={ShieldCheck}
+                title="Verificação do CRP"
+              >
+                As informações profissionais fornecidas serão
+                analisadas antes da publicação do perfil.
+              </InfoCard>
 
-                <div>
-                  <p className="font-medium">
-                    Próxima etapa: verificação
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    A publicação do perfil permanece condicionada ao processo de verificação da plataforma.
-                  </p>
-                </div>
-              </div>
+              <InfoCard
+                icon={Lock}
+                title="Publicação segura"
+              >
+                O perfil foi enviado com status pendente e não
+                ficará público enquanto estiver em análise.
+              </InfoCard>
             </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -1652,8 +1572,7 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  const progress =
-    ((step + 1) / STEPS.length) * 100;
+  const progress = ((step + 1) / STEPS.length) * 100;
 
   return (
     <PageShell>
@@ -1669,7 +1588,8 @@ export default function ProfessionalOnboarding() {
             </h1>
 
             <p className="mt-2 text-muted-foreground">
-              Apresente sua atuação de forma profissional, transparente e responsável.
+              {displayName}, informe seus dados profissionais para
+              que seu perfil possa ser analisado e publicado.
             </p>
           </div>
 
@@ -1718,9 +1638,7 @@ export default function ProfessionalOnboarding() {
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all"
-              style={{
-                width: `${progress}%`,
-              }}
+              style={{ width: `${progress}%` }}
             />
           </div>
 
@@ -1737,18 +1655,19 @@ export default function ProfessionalOnboarding() {
 
         <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
           {step === 0 && (
-            <div className="space-y-6">
+            <div className="space-y-7">
               <div>
                 <p className="text-sm font-medium text-primary">
                   Etapa 1
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold">
-                  Identificação pessoal
+                  Identificação e contato
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Essas informações ajudam a identificar corretamente o profissional.
+                  Informe seus dados básicos e os meios de contato
+                  profissional.
                 </p>
               </div>
 
@@ -1756,9 +1675,7 @@ export default function ProfessionalOnboarding() {
                 <Input
                   label="Nome completo"
                   value={data.full_name}
-                  onChange={(value) =>
-                    set("full_name", value)
-                  }
+                  onChange={(value) => set("full_name", value)}
                   placeholder="Seu nome completo"
                   required
                 />
@@ -1767,20 +1684,15 @@ export default function ProfessionalOnboarding() {
                   label="Nome profissional"
                   value={data.professional_name}
                   onChange={(value) =>
-                    set(
-                      "professional_name",
-                      value
-                    )
+                    set("professional_name", value)
                   }
                   placeholder="Como deseja ser apresentado"
                 />
 
                 <Input
-                  label="E-mail"
+                  label="E-mail profissional"
                   value={data.email}
-                  onChange={(value) =>
-                    set("email", value)
-                  }
+                  onChange={(value) => set("email", value)}
                   type="email"
                   placeholder="seu@email.com"
                   required
@@ -1789,18 +1701,34 @@ export default function ProfessionalOnboarding() {
                 <Input
                   label="Telefone profissional"
                   value={data.phone}
-                  onChange={(value) =>
-                    set("phone", value)
-                  }
+                  onChange={(value) => set("phone", value)}
                   placeholder="(00) 00000-0000"
+                  required
+                />
+
+                <Input
+                  label="WhatsApp profissional"
+                  value={data.whatsapp}
+                  onChange={(value) => set("whatsapp", value)}
+                  placeholder="(00) 00000-0000"
+                />
+
+                <Select
+                  label="Gênero"
+                  value={data.gender}
+                  onChange={(value) => set("gender", value)}
+                  options={[
+                    "Feminino",
+                    "Masculino",
+                    "Não binário",
+                    "Prefiro não informar",
+                  ]}
                 />
 
                 <Input
                   label="Cidade"
                   value={data.city}
-                  onChange={(value) =>
-                    set("city", value)
-                  }
+                  onChange={(value) => set("city", value)}
                   placeholder="Sua cidade"
                   required
                 />
@@ -1809,29 +1737,10 @@ export default function ProfessionalOnboarding() {
                   label="Estado"
                   value={data.state}
                   onChange={(value) =>
-                    set(
-                      "state",
-                      value
-                        .toUpperCase()
-                        .slice(0, 2)
-                    )
+                    set("state", value.toUpperCase().slice(0, 2))
                   }
                   placeholder="SP"
                   required
-                />
-
-                <Select
-                  label="Gênero"
-                  value={data.gender}
-                  onChange={(value) =>
-                    set("gender", value)
-                  }
-                  options={[
-                    "Feminino",
-                    "Masculino",
-                    "Não binário",
-                    "Prefiro não informar",
-                  ]}
                 />
               </div>
 
@@ -1839,7 +1748,9 @@ export default function ProfessionalOnboarding() {
                 icon={ShieldCheck}
                 title="Identificação profissional"
               >
-                O perfil deverá apresentar informações verdadeiras, claras e compatíveis com a atuação profissional registrada.
+                O nome profissional, CRP e demais informações
+                exibidas no perfil devem corresponder à atuação
+                profissional informada no cadastro.
               </InfoCard>
             </div>
           )}
@@ -1852,11 +1763,12 @@ export default function ProfessionalOnboarding() {
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold">
-                  Registro e atuação profissional
+                  Registro profissional
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Informe os dados necessários para identificação e apresentação da sua atuação.
+                  O número do CRP é uma informação essencial para
+                  a identificação e verificação do profissional.
                 </p>
               </div>
 
@@ -1866,11 +1778,13 @@ export default function ProfessionalOnboarding() {
 
                   <div>
                     <p className="font-semibold">
-                      CRP ativo e verificável
+                      Registro no Conselho Regional de Psicologia
                     </p>
 
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      O número do Conselho Regional de Psicologia será exibido no perfil após a aprovação e utilizado no processo de verificação.
+                      Informe corretamente seu CRP e a respectiva
+                      região. A plataforma utilizará essas
+                      informações no processo de verificação.
                     </p>
 
                     <a
@@ -1890,9 +1804,7 @@ export default function ProfessionalOnboarding() {
                 <Input
                   label="Número do CRP"
                   value={data.crp_number}
-                  onChange={(value) =>
-                    set("crp_number", value)
-                  }
+                  onChange={(value) => set("crp_number", value)}
                   placeholder="Digite seu número de registro"
                   required
                 />
@@ -1900,20 +1812,76 @@ export default function ProfessionalOnboarding() {
                 <Select
                   label="Região do CRP"
                   value={data.crp_region}
-                  onChange={(value) =>
-                    set("crp_region", value)
-                  }
+                  onChange={(value) => set("crp_region", value)}
                   options={REGION_OPTS}
                   required
                 />
 
+                <Select
+                  label="Situação do registro"
+                  value={data.crp_status}
+                  onChange={(value) => set("crp_status", value)}
+                  options={[
+                    {
+                      value: "active",
+                      label: "Ativo",
+                    },
+                    {
+                      value: "inactive",
+                      label: "Inativo",
+                    },
+                    {
+                      value: "suspended",
+                      label: "Suspenso",
+                    },
+                  ]}
+                  required
+                />
+
+                <Input
+                  label="Ano de formação"
+                  value={data.graduation_year}
+                  onChange={(value) =>
+                    set("graduation_year", value)
+                  }
+                  type="number"
+                  placeholder="Ex.: 2020"
+                />
+              </div>
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-muted-foreground">
+                A informação de CRP fornecida pelo profissional
+                será submetida ao processo de verificação da
+                plataforma. O preenchimento do número não significa
+                aprovação automática.
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-7">
+              <div>
+                <p className="text-sm font-medium text-primary">
+                  Etapa 3
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  Formação e atuação
+                </h2>
+
+                <p className="mt-1 text-muted-foreground">
+                  Essas informações ajudam o paciente a entender
+                  sua formação, abordagem e áreas de atuação.
+                </p>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
                 <Input
                   label="Formação"
                   value={data.education}
-                  onChange={(value) =>
-                    set("education", value)
-                  }
+                  onChange={(value) => set("education", value)}
                   placeholder="Psicologia"
+                  required
                 />
 
                 <Input
@@ -1923,19 +1891,7 @@ export default function ProfessionalOnboarding() {
                     set("institution", value)
                   }
                   placeholder="Nome da instituição"
-                />
-
-                <Input
-                  label="Ano de formação"
-                  value={data.graduation_year}
-                  onChange={(value) =>
-                    set(
-                      "graduation_year",
-                      value
-                    )
-                  }
-                  type="number"
-                  placeholder="2026"
+                  required
                 />
 
                 <Input
@@ -1952,9 +1908,7 @@ export default function ProfessionalOnboarding() {
                 label="Abordagem teórica"
                 options={APPROACH_OPTS}
                 values={data.approaches}
-                onChange={(values) =>
-                  set("approaches", values)
-                }
+                onChange={(values) => set("approaches", values)}
               />
 
               <Chips
@@ -1962,10 +1916,7 @@ export default function ProfessionalOnboarding() {
                 options={SPEC_OPTS}
                 values={data.specializations}
                 onChange={(values) =>
-                  set(
-                    "specializations",
-                    values
-                  )
+                  set("specializations", values)
                 }
               />
 
@@ -1974,36 +1925,56 @@ export default function ProfessionalOnboarding() {
                 options={SPEC_OPTS}
                 values={data.specialties}
                 onChange={(values) =>
-                  set(
-                    "specialties",
-                    values
-                  )
+                  set("specialties", values)
                 }
+              />
+
+              <Chips
+                label="Temas de atendimento"
+                options={THEME_OPTS}
+                values={data.themes}
+                onChange={(values) => set("themes", values)}
+              />
+
+              <Chips
+                label="Público atendido"
+                options={AUDIENCE_OPTS}
+                values={data.audience}
+                onChange={(values) => set("audience", values)}
+              />
+
+              <Chips
+                label="Idiomas"
+                options={LANG_OPTS}
+                values={data.languages}
+                onChange={(values) => set("languages", values)}
+              />
+
+              <TextArea
+                label="Sobre você"
+                value={data.about}
+                onChange={(value) => set("about", value)}
+                placeholder="Apresente sua formação, experiência, abordagem, forma de trabalho e como você pode ajudar seus pacientes."
+                rows={7}
+                required
               />
 
               <InfoCard
                 icon={User}
-                title="Público atendido"
+                title="Comunicação profissional"
               >
-                Selecione quem você atende profissionalmente. Essa informação será apresentada aos pacientes para facilitar a escolha de um profissional adequado.
+                Evite promessas de resultados, garantias de cura,
+                informações enganosas ou qualquer conteúdo que
+                possa induzir o paciente a erro.
               </InfoCard>
-
-              <Chips
-                label="Público"
-                options={AUDIENCE_OPTS}
-                values={data.audience}
-                onChange={(values) =>
-                  set("audience", values)
-                }
-              />
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-7">
               <div>
                 <p className="text-sm font-medium text-primary">
-                  Etapa 3
+                  Etapa 4
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold">
@@ -2011,38 +1982,44 @@ export default function ProfessionalOnboarding() {
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Configure como você atende e quais serviços oferece.
+                  Informe como você atende, sua disponibilidade,
+                  valores e condições do serviço.
                 </p>
               </div>
 
               <Chips
                 label="Modalidades de atendimento"
-                options={[
-                  "online",
-                  "presencial",
-                  "híbrido",
-                ]}
+                options={["online", "presencial", "híbrido"]}
                 values={data.modalities}
-                onChange={(values) =>
-                  set("modalities", values)
-                }
+                onChange={(values) => set("modalities", values)}
               />
 
-              {data.modalities.includes(
-                "online"
-              ) && (
+              {data.modalities.includes("online") && (
                 <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
                   <div className="flex gap-3">
                     <Video className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 
-                    <div>
+                    <div className="w-full">
                       <p className="font-semibold">
                         Atendimento psicológico online
                       </p>
 
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        Para atendimento psicológico online, o profissional deve observar as normas e exigências aplicáveis do Conselho Federal de Psicologia, incluindo o cadastro pertinente na plataforma e-Psi quando exigido.
+                        Informe sua situação no e-Psi e mantenha
+                        os registros necessários para o atendimento
+                        psicológico por meios digitais.
                       </p>
+
+                      <Checkbox
+                        checked={data.epsico_registered}
+                        onChange={(value) =>
+                          set("epsico_registered", value)
+                        }
+                      >
+                        Confirmo que possuo o cadastro pertinente no
+                        e-Psi para atendimento psicológico online,
+                        quando aplicável à minha atuação.
+                      </Checkbox>
 
                       <a
                         href="https://cadastro.epsicologia.cfp.org.br/"
@@ -2058,52 +2035,86 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              <Chips
-                label="Temas de atendimento"
-                options={THEME_OPTS}
-                values={data.themes}
-                onChange={(values) =>
-                  set("themes", values)
-                }
-              />
+              {data.modalities.includes("presencial") && (
+                <div className="space-y-5 rounded-2xl border border-border bg-muted/30 p-5">
+                  <div>
+                    <h3 className="font-semibold">
+                      Local do atendimento presencial
+                    </h3>
 
-              <Chips
-                label="Público"
-                options={AUDIENCE_OPTS}
-                values={data.audience}
-                onChange={(values) =>
-                  set("audience", values)
-                }
-              />
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Informe o endereço profissional onde o
+                      atendimento presencial é realizado.
+                    </p>
+                  </div>
 
-              <Chips
-                label="Idiomas"
-                options={LANG_OPTS}
-                values={data.languages}
-                onChange={(values) =>
-                  set("languages", values)
-                }
-              />
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <Input
+                      label="Endereço"
+                      value={data.address}
+                      onChange={(value) =>
+                        set("address", value)
+                      }
+                      placeholder="Rua, avenida..."
+                      required
+                    />
+
+                    <Input
+                      label="Número"
+                      value={data.address_number}
+                      onChange={(value) =>
+                        set("address_number", value)
+                      }
+                      placeholder="Número"
+                    />
+
+                    <Input
+                      label="Complemento"
+                      value={data.address_complement}
+                      onChange={(value) =>
+                        set(
+                          "address_complement",
+                          value
+                        )
+                      }
+                      placeholder="Sala, conjunto..."
+                    />
+
+                    <Input
+                      label="Bairro"
+                      value={data.neighborhood}
+                      onChange={(value) =>
+                        set("neighborhood", value)
+                      }
+                      placeholder="Bairro"
+                    />
+
+                    <Input
+                      label="CEP"
+                      value={data.zip_code}
+                      onChange={(value) =>
+                        set("zip_code", value)
+                      }
+                      placeholder="00000-000"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-5 md:grid-cols-2">
                 <Input
                   label="Valor da sessão"
                   value={data.price}
-                  onChange={(value) =>
-                    set("price", value)
-                  }
+                  onChange={(value) => set("price", value)}
                   type="number"
                   placeholder="Ex.: 150"
                 />
 
                 <Input
-                  label="Duração da sessão"
+                  label="Duração da sessão (minutos)"
                   value={data.session_duration}
                   onChange={(value) =>
-                    set(
-                      "session_duration",
-                      value
-                    )
+                    set("session_duration", value)
                   }
                   type="number"
                   placeholder="50"
@@ -2115,10 +2126,7 @@ export default function ProfessionalOnboarding() {
                 options={DAY_OPTS}
                 values={data.available_days}
                 onChange={(values) =>
-                  set(
-                    "available_days",
-                    values
-                  )
+                  set("available_days", values)
                 }
               />
 
@@ -2127,139 +2135,104 @@ export default function ProfessionalOnboarding() {
                 options={SLOT_OPTS}
                 values={data.available_slots}
                 onChange={(values) =>
-                  set(
-                    "available_slots",
-                    values
-                  )
+                  set("available_slots", values)
                 }
               />
 
               <TextArea
                 label="Política de cancelamento e reagendamento"
-                value={
-                  data.cancellation_policy
-                }
+                value={data.cancellation_policy}
                 onChange={(value) =>
-                  set(
-                    "cancellation_policy",
-                    value
-                  )
+                  set("cancellation_policy", value)
                 }
                 placeholder="Informe de forma clara sua política de cancelamento e reagendamento."
                 rows={4}
               />
 
-              {data.modalities.includes(
-                "presencial"
-              ) && (
+              <div className="grid gap-5 md:grid-cols-3">
                 <Input
-                  label="Endereço do consultório"
-                  value={data.address}
+                  label="Instagram profissional"
+                  value={data.instagram}
                   onChange={(value) =>
-                    set("address", value)
+                    set("instagram", value)
                   }
-                  placeholder="Endereço completo do atendimento presencial"
+                  placeholder="@seuperfil"
                 />
-              )}
 
-              <TextArea
-                label="Sobre você"
-                value={data.about}
-                onChange={(value) =>
-                  set("about", value)
-                }
-                placeholder="Escreva uma apresentação profissional, sua experiência, forma de trabalho e como você pode ajudar seus pacientes."
-                rows={6}
-              />
+                <Input
+                  label="LinkedIn"
+                  value={data.linkedin}
+                  onChange={(value) =>
+                    set("linkedin", value)
+                  }
+                  placeholder="Perfil profissional"
+                />
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <InfoCard
-                  icon={User}
-                  title="Transparência"
-                >
-                  Apresente sua formação, abordagem, público e serviços de maneira objetiva e compreensível.
-                </InfoCard>
-
-                <InfoCard
-                  icon={Lock}
-                  title="Sigilo profissional"
-                >
-                  O atendimento psicológico deve respeitar o sigilo profissional e as normas éticas aplicáveis à categoria.
-                </InfoCard>
+                <Input
+                  label="Site profissional"
+                  value={data.website}
+                  onChange={(value) =>
+                    set("website", value)
+                  }
+                  placeholder="https://..."
+                />
               </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 4
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Foto profissional
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Uma boa foto ajuda os pacientes a reconhecerem seu perfil e transmite profissionalismo.
-                </p>
-              </div>
-
-              <MediaUploadCard
-                type="photo"
-                file={photoFile}
-                preview={
-                  photoPreview ||
-                  data.photo_url
-                }
-                uploading={uploading}
-                onChange={handlePhotoChange}
-                onRemove={removePhoto}
-              />
-
-              <InfoCard
-                icon={Camera}
-                title="Recomendação"
-              >
-                Prefira uma imagem atual, nítida, com boa iluminação e aparência profissional.
-              </InfoCard>
             </div>
           )}
 
           {step === 4 && (
-            <div className="space-y-6">
+            <div className="space-y-7">
               <div>
                 <p className="text-sm font-medium text-primary">
                   Etapa 5
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold">
-                  Vídeo de apresentação
+                  Foto e apresentação
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Apresente brevemente seu trabalho, sua abordagem e o público com quem atua.
+                  Uma apresentação profissional ajuda o paciente
+                  a conhecer melhor o profissional antes de entrar
+                  em contato.
                 </p>
               </div>
 
-              <MediaUploadCard
-                type="video"
-                file={videoFile}
-                preview={
-                  videoPreview ||
-                  data.video_url
-                }
-                uploading={uploading}
-                onChange={handleVideoChange}
-                onRemove={removeVideo}
-              />
+              <div className="grid gap-5 lg:grid-cols-2">
+                <MediaUploadCard
+                  type="photo"
+                  file={photoFile}
+                  preview={photoPreview || data.photo_url}
+                  uploading={uploading}
+                  onChange={handlePhotoChange}
+                  onRemove={removePhoto}
+                />
+
+                <MediaUploadCard
+                  type="video"
+                  file={videoFile}
+                  preview={videoPreview || data.video_url}
+                  uploading={uploading}
+                  onChange={handleVideoChange}
+                  onRemove={removeVideo}
+                />
+              </div>
+
+              <InfoCard
+                icon={Camera}
+                title="Foto profissional"
+              >
+                Prefira uma imagem atual, nítida, com boa iluminação
+                e aparência profissional.
+              </InfoCard>
 
               <InfoCard
                 icon={Video}
-                title="Dica para sua apresentação"
+                title="Vídeo de apresentação"
               >
-                Mantenha o vídeo objetivo, com áudio claro e ambiente adequado. Evite promessas de resultados ou informações que possam induzir o paciente a erro.
+                O vídeo pode apresentar sua formação, abordagem,
+                público atendido e forma de trabalho. Evite
+                promessas de resultados ou garantias.
               </InfoCard>
             </div>
           )}
@@ -2272,11 +2245,12 @@ export default function ProfessionalOnboarding() {
                 </p>
 
                 <h2 className="mt-1 text-2xl font-bold">
-                  Revisão do cadastro
+                  Revisão e compromisso profissional
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Confira todas as informações antes de enviar seu perfil para verificação.
+                  Confira seus dados e confirme os compromissos
+                  necessários antes de enviar o cadastro.
                 </p>
               </div>
 
@@ -2299,20 +2273,97 @@ export default function ProfessionalOnboarding() {
                   </p>
 
                   <p className="mt-1 break-all font-medium">
-                    {data.email ||
-                      "Não informado"}
+                    {data.email || "Não informado"}
                   </p>
                 </div>
 
                 <div className="rounded-2xl bg-primary/5 p-4">
                   <p className="text-xs text-muted-foreground">
-                    Registro profissional
+                    CRP
                   </p>
 
                   <p className="mt-1 font-semibold text-primary">
                     {data.crp_number
                       ? `CRP ${data.crp_region} - ${data.crp_number}`
                       : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Situação do CRP
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.crp_status === "active"
+                      ? "Ativo — sujeito à verificação"
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Formação
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.education || "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Instituição
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.institution || "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Abordagem
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.approaches.length
+                      ? data.approaches.join(", ")
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Público
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.audience.length
+                      ? data.audience.join(", ")
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Modalidades
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.modalities.length
+                      ? data.modalities.join(", ")
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Telefone
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.phone || "Não informado"}
                   </p>
                 </div>
 
@@ -2327,157 +2378,7 @@ export default function ProfessionalOnboarding() {
                       : "Não informado"}
                   </p>
                 </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Abordagem
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.approaches &&
-                    data.approaches.length > 0
-                      ? data.approaches.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Público
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.audience &&
-                    data.audience.length > 0
-                      ? data.audience.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Modalidades
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.modalities &&
-                    data.modalities.length > 0
-                      ? data.modalities.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Valor da sessão
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.price
-                      ? `R$ ${data.price}`
-                      : "Não informado"}
-                  </p>
-                </div>
               </div>
-
-              {data.specializations &&
-                data.specializations.length >
-                  0 && (
-                  <div>
-                    <p className="mb-2 text-sm font-medium">
-                      Especializações
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {data.specializations.map(
-                        (item) => (
-                          <span
-                            key={item}
-                            className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"
-                          >
-                            {item}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              {data.themes &&
-                data.themes.length > 0 && (
-                  <div>
-                    <p className="mb-2 text-sm font-medium">
-                      Temas de atendimento
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {data.themes.map(
-                        (item) => (
-                          <span
-                            key={item}
-                            className="rounded-full bg-muted px-3 py-1 text-sm"
-                          >
-                            {item}
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-              {data.about && (
-                <div className="rounded-2xl bg-muted/50 p-5">
-                  <p className="text-sm font-medium">
-                    Sobre o profissional
-                  </p>
-
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                    {data.about}
-                  </p>
-                </div>
-              )}
-
-              {(photoPreview ||
-                data.photo_url) && (
-                <div>
-                  <p className="mb-2 text-sm font-medium">
-                    Foto profissional
-                  </p>
-
-                  <img
-                    src={
-                      photoPreview ||
-                      data.photo_url
-                    }
-                    alt="Foto de perfil"
-                    className="h-48 w-48 rounded-2xl object-cover"
-                  />
-                </div>
-              )}
-
-              {(videoPreview ||
-                data.video_url) && (
-                <div>
-                  <p className="mb-2 text-sm font-medium">
-                    Vídeo de apresentação
-                  </p>
-
-                  <video
-                    src={
-                      videoPreview ||
-                      data.video_url
-                    }
-                    controls
-                    className="max-h-80 w-full rounded-2xl"
-                  />
-                </div>
-              )}
 
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
                 <div className="flex gap-3">
@@ -2489,17 +2390,19 @@ export default function ProfessionalOnboarding() {
                     </p>
 
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Ao enviar o cadastro, você declara que as informações profissionais fornecidas são verdadeiras. O perfil será submetido a análise antes de sua publicação.
+                      O perfil será enviado para análise. O número
+                      do CRP e demais informações profissionais
+                      poderão ser verificados antes da publicação.
                     </p>
 
-                    <div className="mt-4 flex flex-wrap gap-3">
+                    <div className="mt-4 flex flex-wrap gap-4">
                       <a
                         href="https://cadastro.cfp.org.br/"
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                       >
-                        Validar registro no CFP
+                        Cadastro Nacional
                         <ExternalLink className="h-4 w-4" />
                       </a>
 
@@ -2517,17 +2420,58 @@ export default function ProfessionalOnboarding() {
                 </div>
               </div>
 
+              <div className="space-y-3">
+                <Checkbox
+                  checked={data.information_truthful}
+                  onChange={(value) =>
+                    set("information_truthful", value)
+                  }
+                >
+                  Confirmo que as informações pessoais e
+                  profissionais fornecidas neste cadastro são
+                  verdadeiras, atuais e correspondem à minha
+                  atuação profissional.
+                </Checkbox>
+
+                <Checkbox
+                  checked={data.ethical_commitment}
+                  onChange={(value) =>
+                    set("ethical_commitment", value)
+                  }
+                >
+                  Declaro estar ciente de que minha atuação
+                  profissional deve respeitar o sigilo profissional,
+                  o Código de Ética e as normas aplicáveis à
+                  Psicologia.
+                </Checkbox>
+
+                <Checkbox
+                  checked={data.privacy_commitment}
+                  onChange={(value) =>
+                    set("privacy_commitment", value)
+                  }
+                >
+                  Comprometo-me a respeitar a privacidade e a
+                  proteção das informações dos pacientes, utilizando
+                  os meios disponibilizados pela plataforma de
+                  maneira responsável.
+                </Checkbox>
+              </div>
+
               <div className="rounded-2xl border border-border bg-background p-5">
                 <div className="flex gap-3">
                   <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 
                   <div>
                     <p className="font-medium">
-                      Compromisso com a privacidade
+                      Publicação condicionada à verificação
                     </p>
 
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      O EntreNós valoriza a privacidade e a segurança das informações. A atuação profissional também deve observar o dever de sigilo e as normas éticas aplicáveis à Psicologia.
+                      Enviar o cadastro não significa aprovação
+                      automática. O perfil ficará com status pendente
+                      e não será publicado até a conclusão do
+                      processo de verificação da plataforma.
                     </p>
                   </div>
                 </div>
@@ -2539,9 +2483,7 @@ export default function ProfessionalOnboarding() {
             <button
               type="button"
               onClick={previousStep}
-              disabled={
-                step === 0 || submitting
-              }
+              disabled={step === 0 || submitting}
               className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -2568,12 +2510,12 @@ export default function ProfessionalOnboarding() {
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Enviando...
+                    Enviando cadastro...
                   </>
                 ) : (
                   <>
                     <Check className="h-5 w-5" />
-                    Enviar cadastro
+                    Enviar para verificação
                   </>
                 )}
               </button>
@@ -2583,7 +2525,10 @@ export default function ProfessionalOnboarding() {
 
         <div className="mx-auto mt-8 max-w-4xl text-center">
           <p className="text-xs leading-5 text-muted-foreground">
-            O EntreNós é uma plataforma de conexão entre pacientes e profissionais. A plataforma não substitui atendimento de emergência e não presta atendimento psicológico diretamente.
+            O EntreNós é uma plataforma de conexão entre pacientes e
+            profissionais. A plataforma não substitui atendimento
+            de emergência e não presta atendimento psicológico
+            diretamente.
           </p>
         </div>
       </div>
