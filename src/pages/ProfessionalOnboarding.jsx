@@ -119,14 +119,20 @@ const SLOT_OPTS = [
 "21:00",
 ];
 
-const REGION_OPTS = Array.from({ length: 24 }, function (_, i) {
+const REGION_OPTS = Array.from(
+{ length: 24 },
+function (_, i) {
 const value = String(i + 1).padStart(2, "0");
 
+```
 return {
-value: value,
-label: "CRP " + value,
+  value: value,
+  label: "CRP " + value,
 };
-});
+```
+
+}
+);
 
 const DEFAULTS = {
 full_name: "",
@@ -161,7 +167,9 @@ video_url: "",
 };
 
 function getFriendlyError(error) {
-const message = String(error && error.message ? error.message : "").toLowerCase();
+const message = String(
+error && error.message ? error.message : ""
+).toLowerCase();
 
 if (message.includes("invalid login credentials")) {
 return "E-mail ou senha incorretos.";
@@ -198,14 +206,17 @@ message.includes("object")
 return "Não foi possível enviar o arquivo. Verifique o Storage do Supabase.";
 }
 
-return (error && error.message) || "Não foi possível concluir a operação.";
+return (
+(error && error.message) ||
+"Não foi possível concluir a operação."
+);
 }
 
 function makeFileName(file) {
 const extension =
-(file.name && file.name.split(".").pop()
+file.name && file.name.split(".").pop()
 ? file.name.split(".").pop().toLowerCase()
-: "file");
+: "file";
 
 const id =
 typeof crypto !== "undefined" && crypto.randomUUID
@@ -227,7 +238,8 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && <span className="text-red-500">*</span>} </span>
+{required && ( <span className="text-red-500">*</span>
+)} </span>
 
 ```
   <input
@@ -252,7 +264,8 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && <span className="text-red-500">*</span>} </span>
+{required && ( <span className="text-red-500">*</span>
+)} </span>
 
 ```
   <select
@@ -310,7 +323,9 @@ multiple = true,
 }) {
 const toggle = (option) => {
 if (!multiple) {
-onChange(values.includes(option) ? [] : [option]);
+onChange(
+values.includes(option) ? [] : [option]
+);
 return;
 }
 
@@ -324,7 +339,8 @@ onChange(
 
 };
 
-return ( <div> <p className="text-sm font-medium mb-2">{label}</p>
+return ( <div> <p className="text-sm font-medium mb-2">
+{label} </p>
 
 ```
   <div className="flex flex-wrap gap-2">
@@ -368,7 +384,9 @@ return ( <div className="space-y-5">
 <label
 className={
 "block border-2 border-dashed border-border rounded-3xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition " +
-(uploading ? "opacity-60 pointer-events-none" : "")
+(uploading
+? "opacity-60 pointer-events-none"
+: "")
 }
 >
 {isPhoto ? ( <Camera
@@ -411,7 +429,11 @@ className={
       className="hidden"
       disabled={uploading}
       onChange={(e) =>
-        onChange(e.target.files ? e.target.files[0] : null)
+        onChange(
+          e.target.files
+            ? e.target.files[0]
+            : null
+        )
       }
     />
   </label>
@@ -457,25 +479,31 @@ const [data, setData] = useState(DEFAULTS);
 
 const [authLoading, setAuthLoading] = useState(true);
 const [authMode, setAuthMode] = useState("register");
-const [authenticatedUser, setAuthenticatedUser] = useState(null);
+const [authenticatedUser, setAuthenticatedUser] =
+useState(null);
 
 const [authName, setAuthName] = useState("");
 const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
-const [showPassword, setShowPassword] = useState(false);
+const [showPassword, setShowPassword] =
+useState(false);
 
-const [authSubmitting, setAuthSubmitting] = useState(false);
+const [authSubmitting, setAuthSubmitting] =
+useState(false);
 const [submitting, setSubmitting] = useState(false);
 const [uploading, setUploading] = useState(false);
 const [done, setDone] = useState(false);
-const [confirmationSent, setConfirmationSent] = useState(false);
+const [confirmationSent, setConfirmationSent] =
+useState(false);
 const [error, setError] = useState("");
 
 const [photoFile, setPhotoFile] = useState(null);
 const [videoFile, setVideoFile] = useState(null);
 
-const [photoPreview, setPhotoPreview] = useState("");
-const [videoPreview, setVideoPreview] = useState("");
+const [photoPreview, setPhotoPreview] =
+useState("");
+const [videoPreview, setVideoPreview] =
+useState("");
 
 const isAuthenticated = Boolean(
 authenticatedUser && authenticatedUser.id
@@ -803,7 +831,9 @@ if (!authPassword) {
 }
 
 if (authPassword.length < 6) {
-  setError("A senha deve ter pelo menos 6 caracteres.");
+  setError(
+    "A senha deve ter pelo menos 6 caracteres."
+  );
   return;
 }
 
@@ -823,7 +853,9 @@ try {
       data: signUpData,
       error: signUpError,
     } = await supabase.auth.signUp({
-      email: authEmail.trim().toLowerCase(),
+      email: authEmail
+        .trim()
+        .toLowerCase(),
       password: authPassword,
       options: {
         data: {
@@ -885,7 +917,9 @@ try {
     data: loginData,
     error: loginError,
   } = await supabase.auth.signInWithPassword({
-    email: authEmail.trim().toLowerCase(),
+    email: authEmail
+      .trim()
+      .toLowerCase(),
     password: authPassword,
   });
 
@@ -951,7 +985,9 @@ try {
     error: resendError,
   } = await supabase.auth.resend({
     type: "signup",
-    email: authEmail.trim().toLowerCase(),
+    email: authEmail
+      .trim()
+      .toLowerCase(),
   });
 
   if (resendError) {
@@ -1003,8 +1039,12 @@ return "";
 const isPhoto = type === "photo";
 
 const folder = isPhoto
-  ? "professionals/" + userId + "/photos"
-  : "professionals/" + userId + "/videos";
+  ? "professionals/" +
+    userId +
+    "/photos"
+  : "professionals/" +
+    userId +
+    "/videos";
 
 const filePath =
   folder + "/" + makeFileName(file);
@@ -1053,21 +1093,23 @@ let videoUrl = data.video_url;
 
 ```
 if (photoFile) {
-  photoUrl = await uploadFileToStorage(
-    photoFile,
-    "photo",
-    userId
-  );
+  photoUrl =
+    await uploadFileToStorage(
+      photoFile,
+      "photo",
+      userId
+    );
 
   set("photo_url", photoUrl);
 }
 
 if (videoFile) {
-  videoUrl = await uploadFileToStorage(
-    videoFile,
-    "video",
-    userId
-  );
+  videoUrl =
+    await uploadFileToStorage(
+      videoFile,
+      "video",
+      userId
+    );
 
   set("video_url", videoUrl);
 }
@@ -1095,7 +1137,9 @@ return "Informe seu nome completo.";
     return "Informe sua cidade.";
   }
 
-  if (data.state.trim().length !== 2) {
+  if (
+    data.state.trim().length !== 2
+  ) {
     return "Informe o estado com 2 letras.";
   }
 }
@@ -1117,13 +1161,19 @@ if (step === 2) {
 }
 
 if (step === 3) {
-  if (!data.photo_url && !photoFile) {
+  if (
+    !data.photo_url &&
+    !photoFile
+  ) {
     return "Adicione uma foto profissional.";
   }
 }
 
 if (step === 4) {
-  if (!data.video_url && !videoFile) {
+  if (
+    !data.video_url &&
+    !videoFile
+  ) {
     return "Adicione um vídeo de apresentação.";
   }
 }
@@ -1134,7 +1184,8 @@ return "";
 };
 
 const nextStep = async () => {
-const validationError = validateStep();
+const validationError =
+validateStep();
 
 ```
 if (validationError) {
@@ -1276,7 +1327,9 @@ try {
   const {
     photoUrl,
     videoUrl,
-  } = await uploadPendingFiles(user.id);
+  } = await uploadPendingFiles(
+    user.id
+  );
 
   setUploading(false);
 
@@ -1285,8 +1338,10 @@ try {
   } = await supabase.auth.updateUser({
     data: {
       ...(user.user_metadata || {}),
-      full_name: data.full_name.trim(),
-      name: data.full_name.trim(),
+      full_name:
+        data.full_name.trim(),
+      name:
+        data.full_name.trim(),
       role: "psychologist",
       account_type: "professional",
       user_type: "professional",
@@ -1318,16 +1373,22 @@ try {
 
     graduation_year:
       data.graduation_year
-        ? Number(data.graduation_year)
+        ? Number(
+            data.graduation_year
+          )
         : null,
 
     specializations:
-      Array.isArray(data.specializations)
+      Array.isArray(
+        data.specializations
+      )
         ? data.specializations
         : [],
 
     approaches:
-      Array.isArray(data.approaches)
+      Array.isArray(
+        data.approaches
+      )
         ? data.approaches
         : [],
 
@@ -1340,17 +1401,23 @@ try {
         : [],
 
     modalities:
-      Array.isArray(data.modalities)
+      Array.isArray(
+        data.modalities
+      )
         ? data.modalities
         : [],
 
     languages:
-      Array.isArray(data.languages)
+      Array.isArray(
+        data.languages
+      )
         ? data.languages
         : [],
 
     audience:
-      Array.isArray(data.audience)
+      Array.isArray(
+        data.audience
+      )
         ? data.audience
         : [],
 
@@ -1358,7 +1425,9 @@ try {
       data.city.trim(),
 
     state:
-      data.state.trim().toUpperCase(),
+      data.state
+        .trim()
+        .toUpperCase(),
 
     phone:
       data.phone.trim() || null,
@@ -1370,20 +1439,27 @@ try {
       Number(data.price) || 0,
 
     session_duration:
-      Number(data.session_duration) || 50,
+      Number(
+        data.session_duration
+      ) || 50,
 
     available_days:
-      Array.isArray(data.available_days)
+      Array.isArray(
+        data.available_days
+      )
         ? data.available_days
         : [],
 
     available_slots:
-      Array.isArray(data.available_slots)
+      Array.isArray(
+        data.available_slots
+      )
         ? data.available_slots
         : [],
 
     cancellation_policy:
-      data.cancellation_policy.trim() || null,
+      data.cancellation_policy.trim() ||
+      null,
 
     address:
       data.address.trim() || null,
@@ -1423,14 +1499,22 @@ try {
     throw existingError;
   }
 
-  if (existing && existing.id) {
+  if (
+    existing &&
+    existing.id
+  ) {
     const {
       error: updateError,
     } = await supabase
       .from("psychologists")
-      .update(psychologistData)
+      .update(
+        psychologistData
+      )
       .eq("id", existing.id)
-      .eq("user_id", user.id);
+      .eq(
+        "user_id",
+        user.id
+      );
 
     if (updateError) {
       throw updateError;
@@ -1440,7 +1524,9 @@ try {
       error: insertError,
     } = await supabase
       .from("psychologists")
-      .insert(psychologistData);
+      .insert(
+        psychologistData
+      );
 
     if (insertError) {
       throw insertError;
@@ -1455,7 +1541,9 @@ try {
     err
   );
 
-  setError(getFriendlyError(err));
+  setError(
+    getFriendlyError(err)
+  );
 } finally {
   setUploading(false);
   setSubmitting(false);
@@ -1526,7 +1614,9 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
           <label className="block">
             <span className="block text-sm font-medium mb-2">
               Senha{" "}
-              <span className="text-red-500">*</span>
+              <span className="text-red-500">
+                *
+              </span>
             </span>
 
             <div className="relative">
@@ -1578,9 +1668,10 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
               </h2>
 
               <p className="text-sm text-muted-foreground mt-1">
-                Você poderá adicionar sua foto e seu
-                vídeo de apresentação depois de entrar
-                na conta.
+                Você poderá adicionar sua
+                foto e seu vídeo de
+                apresentação depois de
+                entrar na conta.
               </p>
             </div>
 
@@ -1603,7 +1694,8 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  Sua foto ficará vinculada ao perfil
+                  Sua foto ficará
+                  vinculada ao perfil
                   profissional.
                 </p>
               </div>
@@ -1616,7 +1708,8 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
 
                   <div>
                     <p className="font-semibold">
-                      Vídeo de apresentação
+                      Vídeo de
+                      apresentação
                     </p>
 
                     <p className="text-xs text-muted-foreground">
@@ -1626,8 +1719,9 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  Apresente seu trabalho de forma
-                  breve e acolhedora.
+                  Apresente seu trabalho
+                  de forma breve e
+                  acolhedora.
                 </p>
               </div>
             </div>
@@ -1641,10 +1735,11 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
             </p>
 
             <p className="text-sm text-muted-foreground mt-1">
-              Confirme seu e-mail antes de entrar.
-              Depois volte aqui e use a opção
-              "Já tenho uma conta profissional" para
-              continuar o cadastro, incluindo foto e
+              Confirme seu e-mail antes de
+              entrar. Depois volte aqui e use
+              a opção "Já tenho uma conta
+              profissional" para continuar o
+              cadastro, incluindo foto e
               vídeo.
             </p>
 
@@ -1667,7 +1762,9 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
 
         <button
           type="button"
-          onClick={authenticateProfessional}
+          onClick={
+            authenticateProfessional
+          }
           disabled={authSubmitting}
           className="mt-6 w-full rounded-xl bg-primary text-primary-foreground py-3.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
         >
@@ -1690,10 +1787,11 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
         <button
           type="button"
           onClick={() => {
-            setAuthMode((mode) =>
-              mode === "register"
-                ? "login"
-                : "register"
+            setAuthMode(
+              (mode) =>
+                mode === "register"
+                  ? "login"
+                  : "register"
             );
 
             setError("");
@@ -1727,9 +1825,10 @@ return ( <PageShell> <div className="max-w-2xl mx-auto px-4 py-16"> <div classNa
         </h1>
 
         <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-          Seu perfil profissional foi salvo com sua
-          foto e vídeo e ficará aguardando a
-          verificação antes de ser publicado.
+          Seu perfil profissional foi salvo
+          com sua foto e vídeo e ficará
+          aguardando a verificação antes de
+          ser publicado.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
@@ -1825,9 +1924,9 @@ Olá, {displayName} </p>
           className="h-full bg-primary transition-all"
           style={{
             width:
-              (((step + 1) /
+              ((step + 1) /
                 STEPS.length) *
-                100) +
+                100 +
               "%",
           }}
         />
@@ -1870,7 +1969,9 @@ Olá, {displayName} </p>
 
             <Input
               label="Nome profissional"
-              value={data.professional_name}
+              value={
+                data.professional_name
+              }
               onChange={(v) =>
                 set(
                   "professional_name",
@@ -2004,12 +2105,17 @@ Olá, {displayName} </p>
 
             <Input
               label="Ano de formação"
-              value={data.graduation_year}
+              value={
+                data.graduation_year
+              }
               onChange={(v) =>
                 set(
                   "graduation_year",
                   v
-                    .replace(/\D/g, "")
+                    .replace(
+                      /\D/g,
+                      ""
+                    )
                     .slice(0, 4)
                 )
               }
@@ -2031,7 +2137,9 @@ Olá, {displayName} </p>
           <Chips
             label="Especializações"
             options={SPEC_OPTS}
-            values={data.specializations}
+            values={
+              data.specializations
+            }
             onChange={(v) =>
               set(
                 "specializations",
@@ -2043,7 +2151,9 @@ Olá, {displayName} </p>
           <Chips
             label="Abordagens terapêuticas"
             options={APPROACH_OPTS}
-            values={data.approaches}
+            values={
+              data.approaches
+            }
             onChange={(v) =>
               set(
                 "approaches",
@@ -2125,7 +2235,10 @@ Olá, {displayName} </p>
                 set(
                   "price",
                   v
-                    .replace(",", ".")
+                    .replace(
+                      ",",
+                      "."
+                    )
                     .replace(
                       /[^0-9.]/g,
                       ""
@@ -2151,19 +2264,23 @@ Olá, {displayName} </p>
                 "50",
                 "60",
                 "90",
-              ].map((value) => ({
-                value: value,
-                label:
-                  value +
-                  " minutos",
-              }))}
+              ].map(
+                (value) => ({
+                  value: value,
+                  label:
+                    value +
+                    " minutos",
+                })
+              )}
             />
           </div>
 
           <Chips
             label="Dias disponíveis"
             options={DAY_OPTS}
-            values={data.available_days}
+            values={
+              data.available_days
+            }
             onChange={(v) =>
               set(
                 "available_days",
@@ -2175,7 +2292,9 @@ Olá, {displayName} </p>
           <Chips
             label="Horários disponíveis"
             options={SLOT_OPTS}
-            values={data.available_slots}
+            values={
+              data.available_slots
+            }
             onChange={(v) =>
               set(
                 "available_slots",
@@ -2222,8 +2341,7 @@ Olá, {displayName} </p>
             </h2>
 
             <p className="text-muted-foreground mt-1">
-              Adicione uma foto nítida para representar
-              seu perfil profissional.
+              Adicione uma foto nítida para representar seu perfil profissional.
             </p>
           </div>
 
@@ -2238,13 +2356,13 @@ Olá, {displayName} </p>
             onChange={
               handlePhotoSelect
             }
-            onRemove={removePhoto}
+            onRemove={
+              removePhoto
+            }
           />
 
           <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-            A foto será enviada para o Storage do
-            Supabase e vinculada ao seu perfil
-            profissional.
+            A foto será enviada para o Storage do Supabase e vinculada ao seu perfil profissional.
           </div>
         </div>
       )}
@@ -2257,8 +2375,7 @@ Olá, {displayName} </p>
             </h2>
 
             <p className="text-muted-foreground mt-1">
-              Apresente seu trabalho de forma breve
-              e acolhedora.
+              Apresente seu trabalho de forma breve e acolhedora.
             </p>
           </div>
 
@@ -2273,12 +2390,13 @@ Olá, {displayName} </p>
             onChange={
               handleVideoSelect
             }
-            onRemove={removeVideo}
+            onRemove={
+              removeVideo
+            }
           />
 
           <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-            O vídeo será enviado para o Storage do
-            Supabase e sua URL será salva no perfil.
+            O vídeo será enviado para o Storage do Supabase e sua URL será salva no perfil.
           </div>
         </div>
       )}
@@ -2429,9 +2547,7 @@ Olá, {displayName} </p>
             </p>
 
             <p className="text-sm text-muted-foreground mt-1">
-              Seu cadastro será salvo com status de
-              verificação pendente e o perfil público
-              permanecerá desativado até a aprovação.
+              Seu cadastro será salvo com status de verificação pendente e o perfil público permanecerá desativado até a aprovação.
             </p>
           </div>
         </div>
@@ -2452,7 +2568,8 @@ Olá, {displayName} </p>
           Voltar
         </button>
 
-        {step < STEPS.length - 1 ? (
+        {step <
+        STEPS.length - 1 ? (
           <button
             type="button"
             onClick={nextStep}
