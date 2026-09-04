@@ -17,6 +17,7 @@ import {
   UserPlus,
   Video,
   X,
+  ExternalLink,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
@@ -119,14 +120,17 @@ const SLOT_OPTS = [
   "21:00",
 ];
 
-const REGION_OPTS = Array.from({ length: 24 }, function (_, i) {
-  const value = String(i + 1).padStart(2, "0");
+const REGION_OPTS = Array.from(
+  { length: 24 },
+  (_, i) => {
+    const value = String(i + 1).padStart(2, "0");
 
-  return {
-    value,
-    label: "CRP " + value,
-  };
-});
+    return {
+      value,
+      label: `CRP ${value}`,
+    };
+  }
+);
 
 const DEFAULTS = {
   full_name: "",
@@ -238,11 +242,11 @@ function makeFileName(file) {
   const id =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
-      : String(Date.now()) +
-        "-" +
-        Math.random().toString(36).slice(2);
+      : `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
 
-  return id + "." + extension;
+  return `${id}.${extension}`;
 }
 
 function Input({
@@ -255,7 +259,7 @@ function Input({
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium mb-2">
+      <span className="mb-2 block text-sm font-medium">
         {label}{" "}
         {required && (
           <span className="text-red-500">*</span>
@@ -268,7 +272,7 @@ function Input({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
       />
     </label>
   );
@@ -283,7 +287,7 @@ function Select({
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium mb-2">
+      <span className="mb-2 block text-sm font-medium">
         {label}{" "}
         {required && (
           <span className="text-red-500">*</span>
@@ -294,7 +298,7 @@ function Select({
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
       >
         <option value="">Selecione...</option>
 
@@ -320,7 +324,7 @@ function TextArea({
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium mb-2">
+      <span className="mb-2 block text-sm font-medium">
         {label}
       </span>
 
@@ -329,7 +333,7 @@ function TextArea({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
+        className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
       />
     </label>
   );
@@ -364,7 +368,7 @@ function Chips({
 
   return (
     <div>
-      <span className="block text-sm font-medium mb-3">
+      <span className="mb-3 block text-sm font-medium">
         {label}
       </span>
 
@@ -380,7 +384,7 @@ function Chips({
               className={
                 active
                   ? "rounded-full border border-primary bg-primary px-4 py-2 text-sm text-primary-foreground"
-                  : "rounded-full border border-border bg-background px-4 py-2 text-sm hover:border-primary hover:text-primary"
+                  : "rounded-full border border-border bg-background px-4 py-2 text-sm transition hover:border-primary hover:text-primary"
               }
             >
               {option}
@@ -446,7 +450,7 @@ function MediaUploadCard({
           )}
         </div>
       ) : (
-        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 text-center hover:border-primary">
+        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 text-center transition hover:border-primary">
           <input
             type="file"
             accept={
@@ -469,15 +473,16 @@ function MediaUploadCard({
 
           <span className="font-medium">
             {uploading
-              ? "Enviando " +
-                (isPhoto ? "foto" : "vídeo") +
-                "..."
+              ? `Enviando ${
+                  isPhoto ? "foto" : "vídeo"
+                }...`
               : file
               ? "Trocar arquivo"
-              : "Adicionar " +
-                (isPhoto
-                  ? "foto de perfil"
-                  : "vídeo de apresentação")}
+              : `Adicionar ${
+                  isPhoto
+                    ? "foto de perfil"
+                    : "vídeo de apresentação"
+                }`}
           </span>
 
           <span className="mt-2 text-xs text-muted-foreground">
@@ -487,6 +492,29 @@ function MediaUploadCard({
           </span>
         </label>
       )}
+    </div>
+  );
+}
+
+function InfoCard({
+  icon: Icon,
+  title,
+  children,
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-muted/30 p-5">
+      <div className="flex gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+
+        <div>
+          <h3 className="font-semibold">{title}</h3>
+          <div className="mt-1 text-sm leading-6 text-muted-foreground">
+            {children}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -604,6 +632,7 @@ export default function ProfessionalOnboarding() {
           }));
 
           setAuthEmail(user.email || "");
+
           setAuthName(
             metadata.full_name ||
               metadata.name ||
@@ -812,7 +841,10 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    if (authMode === "register" && !authName.trim()) {
+    if (
+      authMode === "register" &&
+      !authName.trim()
+    ) {
       setError("Digite seu nome completo.");
       return;
     }
@@ -842,14 +874,19 @@ export default function ProfessionalOnboarding() {
           throw signUpError;
         }
 
-        if (signUpData.session && signUpData.user) {
+        if (
+          signUpData.session &&
+          signUpData.user
+        ) {
           setAuthenticatedUser(signUpData.user);
 
           setData((current) => ({
             ...current,
-            email: signUpData.user.email || email,
+            email:
+              signUpData.user.email || email,
             full_name:
-              authName.trim() || current.full_name,
+              authName.trim() ||
+              current.full_name,
           }));
 
           setStep(0);
@@ -956,11 +993,11 @@ export default function ProfessionalOnboarding() {
   ) {
     const folder =
       type === "photo"
-        ? "professionals/" + userId + "/photos"
-        : "professionals/" + userId + "/videos";
+        ? `professionals/${userId}/photos`
+        : `professionals/${userId}/videos`;
 
     const filePath =
-      folder + "/" + makeFileName(file);
+      `${folder}/${makeFileName(file)}`;
 
     const {
       error: uploadError,
@@ -1053,6 +1090,20 @@ export default function ProfessionalOnboarding() {
       if (!data.crp_region) {
         return "Selecione a região do CRP.";
       }
+
+      if (
+        !data.approaches ||
+        data.approaches.length === 0
+      ) {
+        return "Selecione pelo menos uma abordagem terapêutica.";
+      }
+
+      if (
+        !data.audience ||
+        data.audience.length === 0
+      ) {
+        return "Selecione pelo menos um público.";
+      }
     }
 
     if (stepNumber === 2) {
@@ -1126,6 +1177,7 @@ export default function ProfessionalOnboarding() {
     }
 
     setSubmitting(true);
+
     setUploading(
       Boolean(photoFile || videoFile)
     );
@@ -1196,7 +1248,8 @@ export default function ProfessionalOnboarding() {
           ? Number(finalData.price)
           : null,
         session_duration:
-          finalData.session_duration,
+          Number(finalData.session_duration) ||
+          50,
         available_days:
           finalData.available_days,
         available_slots:
@@ -1278,208 +1331,256 @@ export default function ProfessionalOnboarding() {
     return (
       <PageShell>
         <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <div className="mx-auto max-w-4xl">
+            <div className="mb-10 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 {authMode === "register" ? (
-                  <UserPlus className="h-7 w-7" />
+                  <UserPlus className="h-8 w-8" />
                 ) : (
-                  <LogIn className="h-7 w-7" />
+                  <LogIn className="h-8 w-8" />
                 )}
               </div>
 
-              <h1 className="text-3xl font-bold">
+              <p className="mb-2 text-sm font-medium text-primary">
+                EntreNós • Área profissional
+              </p>
+
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
                 {authMode === "register"
                   ? "Cadastre-se como profissional"
                   : "Entrar como profissional"}
               </h1>
 
-              <p className="mt-2 text-muted-foreground">
+              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
                 {authMode === "register"
-                  ? "Crie sua conta e já envie sua foto e vídeo de apresentação."
+                  ? "Crie sua conta profissional e apresente seu trabalho de forma segura, clara e responsável."
                   : "Acesse sua conta e continue seu cadastro profissional."}
               </p>
             </div>
 
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
-              <div className="space-y-6">
-                {authMode === "register" && (
-                  <Input
-                    label="Nome completo"
-                    value={authName}
-                    onChange={(value) => {
-                      setAuthName(value);
-                      set("full_name", value);
-                    }}
-                    placeholder="Digite seu nome completo"
-                    required
-                  />
-                )}
-
-                <Input
-                  label="E-mail"
-                  value={authEmail}
-                  onChange={(value) => {
-                    setAuthEmail(value);
-                    set("email", value);
-                  }}
-                  type="email"
-                  placeholder="seu@email.com"
-                  required
-                />
-
-                <div>
-                  <span className="mb-2 block text-sm font-medium">
-                    Senha
-                  </span>
-
-                  <div className="relative">
-                    <input
-                      type={
-                        showPassword
-                          ? "text"
-                          : "password"
-                      }
-                      value={authPassword}
-                      onChange={(e) =>
-                        setAuthPassword(
-                          e.target.value
-                        )
-                      }
-                      placeholder="Mínimo de 6 caracteres"
-                      className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
+                <div className="space-y-6">
+                  {authMode === "register" && (
+                    <Input
+                      label="Nome completo"
+                      value={authName}
+                      onChange={(value) => {
+                        setAuthName(value);
+                        set(
+                          "full_name",
+                          value
+                        );
+                      }}
+                      placeholder="Digite seu nome completo"
+                      required
                     />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowPassword(
-                          (current) => !current
-                        )
-                      }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      aria-label={
-                        showPassword
-                          ? "Ocultar senha"
-                          : "Mostrar senha"
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {authMode === "register" && (
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <MediaUploadCard
-                      type="photo"
-                      file={photoFile}
-                      preview={photoPreview}
-                      uploading={authSubmitting}
-                      onChange={handlePhotoChange}
-                      onRemove={removePhoto}
-                    />
-
-                    <MediaUploadCard
-                      type="video"
-                      file={videoFile}
-                      preview={videoPreview}
-                      uploading={authSubmitting}
-                      onChange={handleVideoChange}
-                      onRemove={removeVideo}
-                    />
-                  </div>
-                )}
-
-                {confirmationSent && (
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
-                    <p className="font-medium">
-                      Confirmação enviada.
-                    </p>
-
-                    <p className="mt-1 text-muted-foreground">
-                      Verifique seu e-mail e confirme sua conta antes de entrar.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={resendConfirmation}
-                      className="mt-3 font-medium text-primary hover:underline"
-                    >
-                      Reenviar confirmação
-                    </button>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={authenticateProfessional}
-                  disabled={authSubmitting}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {authSubmitting ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : authMode === "register" ? (
-                    <UserPlus className="h-5 w-5" />
-                  ) : (
-                    <LogIn className="h-5 w-5" />
                   )}
 
-                  {authMode === "register"
-                    ? "Criar conta"
-                    : "Entrar"}
-                </button>
+                  <Input
+                    label="E-mail profissional"
+                    value={authEmail}
+                    onChange={(value) => {
+                      setAuthEmail(value);
+                      set("email", value);
+                    }}
+                    type="email"
+                    placeholder="seu@email.com"
+                    required
+                  />
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode((current) =>
-                      current === "register"
-                        ? "login"
-                        : "register"
-                    );
-                    setError("");
-                    setConfirmationSent(false);
-                  }}
-                  className="w-full text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {authMode === "register"
-                    ? "Já tenho uma conta"
-                    : "Ainda não tenho uma conta"}
-                </button>
+                  <div>
+                    <span className="mb-2 block text-sm font-medium">
+                      Senha
+                    </span>
 
-                <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">
-                  <Lock className="h-5 w-5 shrink-0" />
+                    <div className="relative">
+                      <input
+                        type={
+                          showPassword
+                            ? "text"
+                            : "password"
+                        }
+                        value={authPassword}
+                        onChange={(e) =>
+                          setAuthPassword(
+                            e.target.value
+                          )
+                        }
+                        placeholder="Mínimo de 6 caracteres"
+                        className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
+                      />
 
-                  <span>
-                    Seus dados são protegidos e utilizados apenas para o funcionamento da plataforma.
-                  </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowPassword(
+                            (current) => !current
+                          )
+                        }
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        aria-label={
+                          showPassword
+                            ? "Ocultar senha"
+                            : "Mostrar senha"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {authMode === "register" && (
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <MediaUploadCard
+                        type="photo"
+                        file={photoFile}
+                        preview={photoPreview}
+                        uploading={authSubmitting}
+                        onChange={
+                          handlePhotoChange
+                        }
+                        onRemove={removePhoto}
+                      />
+
+                      <MediaUploadCard
+                        type="video"
+                        file={videoFile}
+                        preview={videoPreview}
+                        uploading={authSubmitting}
+                        onChange={
+                          handleVideoChange
+                        }
+                        onRemove={removeVideo}
+                      />
+                    </div>
+                  )}
+
+                  {confirmationSent && (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+                      <p className="font-medium">
+                        Confirmação enviada.
+                      </p>
+
+                      <p className="mt-1 text-muted-foreground">
+                        Verifique seu e-mail e confirme sua conta antes de entrar.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={
+                          resendConfirmation
+                        }
+                        className="mt-3 font-medium text-primary hover:underline"
+                      >
+                        Reenviar confirmação
+                      </button>
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={
+                      authenticateProfessional
+                    }
+                    disabled={authSubmitting}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {authSubmitting ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : authMode ===
+                      "register" ? (
+                      <UserPlus className="h-5 w-5" />
+                    ) : (
+                      <LogIn className="h-5 w-5" />
+                    )}
+
+                    {authMode === "register"
+                      ? "Criar conta profissional"
+                      : "Entrar"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(
+                        (current) =>
+                          current === "register"
+                            ? "login"
+                            : "register"
+                      );
+                      setError("");
+                      setConfirmationSent(
+                        false
+                      );
+                    }}
+                    className="w-full text-sm text-muted-foreground transition hover:text-foreground"
+                  >
+                    {authMode === "register"
+                      ? "Já tenho uma conta profissional"
+                      : "Ainda não tenho uma conta profissional"}
+                  </button>
+
+                  <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">
+                    <Lock className="mt-0.5 h-5 w-5 shrink-0" />
+
+                    <span>
+                      Seus dados são protegidos e utilizados para o funcionamento da plataforma e para o processo de verificação profissional.
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5">
-              <div className="flex gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div className="space-y-4">
+                <InfoCard
+                  icon={ShieldCheck}
+                  title="Identificação profissional"
+                >
+                  Para manter um perfil profissional confiável, o cadastro solicita nome, foto, número do CRP, região do CRP, formação e informações sobre sua atuação.
+                </InfoCard>
 
-                <div>
-                  <p className="font-medium">
-                    Seu perfil profissional será verificado
+                <InfoCard
+                  icon={User}
+                  title="Informações claras"
+                >
+                  Seu perfil poderá apresentar abordagem teórica, público atendido, temas de atuação e modalidades de atendimento.
+                </InfoCard>
+
+                <InfoCard
+                  icon={Lock}
+                  title="Compromisso ético"
+                >
+                  A comunicação profissional deve respeitar o sigilo, a privacidade e as normas éticas aplicáveis à Psicologia.
+                </InfoCard>
+
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                  <p className="font-semibold">
+                    Validação do registro
                   </p>
 
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Depois de criar a conta, você continuará preenchendo CRP, atendimento, disponibilidade e demais informações profissionais.
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    O número do CRP informado será utilizado no processo de verificação do perfil profissional.
                   </p>
+
+                  <a
+                    href="https://cadastro.cfp.org.br/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                  >
+                    Consultar Cadastro Nacional de Psicólogas(os)
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
                 </div>
               </div>
             </div>
@@ -1498,19 +1599,39 @@ export default function ProfessionalOnboarding() {
               <Check className="h-10 w-10" />
             </div>
 
+            <p className="mb-2 text-sm font-medium text-primary">
+              EntreNós • Área profissional
+            </p>
+
             <h1 className="text-3xl font-bold">
               Cadastro enviado!
             </h1>
 
             <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-              Seu perfil profissional foi cadastrado e enviado para análise. Assim que a verificação for concluída, seu perfil poderá ser publicado.
+              Seu perfil profissional foi cadastrado e enviado para análise. A equipe poderá verificar suas informações e o registro profissional antes da publicação.
             </p>
+
+            <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5 text-left">
+              <div className="flex gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+
+                <div>
+                  <p className="font-medium">
+                    Próxima etapa: verificação
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    A publicação do perfil permanece condicionada ao processo de verificação da plataforma.
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium hover:bg-muted"
+                className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium transition hover:bg-muted"
               >
                 <ArrowLeft className="h-5 w-5" />
                 Voltar
@@ -1519,7 +1640,7 @@ export default function ProfessionalOnboarding() {
               <button
                 type="button"
                 onClick={logoutProfessional}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground hover:opacity-90"
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90"
               >
                 <LogOut className="h-5 w-5" />
                 Sair
@@ -1540,18 +1661,22 @@ export default function ProfessionalOnboarding() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm text-muted-foreground">
-              Olá, {displayName}
+              Área profissional
             </p>
 
             <h1 className="mt-1 text-3xl font-bold">
               Complete seu perfil profissional
             </h1>
+
+            <p className="mt-2 text-muted-foreground">
+              Apresente sua atuação de forma profissional, transparente e responsável.
+            </p>
           </div>
 
           <button
             type="button"
             onClick={logoutProfessional}
-            className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
           >
             <LogOut className="h-4 w-4" />
             Sair
@@ -1593,7 +1718,9 @@ export default function ProfessionalOnboarding() {
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all"
-              style={{ width: progress + "%" }}
+              style={{
+                width: `${progress}%`,
+              }}
             />
           </div>
 
@@ -1612,12 +1739,16 @@ export default function ProfessionalOnboarding() {
           {step === 0 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold">
-                  Informações pessoais
+                <p className="text-sm font-medium text-primary">
+                  Etapa 1
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  Identificação pessoal
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Conte um pouco sobre você.
+                  Essas informações ajudam a identificar corretamente o profissional.
                 </p>
               </div>
 
@@ -1636,7 +1767,10 @@ export default function ProfessionalOnboarding() {
                   label="Nome profissional"
                   value={data.professional_name}
                   onChange={(value) =>
-                    set("professional_name", value)
+                    set(
+                      "professional_name",
+                      value
+                    )
                   }
                   placeholder="Como deseja ser apresentado"
                 />
@@ -1653,7 +1787,7 @@ export default function ProfessionalOnboarding() {
                 />
 
                 <Input
-                  label="Telefone"
+                  label="Telefone profissional"
                   value={data.phone}
                   onChange={(value) =>
                     set("phone", value)
@@ -1700,19 +1834,56 @@ export default function ProfessionalOnboarding() {
                   ]}
                 />
               </div>
+
+              <InfoCard
+                icon={ShieldCheck}
+                title="Identificação profissional"
+              >
+                O perfil deverá apresentar informações verdadeiras, claras e compatíveis com a atuação profissional registrada.
+              </InfoCard>
             </div>
           )}
 
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-7">
               <div>
-                <h2 className="text-2xl font-bold">
-                  Informações profissionais
+                <p className="text-sm font-medium text-primary">
+                  Etapa 2
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  Registro e atuação profissional
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Informe seus dados de formação e atuação.
+                  Informe os dados necessários para identificação e apresentação da sua atuação.
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                <div className="flex gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+
+                  <div>
+                    <p className="font-semibold">
+                      CRP ativo e verificável
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      O número do Conselho Regional de Psicologia será exibido no perfil após a aprovação e utilizado no processo de verificação.
+                    </p>
+
+                    <a
+                      href="https://cadastro.cfp.org.br/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                    >
+                      Consultar Cadastro Nacional
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">
@@ -1722,7 +1893,7 @@ export default function ProfessionalOnboarding() {
                   onChange={(value) =>
                     set("crp_number", value)
                   }
-                  placeholder="Digite seu CRP"
+                  placeholder="Digite seu número de registro"
                   required
                 />
 
@@ -1746,7 +1917,7 @@ export default function ProfessionalOnboarding() {
                 />
 
                 <Input
-                  label="Instituição"
+                  label="Instituição de formação"
                   value={data.institution}
                   onChange={(value) =>
                     set("institution", value)
@@ -1758,7 +1929,10 @@ export default function ProfessionalOnboarding() {
                   label="Ano de formação"
                   value={data.graduation_year}
                   onChange={(value) =>
-                    set("graduation_year", value)
+                    set(
+                      "graduation_year",
+                      value
+                    )
                   }
                   type="number"
                   placeholder="2026"
@@ -1775,6 +1949,15 @@ export default function ProfessionalOnboarding() {
               </div>
 
               <Chips
+                label="Abordagem teórica"
+                options={APPROACH_OPTS}
+                values={data.approaches}
+                onChange={(values) =>
+                  set("approaches", values)
+                }
+              />
+
+              <Chips
                 label="Especializações"
                 options={SPEC_OPTS}
                 values={data.specializations}
@@ -1787,39 +1970,53 @@ export default function ProfessionalOnboarding() {
               />
 
               <Chips
-                label="Abordagens terapêuticas"
-                options={APPROACH_OPTS}
-                values={data.approaches}
-                onChange={(values) =>
-                  set("approaches", values)
-                }
-              />
-
-              <Chips
-                label="Especialidades"
+                label="Áreas de atuação"
                 options={SPEC_OPTS}
                 values={data.specialties}
                 onChange={(values) =>
-                  set("specialties", values)
+                  set(
+                    "specialties",
+                    values
+                  )
+                }
+              />
+
+              <InfoCard
+                icon={User}
+                title="Público atendido"
+              >
+                Selecione quem você atende profissionalmente. Essa informação será apresentada aos pacientes para facilitar a escolha de um profissional adequado.
+              </InfoCard>
+
+              <Chips
+                label="Público"
+                options={AUDIENCE_OPTS}
+                values={data.audience}
+                onChange={(values) =>
+                  set("audience", values)
                 }
               />
             </div>
           )}
 
           {step === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-7">
               <div>
-                <h2 className="text-2xl font-bold">
-                  Atendimento
+                <p className="text-sm font-medium text-primary">
+                  Etapa 3
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  Atendimento e serviços
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Configure como você atende seus pacientes.
+                  Configure como você atende e quais serviços oferece.
                 </p>
               </div>
 
               <Chips
-                label="Modalidades"
+                label="Modalidades de atendimento"
                 options={[
                   "online",
                   "presencial",
@@ -1830,6 +2027,36 @@ export default function ProfessionalOnboarding() {
                   set("modalities", values)
                 }
               />
+
+              {data.modalities.includes(
+                "online"
+              ) && (
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+                  <div className="flex gap-3">
+                    <Video className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+
+                    <div>
+                      <p className="font-semibold">
+                        Atendimento psicológico online
+                      </p>
+
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        Para atendimento psicológico online, o profissional deve observar as normas e exigências aplicáveis do Conselho Federal de Psicologia, incluindo o cadastro pertinente na plataforma e-Psi quando exigido.
+                      </p>
+
+                      <a
+                        href="https://cadastro.epsicologia.cfp.org.br/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                      >
+                        Acessar e-Psi
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Chips
                 label="Temas de atendimento"
@@ -1908,7 +2135,7 @@ export default function ProfessionalOnboarding() {
               />
 
               <TextArea
-                label="Política de cancelamento"
+                label="Política de cancelamento e reagendamento"
                 value={
                   data.cancellation_policy
                 }
@@ -1918,18 +2145,22 @@ export default function ProfessionalOnboarding() {
                     value
                   )
                 }
-                placeholder="Informe sua política de cancelamento e reagendamento."
+                placeholder="Informe de forma clara sua política de cancelamento e reagendamento."
                 rows={4}
               />
 
-              <Input
-                label="Endereço"
-                value={data.address}
-                onChange={(value) =>
-                  set("address", value)
-                }
-                placeholder="Endereço do atendimento presencial"
-              />
+              {data.modalities.includes(
+                "presencial"
+              ) && (
+                <Input
+                  label="Endereço do consultório"
+                  value={data.address}
+                  onChange={(value) =>
+                    set("address", value)
+                  }
+                  placeholder="Endereço completo do atendimento presencial"
+                />
+              )}
 
               <TextArea
                 label="Sobre você"
@@ -1937,21 +2168,41 @@ export default function ProfessionalOnboarding() {
                 onChange={(value) =>
                   set("about", value)
                 }
-                placeholder="Escreva uma apresentação profissional."
+                placeholder="Escreva uma apresentação profissional, sua experiência, forma de trabalho e como você pode ajudar seus pacientes."
                 rows={6}
               />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoCard
+                  icon={User}
+                  title="Transparência"
+                >
+                  Apresente sua formação, abordagem, público e serviços de maneira objetiva e compreensível.
+                </InfoCard>
+
+                <InfoCard
+                  icon={Lock}
+                  title="Sigilo profissional"
+                >
+                  O atendimento psicológico deve respeitar o sigilo profissional e as normas éticas aplicáveis à categoria.
+                </InfoCard>
+              </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold">
-                  Sua foto
+                <p className="text-sm font-medium text-primary">
+                  Etapa 4
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  Foto profissional
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Uma boa foto ajuda os pacientes a reconhecerem seu perfil.
+                  Uma boa foto ajuda os pacientes a reconhecerem seu perfil e transmite profissionalismo.
                 </p>
               </div>
 
@@ -1959,24 +2210,36 @@ export default function ProfessionalOnboarding() {
                 type="photo"
                 file={photoFile}
                 preview={
-                  photoPreview || data.photo_url
+                  photoPreview ||
+                  data.photo_url
                 }
                 uploading={uploading}
                 onChange={handlePhotoChange}
                 onRemove={removePhoto}
               />
+
+              <InfoCard
+                icon={Camera}
+                title="Recomendação"
+              >
+                Prefira uma imagem atual, nítida, com boa iluminação e aparência profissional.
+              </InfoCard>
             </div>
           )}
 
           {step === 4 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold">
+                <p className="text-sm font-medium text-primary">
+                  Etapa 5
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
                   Vídeo de apresentação
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Grave um vídeo curto apresentando seu trabalho.
+                  Apresente brevemente seu trabalho, sua abordagem e o público com quem atua.
                 </p>
               </div>
 
@@ -1984,31 +2247,43 @@ export default function ProfessionalOnboarding() {
                 type="video"
                 file={videoFile}
                 preview={
-                  videoPreview || data.video_url
+                  videoPreview ||
+                  data.video_url
                 }
                 uploading={uploading}
                 onChange={handleVideoChange}
                 onRemove={removeVideo}
               />
+
+              <InfoCard
+                icon={Video}
+                title="Dica para sua apresentação"
+              >
+                Mantenha o vídeo objetivo, com áudio claro e ambiente adequado. Evite promessas de resultados ou informações que possam induzir o paciente a erro.
+              </InfoCard>
             </div>
           )}
 
           {step === 5 && (
-            <div className="space-y-6">
+            <div className="space-y-7">
               <div>
-                <h2 className="text-2xl font-bold">
+                <p className="text-sm font-medium text-primary">
+                  Etapa 6
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
                   Revisão do cadastro
                 </h2>
 
                 <p className="mt-1 text-muted-foreground">
-                  Confira as informações antes de enviar.
+                  Confira todas as informações antes de enviar seu perfil para verificação.
                 </p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl bg-muted/50 p-4">
                   <p className="text-xs text-muted-foreground">
-                    Nome
+                    Nome profissional
                   </p>
 
                   <p className="mt-1 font-medium">
@@ -2023,23 +2298,20 @@ export default function ProfessionalOnboarding() {
                     E-mail
                   </p>
 
-                  <p className="mt-1 font-medium break-all">
+                  <p className="mt-1 break-all font-medium">
                     {data.email ||
                       "Não informado"}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-muted/50 p-4">
+                <div className="rounded-2xl bg-primary/5 p-4">
                   <p className="text-xs text-muted-foreground">
-                    CRP
+                    Registro profissional
                   </p>
 
-                  <p className="mt-1 font-medium">
+                  <p className="mt-1 font-semibold text-primary">
                     {data.crp_number
-                      ? "CRP " +
-                        data.crp_region +
-                        " - " +
-                        data.crp_number
+                      ? `CRP ${data.crp_region} - ${data.crp_number}`
                       : "Não informado"}
                   </p>
                 </div>
@@ -2051,9 +2323,37 @@ export default function ProfessionalOnboarding() {
 
                   <p className="mt-1 font-medium">
                     {data.city && data.state
-                      ? data.city +
-                        " - " +
-                        data.state
+                      ? `${data.city} - ${data.state}`
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Abordagem
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.approaches &&
+                    data.approaches.length > 0
+                      ? data.approaches.join(
+                          ", "
+                        )
+                      : "Não informado"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-muted/50 p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Público
+                  </p>
+
+                  <p className="mt-1 font-medium">
+                    {data.audience &&
+                    data.audience.length > 0
+                      ? data.audience.join(
+                          ", "
+                        )
                       : "Não informado"}
                   </p>
                 </div>
@@ -2066,7 +2366,9 @@ export default function ProfessionalOnboarding() {
                   <p className="mt-1 font-medium">
                     {data.modalities &&
                     data.modalities.length > 0
-                      ? data.modalities.join(", ")
+                      ? data.modalities.join(
+                          ", "
+                        )
                       : "Não informado"}
                   </p>
                 </div>
@@ -2078,7 +2380,7 @@ export default function ProfessionalOnboarding() {
 
                   <p className="mt-1 font-medium">
                     {data.price
-                      ? "R$ " + data.price
+                      ? `R$ ${data.price}`
                       : "Não informado"}
                   </p>
                 </div>
@@ -2107,11 +2409,45 @@ export default function ProfessionalOnboarding() {
                   </div>
                 )}
 
+              {data.themes &&
+                data.themes.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">
+                      Temas de atendimento
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {data.themes.map(
+                        (item) => (
+                          <span
+                            key={item}
+                            className="rounded-full bg-muted px-3 py-1 text-sm"
+                          >
+                            {item}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {data.about && (
+                <div className="rounded-2xl bg-muted/50 p-5">
+                  <p className="text-sm font-medium">
+                    Sobre o profissional
+                  </p>
+
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                    {data.about}
+                  </p>
+                </div>
+              )}
+
               {(photoPreview ||
                 data.photo_url) && (
                 <div>
                   <p className="mb-2 text-sm font-medium">
-                    Foto
+                    Foto profissional
                   </p>
 
                   <img
@@ -2129,7 +2465,7 @@ export default function ProfessionalOnboarding() {
                 data.video_url) && (
                 <div>
                   <p className="mb-2 text-sm font-medium">
-                    Vídeo
+                    Vídeo de apresentação
                   </p>
 
                   <video
@@ -2148,12 +2484,50 @@ export default function ProfessionalOnboarding() {
                   <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 
                   <div>
-                    <p className="font-medium">
-                      Seu perfil passará por verificação
+                    <p className="font-semibold">
+                      Verificação profissional
                     </p>
 
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Após o envio, nossa equipe poderá analisar suas informações antes de liberar o perfil publicamente.
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Ao enviar o cadastro, você declara que as informações profissionais fornecidas são verdadeiras. O perfil será submetido a análise antes de sua publicação.
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <a
+                        href="https://cadastro.cfp.org.br/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                      >
+                        Validar registro no CFP
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+
+                      <a
+                        href="https://site.cfp.org.br/wp-content/uploads/2012/07/codigo-de-etica-psicologia.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                      >
+                        Código de Ética
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background p-5">
+                <div className="flex gap-3">
+                  <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+
+                  <div>
+                    <p className="font-medium">
+                      Compromisso com a privacidade
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      O EntreNós valoriza a privacidade e a segurança das informações. A atuação profissional também deve observar o dever de sigilo e as normas éticas aplicáveis à Psicologia.
                     </p>
                   </div>
                 </div>
@@ -2168,7 +2542,7 @@ export default function ProfessionalOnboarding() {
               disabled={
                 step === 0 || submitting
               }
-              className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowLeft className="h-5 w-5" />
               Voltar
@@ -2179,7 +2553,7 @@ export default function ProfessionalOnboarding() {
                 type="button"
                 onClick={nextStep}
                 disabled={submitting}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Continuar
                 <ArrowRight className="h-5 w-5" />
@@ -2189,7 +2563,7 @@ export default function ProfessionalOnboarding() {
                 type="button"
                 onClick={submit}
                 disabled={submitting}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <>
@@ -2205,6 +2579,12 @@ export default function ProfessionalOnboarding() {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="mx-auto mt-8 max-w-4xl text-center">
+          <p className="text-xs leading-5 text-muted-foreground">
+            O EntreNós é uma plataforma de conexão entre pacientes e profissionais. A plataforma não substitui atendimento de emergência e não presta atendimento psicológico diretamente.
+          </p>
         </div>
       </div>
     </PageShell>
