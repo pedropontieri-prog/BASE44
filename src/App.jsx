@@ -56,7 +56,7 @@ function LoadingScreen() {
   );
 }
 
-// ==================== APLICAÇÃO AUTENTICADA ====================
+// ==================== APLICAÇÃO ====================
 
 function AuthenticatedApp() {
   const {
@@ -134,6 +134,27 @@ function AuthenticatedApp() {
         element={<Privacy />}
       />
 
+      {/* ==================== CADASTRO PROFISSIONAL ==================== */}
+
+      {/* 
+        IMPORTANTE:
+        Esta rota NÃO fica dentro do ProtectedRoute.
+
+        O próprio ProfessionalOnboarding controla:
+        - criação da conta;
+        - login;
+        - preenchimento do cadastro;
+        - envio da foto;
+        - envio do vídeo;
+        - revisão;
+        - envio para verificação.
+      */}
+
+      <Route
+        path="/cadastro-profissional"
+        element={<ProfessionalOnboarding />}
+      />
+
       {/* ==================== ROTAS PROTEGIDAS ==================== */}
 
       <Route
@@ -176,11 +197,6 @@ function AuthenticatedApp() {
         />
 
         {/* ==================== PROFISSIONAL ==================== */}
-
-        <Route
-          path="/cadastro-profissional"
-          element={<ProfessionalOnboarding />}
-        />
 
         <Route
           path="/painel-profissional"
