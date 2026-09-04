@@ -1,4 +1,3 @@
-```jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -119,17 +118,14 @@ const SLOT_OPTS = [
   "21:00",
 ];
 
-const REGION_OPTS = Array.from(
-  { length: 24 },
-  (_, index) => {
-    const value = String(index + 1).padStart(2, "0");
+const REGION_OPTS = Array.from({ length: 24 }, (_, index) => {
+  const value = String(index + 1).padStart(2, "0");
 
-    return {
-      value,
-      label: `CRP ${value}`,
-    };
-  }
-);
+  return {
+    value,
+    label: `CRP ${value}`,
+  };
+});
 
 const DEFAULTS = {
   full_name: "",
@@ -164,31 +160,21 @@ const DEFAULTS = {
 };
 
 function getFriendlyError(error) {
-  const message = String(
-    error?.message || ""
-  ).toLowerCase();
+  const message = String(error?.message || "").toLowerCase();
 
-  if (
-    message.includes("invalid login credentials")
-  ) {
+  if (message.includes("invalid login credentials")) {
     return "E-mail ou senha incorretos.";
   }
 
-  if (
-    message.includes("email not confirmed")
-  ) {
+  if (message.includes("email not confirmed")) {
     return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.";
   }
 
-  if (
-    message.includes("user already registered")
-  ) {
+  if (message.includes("user already registered")) {
     return "Este e-mail já possui uma conta. Use a opção Entrar.";
   }
 
-  if (
-    message.includes("password")
-  ) {
+  if (message.includes("password")) {
     return "A senha deve ter pelo menos 6 caracteres.";
   }
 
@@ -221,30 +207,21 @@ function getFriendlyError(error) {
     return "A tabela necessária não existe no Supabase.";
   }
 
-  return (
-    error?.message ||
-    "Não foi possível concluir a operação."
-  );
+  return error?.message || "Não foi possível concluir a operação.";
 }
 
 function makeFileName(file) {
   const originalName = file?.name || "";
 
-  const extension =
-    originalName.includes(".")
-      ? originalName
-          .split(".")
-          .pop()
-          .toLowerCase()
-      : "file";
+  const extension = originalName.includes(".")
+    ? originalName.split(".").pop().toLowerCase()
+    : "file";
 
   const id =
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}`;
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   return `${id}.${extension}`;
 }
@@ -261,19 +238,13 @@ function Input({
     <label className="block">
       <span className="block text-sm font-medium mb-2">
         {label}
-        {required && (
-          <span className="text-red-500">
-            {" "}*
-          </span>
-        )}
+        {required && <span className="text-red-500"> *</span>}
       </span>
 
       <input
         type={type}
         value={value ?? ""}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
       />
@@ -292,23 +263,15 @@ function Select({
     <label className="block">
       <span className="block text-sm font-medium mb-2">
         {label}
-        {required && (
-          <span className="text-red-500">
-            {" "}*
-          </span>
-        )}
+        {required && <span className="text-red-500"> *</span>}
       </span>
 
       <select
         value={value ?? ""}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
       >
-        <option value="">
-          Selecione...
-        </option>
+        <option value="">Selecione...</option>
 
         {options.map((option) => (
           <option
@@ -332,15 +295,11 @@ function TextArea({
 }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium mb-2">
-        {label}
-      </span>
+      <span className="block text-sm font-medium mb-2">{label}</span>
 
       <textarea
         value={value ?? ""}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={rows}
         className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -358,42 +317,30 @@ function Chips({
 }) {
   const toggle = (option) => {
     if (!multiple) {
-      onChange(
-        values.includes(option)
-          ? []
-          : [option]
-      );
-
+      onChange(values.includes(option) ? [] : [option]);
       return;
     }
 
     onChange(
       values.includes(option)
-        ? values.filter(
-            (item) => item !== option
-          )
+        ? values.filter((item) => item !== option)
         : [...values, option]
     );
   };
 
   return (
     <div>
-      <p className="text-sm font-medium mb-2">
-        {label}
-      </p>
+      <p className="text-sm font-medium mb-2">{label}</p>
 
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
-          const active =
-            values.includes(option);
+          const active = values.includes(option);
 
           return (
             <button
               type="button"
               key={option}
-              onClick={() =>
-                toggle(option)
-              }
+              onClick={() => toggle(option)}
               className={`rounded-full border px-3 py-2 text-sm transition ${
                 active
                   ? "bg-primary text-primary-foreground border-primary"
@@ -413,71 +360,30 @@ export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
-  const [data, setData] =
-    useState(DEFAULTS);
+  const [data, setData] = useState(DEFAULTS);
 
-  const [authLoading, setAuthLoading] =
-    useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMode, setAuthMode] = useState("register");
+  const [authenticatedUser, setAuthenticatedUser] = useState(null);
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
+  const [error, setError] = useState("");
 
-  const [authMode, setAuthMode] =
-    useState("register");
-
-  const [
-    authenticatedUser,
-    setAuthenticatedUser,
-  ] = useState(null);
-
-  const [authName, setAuthName] =
-    useState("");
-
-  const [authEmail, setAuthEmail] =
-    useState("");
-
-  const [
-    authPassword,
-    setAuthPassword,
-  ] = useState("");
-
-  const [
-    showPassword,
-    setShowPassword,
-  ] = useState(false);
-
-  const [
-    authSubmitting,
-    setAuthSubmitting,
-  ] = useState(false);
-
-  const [submitting, setSubmitting] =
-    useState(false);
-
-  const [uploading, setUploading] =
-    useState(false);
-
-  const [done, setDone] =
-    useState(false);
-
-  const [
-    confirmationSent,
-    setConfirmationSent,
-  ] = useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const isAuthenticated =
-    Boolean(authenticatedUser?.id);
+  const isAuthenticated = Boolean(authenticatedUser?.id);
 
   const displayName = useMemo(
     () =>
       data.professional_name ||
       data.full_name ||
-      authenticatedUser
-        ?.user_metadata
-        ?.full_name ||
-      authenticatedUser
-        ?.user_metadata
-        ?.name ||
+      authenticatedUser?.user_metadata?.full_name ||
+      authenticatedUser?.user_metadata?.name ||
       "Profissional",
     [
       data.professional_name,
@@ -516,27 +422,20 @@ export default function ProfessionalOnboarding() {
           );
 
           setAuthenticatedUser(null);
-
           return;
         }
 
-        const user =
-          sessionData?.session?.user ||
-          null;
+        const user = sessionData?.session?.user || null;
 
         setAuthenticatedUser(user);
 
         if (user) {
           setData((current) => ({
             ...current,
-            email:
-              current.email ||
-              user.email ||
-              "",
+            email: current.email || user.email || "",
             full_name:
               current.full_name ||
-              user.user_metadata
-                ?.full_name ||
+              user.user_metadata?.full_name ||
               user.user_metadata?.name ||
               "",
           }));
@@ -567,8 +466,7 @@ export default function ProfessionalOnboarding() {
           return;
         }
 
-        const user =
-          session?.user || null;
+        const user = session?.user || null;
 
         if (event === "SIGNED_OUT") {
           setAuthenticatedUser(null);
@@ -581,14 +479,10 @@ export default function ProfessionalOnboarding() {
 
           setData((current) => ({
             ...current,
-            email:
-              current.email ||
-              user.email ||
-              "",
+            email: current.email || user.email || "",
             full_name:
               current.full_name ||
-              user.user_metadata
-                ?.full_name ||
+              user.user_metadata?.full_name ||
               user.user_metadata?.name ||
               "",
           }));
@@ -604,216 +498,169 @@ export default function ProfessionalOnboarding() {
     };
   }, []);
 
-  const authenticateProfessional =
-    async () => {
-      setError("");
+  const authenticateProfessional = async () => {
+    setError("");
 
-      const email =
-        authEmail.trim().toLowerCase();
+    const email = authEmail.trim().toLowerCase();
 
-      if (!email) {
-        setError(
-          "Informe seu e-mail profissional."
-        );
-        return;
-      }
+    if (!email) {
+      setError("Informe seu e-mail profissional.");
+      return;
+    }
 
-      if (!authPassword) {
-        setError("Informe sua senha.");
-        return;
-      }
+    if (!authPassword) {
+      setError("Informe sua senha.");
+      return;
+    }
 
-      if (authPassword.length < 6) {
-        setError(
-          "A senha deve ter pelo menos 6 caracteres."
-        );
-        return;
-      }
+    if (authPassword.length < 6) {
+      setError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
 
-      if (
-        authMode === "register" &&
-        !authName.trim()
-      ) {
-        setError(
-          "Informe seu nome completo."
-        );
-        return;
-      }
+    if (authMode === "register" && !authName.trim()) {
+      setError("Informe seu nome completo.");
+      return;
+    }
 
-      setAuthSubmitting(true);
+    setAuthSubmitting(true);
 
-      try {
-        if (authMode === "register") {
-          const {
-            data: signUpData,
-            error: signUpError,
-          } = await supabase.auth.signUp({
-            email,
-            password: authPassword,
-            options: {
-              data: {
-                full_name:
-                  authName.trim(),
-                name:
-                  authName.trim(),
-                role: "psychologist",
-                account_type:
-                  "professional",
-                user_type:
-                  "professional",
-              },
-            },
-          });
-
-          if (signUpError) {
-            throw signUpError;
-          }
-
-          const user =
-            signUpData?.user || null;
-
-          setData((current) => ({
-            ...current,
-            full_name:
-              current.full_name ||
-              authName.trim(),
-            email:
-              current.email ||
-              email,
-          }));
-
-          if (signUpData?.session?.user) {
-            setAuthenticatedUser(
-              signUpData.session.user
-            );
-
-            setConfirmationSent(false);
-            setError("");
-
-            return;
-          }
-
-          if (user) {
-            setConfirmationSent(true);
-            setError("");
-            return;
-          }
-
-          throw new Error(
-            "A conta foi criada, mas não foi possível iniciar a sessão."
-          );
-        }
-
+    try {
+      if (authMode === "register") {
         const {
-          data: loginData,
-          error: loginError,
-        } =
-          await supabase.auth.signInWithPassword(
-            {
-              email,
-              password: authPassword,
-            }
-          );
+          data: signUpData,
+          error: signUpError,
+        } = await supabase.auth.signUp({
+          email,
+          password: authPassword,
+          options: {
+            data: {
+              full_name: authName.trim(),
+              name: authName.trim(),
+              role: "psychologist",
+              account_type: "professional",
+              user_type: "professional",
+            },
+          },
+        });
 
-        if (loginError) {
-          throw loginError;
+        if (signUpError) {
+          throw signUpError;
         }
 
-        if (!loginData?.user) {
-          throw new Error(
-            "Não foi possível iniciar a sessão."
-          );
-        }
-
-        setAuthenticatedUser(
-          loginData.user
-        );
+        const user = signUpData?.user || null;
 
         setData((current) => ({
           ...current,
-          email:
-            current.email ||
-            loginData.user.email ||
-            "",
-          full_name:
-            current.full_name ||
-            loginData.user.user_metadata
-              ?.full_name ||
-            loginData.user.user_metadata
-              ?.name ||
-            "",
+          full_name: current.full_name || authName.trim(),
+          email: current.email || email,
         }));
 
-        setConfirmationSent(false);
-        setError("");
-      } catch (err) {
-        console.error(
-          "EntreNós: erro na autenticação:",
-          err
-        );
-
-        setError(
-          getFriendlyError(err)
-        );
-      } finally {
-        setAuthSubmitting(false);
-      }
-    };
-
-  const resendConfirmation =
-    async () => {
-      const email =
-        authEmail.trim().toLowerCase();
-
-      if (!email) {
-        setError(
-          "Informe seu e-mail."
-        );
-        return;
-      }
-
-      setAuthSubmitting(true);
-      setError("");
-
-      try {
-        const {
-          error: resendError,
-        } =
-          await supabase.auth.resend({
-            type: "signup",
-            email,
-          });
-
-        if (resendError) {
-          throw resendError;
+        if (signUpData?.session?.user) {
+          setAuthenticatedUser(signUpData.session.user);
+          setConfirmationSent(false);
+          setError("");
+          return;
         }
 
-        setError(
-          "E-mail de confirmação reenviado. Verifique sua caixa de entrada."
-        );
-      } catch (err) {
-        setError(
-          getFriendlyError(err)
-        );
-      } finally {
-        setAuthSubmitting(false);
-      }
-    };
+        if (user) {
+          setConfirmationSent(true);
+          setError("");
+          return;
+        }
 
-  const logoutProfessional =
-    async () => {
-      try {
-        await supabase.auth.signOut();
-      } finally {
-        setAuthenticatedUser(null);
-        setConfirmationSent(false);
-        setStep(0);
-        setData({
-          ...DEFAULTS,
-        });
-        setError("");
+        throw new Error(
+          "A conta foi criada, mas não foi possível iniciar a sessão."
+        );
       }
-    };
+
+      const {
+        data: loginData,
+        error: loginError,
+      } = await supabase.auth.signInWithPassword({
+        email,
+        password: authPassword,
+      });
+
+      if (loginError) {
+        throw loginError;
+      }
+
+      if (!loginData?.user) {
+        throw new Error("Não foi possível iniciar a sessão.");
+      }
+
+      setAuthenticatedUser(loginData.user);
+
+      setData((current) => ({
+        ...current,
+        email: current.email || loginData.user.email || "",
+        full_name:
+          current.full_name ||
+          loginData.user.user_metadata?.full_name ||
+          loginData.user.user_metadata?.name ||
+          "",
+      }));
+
+      setConfirmationSent(false);
+      setError("");
+    } catch (err) {
+      console.error(
+        "EntreNós: erro na autenticação:",
+        err
+      );
+
+      setError(getFriendlyError(err));
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const resendConfirmation = async () => {
+    const email = authEmail.trim().toLowerCase();
+
+    if (!email) {
+      setError("Informe seu e-mail.");
+      return;
+    }
+
+    setAuthSubmitting(true);
+    setError("");
+
+    try {
+      const { error: resendError } =
+        await supabase.auth.resend({
+          type: "signup",
+          email,
+        });
+
+      if (resendError) {
+        throw resendError;
+      }
+
+      setError(
+        "E-mail de confirmação reenviado. Verifique sua caixa de entrada."
+      );
+    } catch (err) {
+      setError(getFriendlyError(err));
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const logoutProfessional = async () => {
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setAuthenticatedUser(null);
+      setConfirmationSent(false);
+      setStep(0);
+      setData({
+        ...DEFAULTS,
+      });
+      setError("");
+    }
+  };
 
   const validateStep = () => {
     if (step === 0) {
@@ -829,9 +676,7 @@ export default function ProfessionalOnboarding() {
         return "Informe sua cidade.";
       }
 
-      if (
-        data.state.trim().length !== 2
-      ) {
+      if (data.state.trim().length !== 2) {
         return "Informe o estado com 2 letras.";
       }
     }
@@ -847,24 +692,16 @@ export default function ProfessionalOnboarding() {
     }
 
     if (step === 2) {
-      if (
-        !data.modalities.length
-      ) {
+      if (!data.modalities.length) {
         return "Selecione pelo menos uma modalidade.";
       }
     }
 
-    if (
-      step === 3 &&
-      !data.photo_url
-    ) {
+    if (step === 3 && !data.photo_url) {
       return "Envie uma foto profissional.";
     }
 
-    if (
-      step === 4 &&
-      !data.video_url
-    ) {
+    if (step === 4 && !data.video_url) {
       return "Envie um vídeo de apresentação.";
     }
 
@@ -872,8 +709,7 @@ export default function ProfessionalOnboarding() {
   };
 
   const nextStep = () => {
-    const validationError =
-      validateStep();
+    const validationError = validateStep();
 
     if (validationError) {
       setError(validationError);
@@ -883,10 +719,7 @@ export default function ProfessionalOnboarding() {
     setError("");
 
     setStep((current) =>
-      Math.min(
-        current + 1,
-        STEPS.length - 1
-      )
+      Math.min(current + 1, STEPS.length - 1)
     );
   };
 
@@ -898,10 +731,7 @@ export default function ProfessionalOnboarding() {
     );
   };
 
-  const upload = async (
-    file,
-    key
-  ) => {
+  const upload = async (file, key) => {
     if (!file) {
       return;
     }
@@ -909,14 +739,11 @@ export default function ProfessionalOnboarding() {
     setError("");
 
     if (!isAuthenticated) {
-      setError(
-        "Faça login antes de enviar arquivos."
-      );
+      setError("Faça login antes de enviar arquivos.");
       return;
     }
 
-    const isPhoto =
-      key === "photo_url";
+    const isPhoto = key === "photo_url";
 
     const allowedTypes = isPhoto
       ? [
@@ -959,15 +786,13 @@ export default function ProfessionalOnboarding() {
       const {
         data: userData,
         error: userError,
-      } =
-        await supabase.auth.getUser();
+      } = await supabase.auth.getUser();
 
       if (userError) {
         throw userError;
       }
 
-      const user =
-        userData?.user;
+      const user = userData?.user;
 
       if (!user?.id) {
         throw new Error(
@@ -981,25 +806,17 @@ export default function ProfessionalOnboarding() {
         ? `professionals/${user.id}/photos`
         : `professionals/${user.id}/videos`;
 
-      const filePath = `${folder}/${makeFileName(
-        file
-      )}`;
+      const filePath = `${folder}/${makeFileName(file)}`;
 
       const {
         error: uploadError,
-      } =
-        await supabase.storage
-          .from("profiles")
-          .upload(
-            filePath,
-            file,
-            {
-              cacheControl: "3600",
-              upsert: false,
-              contentType:
-                file.type,
-            }
-          );
+      } = await supabase.storage
+        .from("profiles")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
 
       if (uploadError) {
         throw uploadError;
@@ -1007,12 +824,9 @@ export default function ProfessionalOnboarding() {
 
       const {
         data: publicUrlData,
-      } =
-        supabase.storage
-          .from("profiles")
-          .getPublicUrl(
-            filePath
-          );
+      } = supabase.storage
+        .from("profiles")
+        .getPublicUrl(filePath);
 
       const publicUrl =
         publicUrlData?.publicUrl;
@@ -1023,11 +837,7 @@ export default function ProfessionalOnboarding() {
         );
       }
 
-      set(
-        key,
-        publicUrl
-      );
-
+      set(key, publicUrl);
       setError("");
     } catch (err) {
       console.error(
@@ -1035,19 +845,14 @@ export default function ProfessionalOnboarding() {
         err
       );
 
-      setError(
-        getFriendlyError(err)
-      );
+      setError(getFriendlyError(err));
     } finally {
       setUploading(false);
     }
   };
 
   const submit = async () => {
-    if (
-      submitting ||
-      uploading
-    ) {
+    if (submitting || uploading) {
       return;
     }
 
@@ -1060,69 +865,40 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    for (
-      let index = 0;
-      index <= 4;
-      index += 1
-    ) {
+    for (let index = 0; index <= 4; index += 1) {
       let validation = "";
 
       if (index === 0) {
         if (!data.full_name.trim()) {
-          validation =
-            "Informe seu nome completo.";
-        } else if (
-          !data.email.trim()
-        ) {
-          validation =
-            "Informe seu e-mail.";
-        } else if (
-          !data.city.trim()
-        ) {
-          validation =
-            "Informe sua cidade.";
-        } else if (
-          data.state.trim().length !== 2
-        ) {
-          validation =
-            "Informe o estado com 2 letras.";
+          validation = "Informe seu nome completo.";
+        } else if (!data.email.trim()) {
+          validation = "Informe seu e-mail.";
+        } else if (!data.city.trim()) {
+          validation = "Informe sua cidade.";
+        } else if (data.state.trim().length !== 2) {
+          validation = "Informe o estado com 2 letras.";
         }
       }
 
       if (index === 1) {
-        if (
-          !data.crp_number.trim()
-        ) {
-          validation =
-            "Informe seu número do CRP.";
-        } else if (
-          !data.crp_region
-        ) {
-          validation =
-            "Selecione a região do CRP.";
+        if (!data.crp_number.trim()) {
+          validation = "Informe seu número do CRP.";
+        } else if (!data.crp_region) {
+          validation = "Selecione a região do CRP.";
         }
       }
 
-      if (
-        index === 2 &&
-        !data.modalities.length
-      ) {
+      if (index === 2 && !data.modalities.length) {
         validation =
           "Selecione pelo menos uma modalidade.";
       }
 
-      if (
-        index === 3 &&
-        !data.photo_url
-      ) {
+      if (index === 3 && !data.photo_url) {
         validation =
           "A foto profissional é obrigatória.";
       }
 
-      if (
-        index === 4 &&
-        !data.video_url
-      ) {
+      if (index === 4 && !data.video_url) {
         validation =
           "O vídeo de apresentação é obrigatório.";
       }
@@ -1140,15 +916,13 @@ export default function ProfessionalOnboarding() {
       const {
         data: userData,
         error: userError,
-      } =
-        await supabase.auth.getUser();
+      } = await supabase.auth.getUser();
 
       if (userError) {
         throw userError;
       }
 
-      const user =
-        userData?.user;
+      const user = userData?.user;
 
       if (!user?.id) {
         throw new Error(
@@ -1160,21 +934,16 @@ export default function ProfessionalOnboarding() {
 
       const {
         error: metadataError,
-      } =
-        await supabase.auth.updateUser({
-          data: {
-            ...(user.user_metadata || {}),
-            full_name:
-              data.full_name.trim(),
-            name:
-              data.full_name.trim(),
-            role: "psychologist",
-            account_type:
-              "professional",
-            user_type:
-              "professional",
-          },
-        });
+      } = await supabase.auth.updateUser({
+        data: {
+          ...(user.user_metadata || {}),
+          full_name: data.full_name.trim(),
+          name: data.full_name.trim(),
+          role: "psychologist",
+          account_type: "professional",
+          user_type: "professional",
+        },
+      });
 
       if (metadataError) {
         throw metadataError;
@@ -1187,44 +956,31 @@ export default function ProfessionalOnboarding() {
           data.professional_name.trim() ||
           data.full_name.trim(),
 
-        crp_number:
-          data.crp_number.trim(),
-
-        crp_region:
-          data.crp_region,
+        crp_number: data.crp_number.trim(),
+        crp_region: data.crp_region,
 
         education:
-          data.education.trim() ||
-          null,
+          data.education.trim() || null,
 
         institution:
-          data.institution.trim() ||
-          null,
+          data.institution.trim() || null,
 
-        graduation_year:
-          data.graduation_year
-            ? Number(
-                data.graduation_year
-              )
-            : null,
+        graduation_year: data.graduation_year
+          ? Number(data.graduation_year)
+          : null,
 
         specializations:
-          Array.isArray(
-            data.specializations
-          )
+          Array.isArray(data.specializations)
             ? data.specializations
             : [],
 
         approaches:
-          Array.isArray(
-            data.approaches
-          )
+          Array.isArray(data.approaches)
             ? data.approaches
             : [],
 
         experience:
-          data.experience.trim() ||
-          null,
+          data.experience.trim() || null,
 
         topics:
           Array.isArray(data.themes)
@@ -1232,78 +988,57 @@ export default function ProfessionalOnboarding() {
             : [],
 
         modalities:
-          Array.isArray(
-            data.modalities
-          )
+          Array.isArray(data.modalities)
             ? data.modalities
             : [],
 
         languages:
-          Array.isArray(
-            data.languages
-          )
+          Array.isArray(data.languages)
             ? data.languages
             : [],
 
         audience:
-          Array.isArray(
-            data.audience
-          )
+          Array.isArray(data.audience)
             ? data.audience
             : [],
 
-        city:
-          data.city.trim(),
+        city: data.city.trim(),
 
         state:
-          data.state
-            .trim()
-            .toUpperCase(),
+          data.state.trim().toUpperCase(),
 
         phone:
-          data.phone.trim() ||
-          null,
+          data.phone.trim() || null,
 
         gender:
-          data.gender.trim() ||
-          null,
+          data.gender.trim() || null,
 
         session_price:
           Number(data.price) || 0,
 
         session_duration:
-          Number(
-            data.session_duration
-          ) || 50,
+          Number(data.session_duration) || 50,
 
         available_days:
-          Array.isArray(
-            data.available_days
-          )
+          Array.isArray(data.available_days)
             ? data.available_days
             : [],
 
         available_slots:
-          Array.isArray(
-            data.available_slots
-          )
+          Array.isArray(data.available_slots)
             ? data.available_slots
             : [],
 
         cancellation_policy:
-          data.cancellation_policy.trim() ||
-          null,
+          data.cancellation_policy.trim() || null,
 
         address:
-          data.address.trim() ||
-          null,
+          data.address.trim() || null,
 
         bio:
-          data.about.trim() ||
-          null,
+          data.about.trim() || null,
 
-        photo_url:
-          data.photo_url,
+        photo_url: data.photo_url,
 
         profile_photo_url:
           data.photo_url,
@@ -1317,19 +1052,17 @@ export default function ProfessionalOnboarding() {
         verification_status:
           "pending",
 
-        public_profile:
-          false,
+        public_profile: false,
       };
 
       const {
         data: existing,
         error: existingError,
-      } =
-        await supabase
-          .from("psychologists")
-          .select("id")
-          .eq("user_id", user.id)
-          .maybeSingle();
+      } = await supabase
+        .from("psychologists")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (existingError) {
         throw existingError;
@@ -1338,20 +1071,11 @@ export default function ProfessionalOnboarding() {
       if (existing?.id) {
         const {
           error: updateError,
-        } =
-          await supabase
-            .from("psychologists")
-            .update(
-              psychologistData
-            )
-            .eq(
-              "id",
-              existing.id
-            )
-            .eq(
-              "user_id",
-              user.id
-            );
+        } = await supabase
+          .from("psychologists")
+          .update(psychologistData)
+          .eq("id", existing.id)
+          .eq("user_id", user.id);
 
         if (updateError) {
           throw updateError;
@@ -1359,19 +1083,18 @@ export default function ProfessionalOnboarding() {
       } else {
         const {
           error: insertError,
-        } =
-          await supabase
-            .from("psychologists")
-            .insert(
-              psychologistData
-            );
+        } = await supabase
+          .from("psychologists")
+          .insert(psychologistData);
 
         if (insertError) {
           throw insertError;
         }
       }
 
-      await supabase
+      const {
+        error: profileError,
+      } = await supabase
         .from("profiles")
         .upsert(
           {
@@ -1392,6 +1115,10 @@ export default function ProfessionalOnboarding() {
           }
         );
 
+      if (profileError) {
+        throw profileError;
+      }
+
       setDone(true);
       setError("");
     } catch (err) {
@@ -1400,9 +1127,7 @@ export default function ProfessionalOnboarding() {
         err
       );
 
-      setError(
-        getFriendlyError(err)
-      );
+      setError(getFriendlyError(err));
     } finally {
       setSubmitting(false);
     }
@@ -1433,8 +1158,7 @@ export default function ProfessionalOnboarding() {
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-12">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-3xl gradient-brand mx-auto flex items-center justify-center text-white mb-5 shadow-soft">
-              {authMode ===
-              "register" ? (
+              {authMode === "register" ? (
                 <UserPlus size={30} />
               ) : (
                 <LogIn size={30} />
@@ -1446,23 +1170,19 @@ export default function ProfessionalOnboarding() {
             </h1>
 
             <p className="text-muted-foreground mt-2">
-              {authMode ===
-              "register"
+              {authMode === "register"
                 ? "Crie sua conta profissional e complete seu perfil."
                 : "Entre na sua conta para continuar seu cadastro."}
             </p>
           </div>
 
           <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm">
-            {authMode ===
-              "register" && (
+            {authMode === "register" && (
               <div className="mb-5">
                 <Input
                   label="Nome completo"
                   value={authName}
-                  onChange={
-                    setAuthName
-                  }
+                  onChange={setAuthName}
                   placeholder="Seu nome completo"
                   required
                 />
@@ -1473,9 +1193,7 @@ export default function ProfessionalOnboarding() {
               <Input
                 label="E-mail"
                 value={authEmail}
-                onChange={
-                  setAuthEmail
-                }
+                onChange={setAuthEmail}
                 type="email"
                 placeholder="profissional@email.com"
                 required
@@ -1493,15 +1211,10 @@ export default function ProfessionalOnboarding() {
                         ? "text"
                         : "password"
                     }
-                    value={
-                      authPassword
-                    }
-                    onChange={(
-                      event
-                    ) =>
+                    value={authPassword}
+                    onChange={(event) =>
                       setAuthPassword(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     placeholder="Mínimo de 6 caracteres"
@@ -1512,8 +1225,7 @@ export default function ProfessionalOnboarding() {
                     type="button"
                     onClick={() =>
                       setShowPassword(
-                        (value) =>
-                          !value
+                        (value) => !value
                       )
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1524,13 +1236,9 @@ export default function ProfessionalOnboarding() {
                     }
                   >
                     {showPassword ? (
-                      <EyeOff
-                        size={20}
-                      />
+                      <EyeOff size={20} />
                     ) : (
-                      <Eye
-                        size={20}
-                      />
+                      <Eye size={20} />
                     )}
                   </button>
                 </div>
@@ -1549,12 +1257,8 @@ export default function ProfessionalOnboarding() {
 
                 <button
                   type="button"
-                  onClick={
-                    resendConfirmation
-                  }
-                  disabled={
-                    authSubmitting
-                  }
+                  onClick={resendConfirmation}
+                  disabled={authSubmitting}
                   className="mt-3 text-sm font-medium text-primary hover:underline disabled:opacity-50"
                 >
                   Reenviar confirmação
@@ -1570,12 +1274,8 @@ export default function ProfessionalOnboarding() {
 
             <button
               type="button"
-              onClick={
-                authenticateProfessional
-              }
-              disabled={
-                authSubmitting
-              }
+              onClick={authenticateProfessional}
+              disabled={authSubmitting}
               className="mt-6 w-full rounded-xl bg-primary text-primary-foreground py-3.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {authSubmitting ? (
@@ -1583,19 +1283,13 @@ export default function ProfessionalOnboarding() {
                   size={20}
                   className="animate-spin"
                 />
-              ) : authMode ===
-                "register" ? (
-                <UserPlus
-                  size={20}
-                />
+              ) : authMode === "register" ? (
+                <UserPlus size={20} />
               ) : (
-                <LogIn
-                  size={20}
-                />
+                <LogIn size={20} />
               )}
 
-              {authMode ===
-              "register"
+              {authMode === "register"
                 ? "Criar conta"
                 : "Entrar"}
             </button>
@@ -1603,23 +1297,18 @@ export default function ProfessionalOnboarding() {
             <button
               type="button"
               onClick={() => {
-                setAuthMode(
-                  (mode) =>
-                    mode ===
-                    "register"
-                      ? "login"
-                      : "register"
+                setAuthMode((mode) =>
+                  mode === "register"
+                    ? "login"
+                    : "register"
                 );
 
                 setError("");
-                setConfirmationSent(
-                  false
-                );
+                setConfirmationSent(false);
               }}
               className="mt-4 w-full text-sm text-muted-foreground hover:text-foreground"
             >
-              {authMode ===
-              "register"
+              {authMode === "register"
                 ? "Já tenho uma conta profissional"
                 : "Ainda não tenho uma conta profissional"}
             </button>
@@ -1654,9 +1343,7 @@ export default function ProfessionalOnboarding() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
               <button
                 type="button"
-                onClick={() =>
-                  navigate("/")
-                }
+                onClick={() => navigate("/")}
                 className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold"
               >
                 Ir para o início
@@ -1664,14 +1351,10 @@ export default function ProfessionalOnboarding() {
 
               <button
                 type="button"
-                onClick={
-                  logoutProfessional
-                }
+                onClick={logoutProfessional}
                 className="rounded-xl border border-border px-6 py-3 font-semibold flex items-center justify-center gap-2"
               >
-                <LogOut
-                  size={18}
-                />
+                <LogOut size={18} />
                 Sair
               </button>
             </div>
@@ -1681,8 +1364,7 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  const CurrentIcon =
-    STEPS[step].icon;
+  const CurrentIcon = STEPS[step].icon;
 
   return (
     <PageShell>
@@ -1700,62 +1382,49 @@ export default function ProfessionalOnboarding() {
 
           <button
             type="button"
-            onClick={
-              logoutProfessional
-            }
+            onClick={logoutProfessional}
             className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm"
           >
-            <LogOut
-              size={17}
-            />
+            <LogOut size={17} />
             Sair
           </button>
         </div>
 
         <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm mb-6">
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {STEPS.map(
-              (item, index) => {
-                const Icon =
-                  item.icon;
+            {STEPS.map((item, index) => {
+              const Icon = item.icon;
+              const active = index === step;
+              const completed = index < step;
 
-                const active =
-                  index === step;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() =>
+                    index <= step &&
+                    setStep(index)
+                  }
+                  disabled={index > step}
+                  className={`rounded-2xl p-3 text-center transition ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : completed
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted/40 text-muted-foreground"
+                  } disabled:cursor-not-allowed`}
+                >
+                  <Icon
+                    size={19}
+                    className="mx-auto mb-1"
+                  />
 
-                const completed =
-                  index < step;
-
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() =>
-                      index <= step &&
-                      setStep(index)
-                    }
-                    disabled={
-                      index > step
-                    }
-                    className={`rounded-2xl p-3 text-center transition ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : completed
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted/40 text-muted-foreground"
-                    } disabled:cursor-not-allowed`}
-                  >
-                    <Icon
-                      size={19}
-                      className="mx-auto mb-1"
-                    />
-
-                    <span className="text-xs font-medium">
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              }
-            )}
+                  <span className="text-xs font-medium">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="h-2 rounded-full bg-muted mt-5 overflow-hidden">
@@ -1799,14 +1468,9 @@ export default function ProfessionalOnboarding() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <Input
                   label="Nome completo"
-                  value={
-                    data.full_name
-                  }
+                  value={data.full_name}
                   onChange={(value) =>
-                    set(
-                      "full_name",
-                      value
-                    )
+                    set("full_name", value)
                   }
                   required
                 />
@@ -1827,14 +1491,9 @@ export default function ProfessionalOnboarding() {
 
                 <Input
                   label="E-mail"
-                  value={
-                    data.email
-                  }
+                  value={data.email}
                   onChange={(value) =>
-                    set(
-                      "email",
-                      value
-                    )
+                    set("email", value)
                   }
                   type="email"
                   required
@@ -1842,37 +1501,25 @@ export default function ProfessionalOnboarding() {
 
                 <Input
                   label="Telefone"
-                  value={
-                    data.phone
-                  }
+                  value={data.phone}
                   onChange={(value) =>
-                    set(
-                      "phone",
-                      value
-                    )
+                    set("phone", value)
                   }
                   placeholder="(00) 00000-0000"
                 />
 
                 <Input
                   label="Cidade"
-                  value={
-                    data.city
-                  }
+                  value={data.city}
                   onChange={(value) =>
-                    set(
-                      "city",
-                      value
-                    )
+                    set("city", value)
                   }
                   required
                 />
 
                 <Input
                   label="Estado"
-                  value={
-                    data.state
-                  }
+                  value={data.state}
                   onChange={(value) =>
                     set(
                       "state",
@@ -1887,27 +1534,17 @@ export default function ProfessionalOnboarding() {
 
                 <Input
                   label="Gênero"
-                  value={
-                    data.gender
-                  }
+                  value={data.gender}
                   onChange={(value) =>
-                    set(
-                      "gender",
-                      value
-                    )
+                    set("gender", value)
                   }
                 />
 
                 <Input
                   label="Endereço"
-                  value={
-                    data.address
-                  }
+                  value={data.address}
                   onChange={(value) =>
-                    set(
-                      "address",
-                      value
-                    )
+                    set("address", value)
                   }
                 />
               </div>
@@ -1929,9 +1566,7 @@ export default function ProfessionalOnboarding() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <Input
                   label="Número do CRP"
-                  value={
-                    data.crp_number
-                  }
+                  value={data.crp_number}
                   onChange={(value) =>
                     set(
                       "crp_number",
@@ -1943,26 +1578,20 @@ export default function ProfessionalOnboarding() {
 
                 <Select
                   label="Região do CRP"
-                  value={
-                    data.crp_region
-                  }
+                  value={data.crp_region}
                   onChange={(value) =>
                     set(
                       "crp_region",
                       value
                     )
                   }
-                  options={
-                    REGION_OPTS
-                  }
+                  options={REGION_OPTS}
                   required
                 />
 
                 <Input
                   label="Formação"
-                  value={
-                    data.education
-                  }
+                  value={data.education}
                   onChange={(value) =>
                     set(
                       "education",
@@ -1973,9 +1602,7 @@ export default function ProfessionalOnboarding() {
 
                 <Input
                   label="Instituição"
-                  value={
-                    data.institution
-                  }
+                  value={data.institution}
                   onChange={(value) =>
                     set(
                       "institution",
@@ -1986,9 +1613,7 @@ export default function ProfessionalOnboarding() {
 
                 <Input
                   label="Ano de formação"
-                  value={
-                    data.graduation_year
-                  }
+                  value={data.graduation_year}
                   onChange={(value) =>
                     set(
                       "graduation_year",
@@ -1997,19 +1622,14 @@ export default function ProfessionalOnboarding() {
                           /\D/g,
                           ""
                         )
-                        .slice(
-                          0,
-                          4
-                        )
+                        .slice(0, 4)
                     )
                   }
                 />
 
                 <Input
                   label="Experiência"
-                  value={
-                    data.experience
-                  }
+                  value={data.experience}
                   onChange={(value) =>
                     set(
                       "experience",
@@ -2022,12 +1642,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Especializações"
-                options={
-                  SPEC_OPTS
-                }
-                values={
-                  data.specializations
-                }
+                options={SPEC_OPTS}
+                values={data.specializations}
                 onChange={(value) =>
                   set(
                     "specializations",
@@ -2038,12 +1654,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Abordagens terapêuticas"
-                options={
-                  APPROACH_OPTS
-                }
-                values={
-                  data.approaches
-                }
+                options={APPROACH_OPTS}
+                values={data.approaches}
                 onChange={(value) =>
                   set(
                     "approaches",
@@ -2072,9 +1684,7 @@ export default function ProfessionalOnboarding() {
                   "online",
                   "presencial",
                 ]}
-                values={
-                  data.modalities
-                }
+                values={data.modalities}
                 onChange={(value) =>
                   set(
                     "modalities",
@@ -2085,12 +1695,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Idiomas"
-                options={
-                  LANG_OPTS
-                }
-                values={
-                  data.languages
-                }
+                options={LANG_OPTS}
+                values={data.languages}
                 onChange={(value) =>
                   set(
                     "languages",
@@ -2101,12 +1707,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Público"
-                options={
-                  AUDIENCE_OPTS
-                }
-                values={
-                  data.audience
-                }
+                options={AUDIENCE_OPTS}
+                values={data.audience}
                 onChange={(value) =>
                   set(
                     "audience",
@@ -2117,12 +1719,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Temas"
-                options={
-                  THEME_OPTS
-                }
-                values={
-                  data.themes
-                }
+                options={THEME_OPTS}
+                values={data.themes}
                 onChange={(value) =>
                   set(
                     "themes",
@@ -2134,9 +1732,7 @@ export default function ProfessionalOnboarding() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <Input
                   label="Valor da sessão (R$)"
-                  value={
-                    data.price
-                  }
+                  value={data.price}
                   onChange={(value) =>
                     set(
                       "price",
@@ -2181,12 +1777,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Dias disponíveis"
-                options={
-                  DAY_OPTS
-                }
-                values={
-                  data.available_days
-                }
+                options={DAY_OPTS}
+                values={data.available_days}
                 onChange={(value) =>
                   set(
                     "available_days",
@@ -2197,12 +1789,8 @@ export default function ProfessionalOnboarding() {
 
               <Chips
                 label="Horários disponíveis"
-                options={
-                  SLOT_OPTS
-                }
-                values={
-                  data.available_slots
-                }
+                options={SLOT_OPTS}
+                values={data.available_slots}
                 onChange={(value) =>
                   set(
                     "available_slots",
@@ -2228,14 +1816,9 @@ export default function ProfessionalOnboarding() {
 
               <TextArea
                 label="Sobre você"
-                value={
-                  data.about
-                }
+                value={data.about}
                 onChange={(value) =>
-                  set(
-                    "about",
-                    value
-                  )
+                  set("about", value)
                 }
                 placeholder="Conte um pouco sobre sua experiência e seu trabalho."
                 rows={6}
@@ -2275,13 +1858,10 @@ export default function ProfessionalOnboarding() {
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
-                  disabled={
-                    uploading
-                  }
+                  disabled={uploading}
                   onChange={(event) =>
                     upload(
-                      event.target
-                        .files?.[0],
+                      event.target.files?.[0],
                       "photo_url"
                     )
                   }
@@ -2291,9 +1871,7 @@ export default function ProfessionalOnboarding() {
               {data.photo_url && (
                 <div className="rounded-2xl border border-border p-4">
                   <img
-                    src={
-                      data.photo_url
-                    }
+                    src={data.photo_url}
                     alt="Prévia da foto profissional"
                     className="w-40 h-40 object-cover rounded-2xl mx-auto"
                   />
@@ -2348,13 +1926,10 @@ export default function ProfessionalOnboarding() {
                   type="file"
                   accept="video/mp4,video/webm,video/quicktime"
                   className="hidden"
-                  disabled={
-                    uploading
-                  }
+                  disabled={uploading}
                   onChange={(event) =>
                     upload(
-                      event.target
-                        .files?.[0],
+                      event.target.files?.[0],
                       "video_url"
                     )
                   }
@@ -2364,9 +1939,7 @@ export default function ProfessionalOnboarding() {
               {data.video_url && (
                 <div className="rounded-2xl border border-border p-4">
                   <video
-                    src={
-                      data.video_url
-                    }
+                    src={data.video_url}
                     controls
                     className="w-full max-h-96 rounded-2xl"
                   />
@@ -2403,19 +1976,13 @@ export default function ProfessionalOnboarding() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
-                  [
-                    "Nome",
-                    data.full_name,
-                  ],
+                  ["Nome", data.full_name],
                   [
                     "Nome profissional",
                     data.professional_name ||
                       data.full_name,
                   ],
-                  [
-                    "E-mail",
-                    data.email,
-                  ],
+                  ["E-mail", data.email],
                   [
                     "Cidade",
                     `${data.city} - ${data.state}`,
@@ -2434,15 +2001,13 @@ export default function ProfessionalOnboarding() {
                     "Especializações",
                     data.specializations.join(
                       ", "
-                    ) ||
-                      "Não informado",
+                    ) || "Não informado",
                   ],
                   [
                     "Abordagens",
                     data.approaches.join(
                       ", "
-                    ) ||
-                      "Não informado",
+                    ) || "Não informado",
                   ],
                   [
                     "Público",
@@ -2466,23 +2031,20 @@ export default function ProfessionalOnboarding() {
                     "Duração",
                     `${data.session_duration} minutos`,
                   ],
-                ].map(
-                  ([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-2xl bg-muted/40 p-4"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {label}
-                      </p>
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl bg-muted/40 p-4"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      {label}
+                    </p>
 
-                      <p className="font-medium mt-1 break-words">
-                        {value ||
-                          "Não informado"}
-                      </p>
-                    </div>
-                  )
-                )}
+                    <p className="font-medium mt-1 break-words">
+                      {value || "Não informado"}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
@@ -2500,9 +2062,7 @@ export default function ProfessionalOnboarding() {
           <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-6 border-t border-border">
             <button
               type="button"
-              onClick={
-                previousStep
-              }
+              onClick={previousStep}
               disabled={
                 step === 0 ||
                 submitting ||
@@ -2510,19 +2070,14 @@ export default function ProfessionalOnboarding() {
               }
               className="rounded-xl border border-border px-5 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
             >
-              <ArrowLeft
-                size={18}
-              />
+              <ArrowLeft size={18} />
               Voltar
             </button>
 
-            {step <
-            STEPS.length - 1 ? (
+            {step < STEPS.length - 1 ? (
               <button
                 type="button"
-                onClick={
-                  nextStep
-                }
+                onClick={nextStep}
                 disabled={
                   submitting ||
                   uploading
@@ -2530,17 +2085,12 @@ export default function ProfessionalOnboarding() {
                 className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 Continuar
-
-                <ArrowRight
-                  size={18}
-                />
+                <ArrowRight size={18} />
               </button>
             ) : (
               <button
                 type="button"
-                onClick={
-                  submit
-                }
+                onClick={submit}
                 disabled={
                   submitting ||
                   uploading
@@ -2557,9 +2107,7 @@ export default function ProfessionalOnboarding() {
                   </>
                 ) : (
                   <>
-                    <Check
-                      size={18}
-                    />
+                    <Check size={18} />
                     Enviar cadastro
                   </>
                 )}
@@ -2571,4 +2119,3 @@ export default function ProfessionalOnboarding() {
     </PageShell>
   );
 }
-```
