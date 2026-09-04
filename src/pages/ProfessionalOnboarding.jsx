@@ -27,11 +27,31 @@ import {
 
 const STEPS = [
   { key: "personal", label: "Pessoal", icon: User },
-  { key: "professional", label: "Profissional", icon: Briefcase },
-  { key: "service", label: "Atendimento", icon: Calendar },
-  { key: "photo", label: "Foto", icon: Camera },
-  { key: "video", label: "Vídeo", icon: Video },
-  { key: "review", label: "Revisão", icon: ShieldCheck },
+  {
+    key: "professional",
+    label: "Profissional",
+    icon: Briefcase,
+  },
+  {
+    key: "service",
+    label: "Atendimento",
+    icon: Calendar,
+  },
+  {
+    key: "photo",
+    label: "Foto",
+    icon: Camera,
+  },
+  {
+    key: "video",
+    label: "Vídeo",
+    icon: Video,
+  },
+  {
+    key: "review",
+    label: "Revisão",
+    icon: ShieldCheck,
+  },
 ];
 
 const SPEC_OPTS = [
@@ -166,182 +186,119 @@ const DEFAULTS = {
   video_url: "",
 };
 
-const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 150 * 1024 * 1024;
-
-const PHOTO_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-];
-
-const VIDEO_TYPES = [
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-];
-
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
   const [data, setData] = useState(DEFAULTS);
 
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
-  const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(null);
-
   /*
-   * ============================================================
-   * AUTENTICAÇÃO
-   * ============================================================
+   * Carrega a sessão apenas para descobrir
+   * quem está autenticado.
    *
-   * Este cadastro é EXCLUSIVO para profissionais.
-   *
-   * Não criamos uma conta automaticamente aqui.
-   * O profissional precisa estar autenticado.
+   * Não usamos ausência inicial de sessão como
+   * "sessão expirada" sem antes verificar o estado
+   * real do Auth.
    */
-
   useEffect(() => {
     let mounted = true;
 
-    const applyUser = (currentUser) => {
-      if (!mounted) return;
-
-      if (!currentUser) {
-        setUser(null);
-        return;
-      }
-
-      setUser(currentUser);
-
-      setData((current) => ({
-        ...current,
-
-        email:
-          currentUser.email ||
-          current.email,
-
-        full_name:
-          currentUser.user_metadata?.full_name ||
-          currentUser.user_metadata?.name ||
-          current.full_name,
-      }));
-
-      setError("");
-    };
-
-    const loadSession = async () => {
+    const loadUser = async () => {
       try {
-        setAuthLoading(true);
-
         const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
+          data: { user: currentUser },
+          error: userError,
+        } = await supabase.auth.getUser();
 
         if (!mounted) return;
 
-        if (sessionError) {
+        if (userError) {
           console.error(
-            "EntreNós: erro ao recuperar sessão:",
-            sessionError
+            "Erro ao carregar usuário:",
+            userError
           );
 
           setUser(null);
-
-          setError(
-            "Sua sessão não está disponível. Faça login novamente."
-          );
-
-          setAuthLoading(false);
-
           return;
         }
 
-        const currentUser =
-          sessionData?.session?.user || null;
-
-        if (currentUser) {
-          applyUser(currentUser);
-        } else {
+        if (!currentUser) {
           setUser(null);
-
-          setError(
-            "Sua sessão não está disponível. Faça login novamente."
-          );
+          return;
         }
 
-        setAuthLoading(false);
+        setUser(currentUser);
+
+        setData((current) => ({
+          ...current,
+          email:
+            currentUser.email ||
+            current.email,
+          full_name:
+            currentUser.user_metadata?.full_name ||
+            currentUser.user_metadata?.name ||
+            current.full_name,
+        }));
       } catch (err) {
         console.error(
-          "EntreNós: erro ao carregar sessão:",
+          "Erro ao carregar autenticação:",
           err
         );
 
-        if (!mounted) return;
-
-        setUser(null);
-
-        setError(
-          "Não foi possível verificar sua sessão. Faça login novamente."
-        );
-
-        setAuthLoading(false);
+        if (mounted) {
+          setUser(null);
+        }
+      } finally {
+        if (mounted) {
+          setAuthLoading(false);
+        }
       }
     };
 
+    loadUser();
+
     const {
-      data: authSubscription,
+      data: authListener,
     } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
 
-        const currentUser =
-          session?.user || null;
+        if (session?.user) {
+          setUser(session.user);
 
-        console.log(
-          "EntreNós Auth:",
-          event,
-          currentUser?.id || "sem usuário"
-        );
+          setData((current) => ({
+            ...current,
+            email:
+              session.user.email ||
+              current.email,
+            full_name:
+              session.user.user_metadata?.full_name ||
+              session.user.user_metadata?.name ||
+              current.full_name,
+          }));
 
-        if (currentUser) {
-          applyUser(currentUser);
-          setAuthLoading(false);
-          return;
+          setError("");
         }
 
         if (event === "SIGNED_OUT") {
           setUser(null);
-          setAuthLoading(false);
-
-          setError(
-            "Sua sessão não está disponível. Faça login novamente."
-          );
         }
       }
     );
 
-    loadSession();
-
     return () => {
       mounted = false;
-
-      authSubscription?.subscription?.unsubscribe();
+      authListener?.subscription?.unsubscribe();
     };
   }, []);
-
-  /*
-   * ============================================================
-   * ESTADO
-   * ============================================================
-   */
 
   const set = (key, value) => {
     setData((current) => ({
@@ -350,93 +307,25 @@ export default function ProfessionalOnboarding() {
     }));
   };
 
-  /*
-   * ============================================================
-   * LOGIN
-   * ============================================================
-   */
-
-  const goToLogin = () => {
-    navigate("/login", {
-      replace: true,
-      state: {
-        from: "/cadastro-profissional",
-        professional: true,
-      },
-    });
-  };
-
-  /*
-   * ============================================================
-   * USUÁRIO AUTENTICADO
-   * ============================================================
-   */
-
-  const getAuthenticatedUser = async () => {
-    /*
-     * Não confiamos apenas no estado React.
-     *
-     * Buscamos diretamente no Supabase para garantir
-     * que o token ainda está válido.
-     */
-
-    const {
-      data: authData,
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError) {
-      console.error(
-        "EntreNós: erro ao obter usuário:",
-        authError
-      );
-
-      setUser(null);
-
-      throw new Error(
-        "Sua sessão não está disponível. Faça login novamente."
-      );
-    }
-
-    if (!authData?.user?.id) {
-      setUser(null);
-
-      throw new Error(
-        "Sua sessão não está disponível. Faça login novamente."
-      );
-    }
-
-    setUser(authData.user);
-
-    return authData.user;
-  };
-
-  /*
-   * ============================================================
-   * VALIDAÇÃO
-   * ============================================================
-   */
-
   const validate = () => {
     if (step === 0) {
       return Boolean(
         data.full_name?.trim() &&
-        data.email?.trim() &&
-        data.city?.trim() &&
-        data.state?.trim() &&
-        data.state.trim().length === 2
+          data.email?.trim() &&
+          data.city?.trim() &&
+          data.state?.trim()
       );
     }
 
     if (step === 1) {
       return Boolean(
         data.crp_number?.trim() &&
-        data.crp_region
+          data.crp_region
       );
     }
 
     if (step === 2) {
-      return Boolean(
+      return (
         Array.isArray(data.modalities) &&
         data.modalities.length > 0
       );
@@ -449,23 +338,57 @@ export default function ProfessionalOnboarding() {
     return true;
   };
 
-  /*
-   * ============================================================
-   * UPLOAD
-   * ============================================================
-   */
+  const getAuthenticatedUser = async () => {
+    /*
+     * Não confie somente no estado React.
+     * Busca novamente no Supabase antes de salvar.
+     */
+    const {
+      data: authData,
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw new Error(
+        "Não foi possível validar sua conta."
+      );
+    }
+
+    if (!authData?.user) {
+      throw new Error(
+        "Você precisa estar conectado para continuar."
+      );
+    }
+
+    return authData.user;
+  };
 
   const upload = async (file, key) => {
-    if (!file) return;
+    if (!file || uploading) return;
 
     setError("");
+
+    const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
+    const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+
+    const PHOTO_TYPES = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ];
+
+    const VIDEO_TYPES = [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+    ];
 
     if (key === "photo_url") {
       if (!PHOTO_TYPES.includes(file.type)) {
         setError(
-          "Formato de foto não permitido. Envie JPG, PNG ou WEBP."
+          "Formato de foto não permitido. Use JPG, PNG ou WEBP."
         );
-
         return;
       }
 
@@ -473,7 +396,6 @@ export default function ProfessionalOnboarding() {
         setError(
           "A foto deve ter no máximo 10 MB."
         );
-
         return;
       }
     }
@@ -481,17 +403,15 @@ export default function ProfessionalOnboarding() {
     if (key === "video_url") {
       if (!VIDEO_TYPES.includes(file.type)) {
         setError(
-          "Formato de vídeo não permitido. Envie MP4, WEBM ou MOV."
+          "Formato de vídeo não permitido. Use MP4, WEBM ou MOV."
         );
-
         return;
       }
 
       if (file.size > MAX_VIDEO_SIZE) {
         setError(
-          "O vídeo deve ter no máximo 150 MB."
+          "O vídeo deve ter no máximo 100 MB."
         );
-
         return;
       }
     }
@@ -519,11 +439,6 @@ export default function ProfessionalOnboarding() {
       const filePath =
         `${folder}/${fileName}`;
 
-      /*
-       * Bucket:
-       * profiles
-       */
-
       const {
         error: uploadError,
       } = await supabase.storage
@@ -539,72 +454,44 @@ export default function ProfessionalOnboarding() {
         );
 
       if (uploadError) {
-        console.error(
-          "EntreNós: erro do Storage:",
-          uploadError
-        );
-
-        throw new Error(
-          uploadError.message ||
-          "Não foi possível enviar o arquivo."
-        );
+        throw uploadError;
       }
 
-      /*
-       * IMPORTANTE:
-       *
-       * O bucket "profiles" precisa estar configurado
-       * como público para getPublicUrl funcionar como
-       * URL pública.
-       */
-
       const {
-        data: publicUrlData,
+        data: publicData,
       } = supabase.storage
         .from("profiles")
         .getPublicUrl(filePath);
 
-      const publicUrl =
-        publicUrlData?.publicUrl;
-
-      if (!publicUrl) {
+      if (!publicData?.publicUrl) {
         throw new Error(
-          "Não foi possível obter a URL pública do arquivo."
+          "Não foi possível gerar a URL do arquivo."
         );
       }
 
-      set(key, publicUrl);
+      set(
+        key,
+        publicData.publicUrl
+      );
     } catch (err) {
       console.error(
-        "EntreNós: erro no upload:",
+        "Erro no upload:",
         err
       );
 
       setError(
         err?.message ||
-        "Não foi possível enviar o arquivo."
+          "Não foi possível enviar o arquivo."
       );
     } finally {
       setUploading(false);
     }
   };
 
-  /*
-   * ============================================================
-   * ENVIO DO CADASTRO
-   * ============================================================
-   */
-
   const submit = async () => {
-    if (submitting || uploading) {
-      return;
-    }
+    if (submitting || uploading) return;
 
     setError("");
-
-    /*
-     * Validação completa antes de chamar o banco.
-     */
 
     if (!data.full_name?.trim()) {
       setError("Informe seu nome completo.");
@@ -626,14 +513,6 @@ export default function ProfessionalOnboarding() {
 
     if (!data.state?.trim()) {
       setError("Informe seu estado.");
-      setStep(0);
-      return;
-    }
-
-    if (data.state.trim().length !== 2) {
-      setError(
-        "Informe o estado usando a sigla. Ex.: SP."
-      );
       setStep(0);
       return;
     }
@@ -672,27 +551,8 @@ export default function ProfessionalOnboarding() {
     setSubmitting(true);
 
     try {
-      /*
-       * Verificação REAL da autenticação.
-       */
-
       const authenticatedUser =
         await getAuthenticatedUser();
-
-      if (!authenticatedUser?.id) {
-        throw new Error(
-          "Não foi possível identificar seu usuário."
-        );
-      }
-
-      console.log(
-        "EntreNós: salvando profissional:",
-        authenticatedUser.id
-      );
-
-      /*
-       * Dados enviados para a tabela psychologists.
-       */
 
       const psychologistData = {
         user_id: authenticatedUser.id,
@@ -708,12 +568,10 @@ export default function ProfessionalOnboarding() {
           data.crp_region,
 
         education:
-          data.education?.trim() ||
-          null,
+          data.education?.trim() || null,
 
         institution:
-          data.institution?.trim() ||
-          null,
+          data.institution?.trim() || null,
 
         graduation_year:
           data.graduation_year
@@ -731,8 +589,7 @@ export default function ProfessionalOnboarding() {
             : [],
 
         experience:
-          data.experience?.trim() ||
-          null,
+          data.experience?.trim() || null,
 
         topics:
           Array.isArray(data.themes)
@@ -758,15 +615,15 @@ export default function ProfessionalOnboarding() {
           data.city.trim(),
 
         state:
-          data.state.trim().toUpperCase(),
+          data.state
+            .trim()
+            .toUpperCase(),
 
         phone:
-          data.phone?.trim() ||
-          null,
+          data.phone?.trim() || null,
 
         gender:
-          data.gender?.trim() ||
-          null,
+          data.gender?.trim() || null,
 
         session_price:
           Number(data.price) || 0,
@@ -789,19 +646,16 @@ export default function ProfessionalOnboarding() {
           null,
 
         address:
-          data.address?.trim() ||
-          null,
+          data.address?.trim() || null,
 
         bio:
-          data.about?.trim() ||
-          null,
+          data.about?.trim() || null,
 
         profile_photo_url:
           data.photo_url,
 
         presentation_video_url:
-          data.video_url ||
-          null,
+          data.video_url || null,
 
         presentation_video_status:
           data.video_url
@@ -816,13 +670,12 @@ export default function ProfessionalOnboarding() {
       };
 
       /*
-       * Primeiro verificamos se já existe cadastro
-       * profissional para este usuário.
+       * Primeiro verifica se já existe cadastro
+       * profissional para esse usuário.
        */
-
       const {
-        data: existingPsychologist,
-        error: existingError,
+        data: existing,
+        error: findError,
       } = await supabase
         .from("psychologists")
         .select("id")
@@ -832,23 +685,11 @@ export default function ProfessionalOnboarding() {
         )
         .maybeSingle();
 
-      if (existingError) {
-        console.error(
-          "EntreNós: erro ao verificar profissional:",
-          existingError
-        );
-
-        throw new Error(
-          existingError.message ||
-          "Não foi possível verificar seu cadastro profissional."
-        );
+      if (findError) {
+        throw findError;
       }
 
-      /*
-       * ATUALIZA cadastro existente.
-       */
-
-      if (existingPsychologist?.id) {
+      if (existing?.id) {
         const {
           error: updateError,
         } = await supabase
@@ -858,7 +699,7 @@ export default function ProfessionalOnboarding() {
           )
           .eq(
             "id",
-            existingPsychologist.id
+            existing.id
           )
           .eq(
             "user_id",
@@ -866,59 +707,26 @@ export default function ProfessionalOnboarding() {
           );
 
         if (updateError) {
-          console.error(
-            "EntreNós: erro ao atualizar profissional:",
-            updateError
-          );
-
-          throw new Error(
-            updateError.message ||
-            "Não foi possível atualizar seu cadastro."
-          );
+          throw updateError;
         }
-
-        console.log(
-          "EntreNós: cadastro profissional atualizado:",
-          existingPsychologist.id
-        );
       } else {
-        /*
-         * CRIA novo cadastro profissional.
-         */
-
         const {
-          data: insertedPsychologist,
           error: insertError,
         } = await supabase
           .from("psychologists")
           .insert(
             psychologistData
-          )
-          .select()
-          .single();
+          );
 
         if (insertError) {
-          console.error(
-            "EntreNós: erro ao criar profissional:",
-            insertError
-          );
-
-          throw new Error(
-            insertError.message ||
-            "Não foi possível criar seu cadastro profissional."
-          );
+          throw insertError;
         }
-
-        console.log(
-          "EntreNós: profissional criado:",
-          insertedPsychologist?.id
-        );
       }
 
       setDone(true);
     } catch (err) {
       console.error(
-        "EntreNós: erro ao enviar cadastro:",
+        "Erro ao salvar cadastro profissional:",
         err
       );
 
@@ -929,23 +737,22 @@ export default function ProfessionalOnboarding() {
       setError(message);
 
       /*
-       * Se perdeu autenticação, manda para login.
+       * Só redireciona para login quando realmente
+       * não existe usuário autenticado.
        */
-
-      const sessionExpired =
+      if (
         message
           .toLowerCase()
-          .includes("sessão") ||
-        message
-          .toLowerCase()
-          .includes("login") ||
-        message
-          .toLowerCase()
-          .includes("autenticado");
-
-      if (sessionExpired) {
+          .includes("conectado")
+      ) {
         setTimeout(() => {
-          goToLogin();
+          navigate("/login", {
+            replace: true,
+            state: {
+              from:
+                "/cadastro-profissional",
+            },
+          });
         }, 1200);
       }
     } finally {
@@ -953,16 +760,10 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * ============================================================
-   * TELA DE CARREGAMENTO
-   * ============================================================
-   */
-
   if (authLoading) {
     return (
       <PageShell>
-        <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="min-h-[70vh] flex items-center justify-center px-4">
           <div className="text-center">
             <Loader2
               size={32}
@@ -970,7 +771,7 @@ export default function ProfessionalOnboarding() {
             />
 
             <p className="text-sm text-muted-foreground">
-              Verificando sua sessão profissional...
+              Verificando sua conta profissional...
             </p>
           </div>
         </div>
@@ -979,79 +780,70 @@ export default function ProfessionalOnboarding() {
   }
 
   /*
-   * ============================================================
-   * SEM LOGIN
-   * ============================================================
+   * Esse é o ponto mais importante:
+   * usuário não autenticado não recebe "sessão expirada".
+   *
+   * Ele recebe uma opção para criar a conta profissional.
    */
-
   if (!user) {
     return (
       <PageShell>
         <div className="max-w-xl mx-auto px-4 pt-16 pb-20">
-
           <div className="card-elevated p-8 text-center">
-
-            <div className="w-20 h-20 rounded-3xl bg-red-100 dark:bg-red-500/15 mx-auto flex items-center justify-center mb-6">
-              <ShieldCheck
-                size={40}
-                className="text-red-600"
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 mx-auto flex items-center justify-center mb-6">
+              <Briefcase
+                size={38}
+                className="text-primary"
               />
             </div>
 
             <h1 className="text-2xl font-heading font-bold">
-              Sessão expirada
+              Cadastro profissional
             </h1>
 
-            <p className="text-muted-foreground mt-3">
-              Sua sessão não está mais disponível.
-              Faça login novamente para continuar
-              seu cadastro profissional.
+            <p className="text-muted-foreground mt-3 leading-relaxed">
+              Para cadastrar seu perfil profissional,
+              primeiro precisamos criar sua conta.
             </p>
 
-            <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-
-              <button
-                type="button"
-                onClick={goToLogin}
-                className="px-6 py-3 rounded-full gradient-brand text-white font-semibold"
+            <div className="mt-7 flex flex-col gap-3">
+              <Link
+                to="/cadastro-profissional/criar-conta"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full gradient-brand text-white font-semibold"
               >
-                Fazer login
-              </button>
+                Criar conta profissional
+                <ArrowRight size={17} />
+              </Link>
+
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-strong font-semibold"
+              >
+                Já tenho conta
+              </Link>
 
               <Link
                 to="/"
-                className="px-6 py-3 rounded-full glass-strong font-semibold"
+                className="inline-flex items-center justify-center px-6 py-3 text-sm text-muted-foreground hover:text-foreground"
               >
                 Voltar ao início
               </Link>
-
             </div>
-
           </div>
-
         </div>
       </PageShell>
     );
   }
-
-  /*
-   * ============================================================
-   * CADASTRO CONCLUÍDO
-   * ============================================================
-   */
 
   if (done) {
     return (
       <PageShell>
         <div className="max-w-xl mx-auto px-4 pt-20 pb-20 text-center">
-
           <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6">
-
             <Check
               size={40}
               className="text-emerald-600"
             />
-
           </div>
 
           <h1 className="text-2xl font-heading font-bold">
@@ -1061,13 +853,10 @@ export default function ProfessionalOnboarding() {
           <p className="text-muted-foreground mt-3">
             Recebemos seu perfil profissional.
             Nossa equipe vai revisar seu CRP e
-            suas informações profissionais.
-            Você receberá uma notificação quando
-            seu perfil for aprovado.
+            suas informações antes da publicação.
           </p>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-
             <Link
               to="/painel-profissional"
               className="px-6 py-3 rounded-full gradient-brand text-white font-semibold"
@@ -1081,60 +870,38 @@ export default function ProfessionalOnboarding() {
             >
               Voltar ao início
             </Link>
-
           </div>
-
         </div>
       </PageShell>
     );
   }
 
-  /*
-   * ============================================================
-   * CADASTRO PROFISSIONAL
-   * ============================================================
-   */
-
   return (
     <PageShell>
-
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
-
         <div className="text-center mb-8">
-
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-4">
-            <Briefcase size={16} />
-            Área profissional
-          </div>
-
           <h1 className="text-3xl font-heading font-bold">
             Cadastro profissional
           </h1>
 
           <p className="text-muted-foreground mt-2 text-sm">
-            Crie seu perfil profissional no EntreNós.
-            Leva poucos minutos.
+            Complete seu perfil para solicitar a
+            verificação profissional.
           </p>
-
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-3">
-
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
             <X
               size={18}
               className="shrink-0 mt-0.5"
             />
 
-            <span>
-              {error}
-            </span>
-
+            <span>{error}</span>
           </div>
         )}
 
         <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2 gap-1">
-
           {STEPS.map((s, i) => {
             const Icon = s.icon;
 
@@ -1143,9 +910,8 @@ export default function ProfessionalOnboarding() {
                 key={s.key}
                 className="flex items-center gap-2 shrink-0"
               >
-
                 <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
                     i < step
                       ? "bg-emerald-500 text-white"
                       : i === step
@@ -1153,13 +919,11 @@ export default function ProfessionalOnboarding() {
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-
                   {i < step ? (
                     <Check size={16} />
                   ) : (
                     <Icon size={16} />
                   )}
-
                 </div>
 
                 <span
@@ -1172,7 +936,8 @@ export default function ProfessionalOnboarding() {
                   {s.label}
                 </span>
 
-                {i < STEPS.length - 1 && (
+                {i <
+                  STEPS.length - 1 && (
                   <div
                     className={`w-4 h-0.5 ${
                       i < step
@@ -1181,18 +946,15 @@ export default function ProfessionalOnboarding() {
                     }`}
                   />
                 )}
-
               </div>
             );
           })}
-
         </div>
 
         <div
           className="card-elevated p-6 sm:p-8 animate-fade-in"
           key={step}
         >
-
           {step === 0 && (
             <StepPersonal
               data={data}
@@ -1233,20 +995,19 @@ export default function ProfessionalOnboarding() {
           )}
 
           {step === 5 && (
-            <StepReview
-              data={data}
-            />
+            <StepReview data={data} />
           )}
-
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-
           <button
             type="button"
             onClick={() =>
               setStep((current) =>
-                Math.max(0, current - 1)
+                Math.max(
+                  0,
+                  current - 1
+                )
               )
             }
             disabled={
@@ -1254,26 +1015,23 @@ export default function ProfessionalOnboarding() {
               uploading ||
               submitting
             }
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted transition-all"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted"
           >
-
             <ArrowLeft size={16} />
-
             Voltar
-
           </button>
 
-          {step < STEPS.length - 1 ? (
-
+          {step <
+          STEPS.length - 1 ? (
             <button
               type="button"
               onClick={() => {
-
                 setError("");
 
                 if (validate()) {
-                  setStep((current) =>
-                    current + 1
+                  setStep(
+                    (current) =>
+                      current + 1
                   );
 
                   return;
@@ -1281,7 +1039,7 @@ export default function ProfessionalOnboarding() {
 
                 if (step === 0) {
                   setError(
-                    "Preencha nome, e-mail, cidade e estado corretamente."
+                    "Preencha nome, e-mail, cidade e estado."
                   );
                 }
 
@@ -1302,80 +1060,57 @@ export default function ProfessionalOnboarding() {
                     "Envie uma foto profissional."
                   );
                 }
-
               }}
               disabled={
                 !validate() ||
                 uploading ||
                 submitting
               }
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40"
             >
-
               Continuar
-
               <ArrowRight size={16} />
-
             </button>
-
           ) : (
-
             <button
               type="button"
               onClick={submit}
               disabled={
                 submitting ||
-                uploading ||
-                !user
+                uploading
               }
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40"
             >
-
               {submitting ? (
                 <>
                   <Loader2
                     size={16}
                     className="animate-spin"
                   />
-
                   Enviando...
                 </>
               ) : (
                 <>
                   <ShieldCheck size={16} />
-
                   Enviar para verificação
                 </>
               )}
-
             </button>
-
           )}
-
         </div>
-
       </div>
-
     </PageShell>
   );
 }
 
-/*
- * ============================================================
- * ETAPA 1 — DADOS PESSOAIS
- * ============================================================
- */
-
 function StepPersonal({ data, set }) {
   return (
     <div className="space-y-4">
-
       <h2 className="font-heading font-semibold text-lg">
         Dados pessoais
       </h2>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Nome completo *">
           <TextInput
             value={data.full_name}
@@ -1415,8 +1150,8 @@ function StepPersonal({ data, set }) {
                 e.target.value
               )
             }
-            placeholder="seuemail@exemplo.com"
             autoComplete="email"
+            readOnly
           />
         </Field>
 
@@ -1453,10 +1188,7 @@ function StepPersonal({ data, set }) {
             onChange={(e) =>
               set(
                 "state",
-                e.target.value
-                  .toUpperCase()
-                  .replace(/[^A-Z]/g, "")
-                  .slice(0, 2)
+                e.target.value.toUpperCase()
               )
             }
             placeholder="SP"
@@ -1475,29 +1207,19 @@ function StepPersonal({ data, set }) {
             }
           />
         </Field>
-
       </div>
-
     </div>
   );
 }
 
-/*
- * ============================================================
- * ETAPA 2 — DADOS PROFISSIONAIS
- * ============================================================
- */
-
 function StepProfessional({ data, set }) {
   return (
     <div className="space-y-5">
-
       <h2 className="font-heading font-semibold text-lg">
         Dados profissionais
       </h2>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Número do CRP *">
           <TextInput
             value={data.crp_number}
@@ -1554,8 +1276,6 @@ function StepProfessional({ data, set }) {
         <Field label="Ano de formação">
           <TextInput
             type="number"
-            min="1900"
-            max={new Date().getFullYear()}
             value={data.graduation_year}
             onChange={(e) =>
               set(
@@ -1579,7 +1299,6 @@ function StepProfessional({ data, set }) {
             placeholder="Ex.: 5 anos"
           />
         </Field>
-
       </div>
 
       <Field
@@ -1610,21 +1329,13 @@ function StepProfessional({ data, set }) {
           }
         />
       </Field>
-
     </div>
   );
 }
 
-/*
- * ============================================================
- * ETAPA 3 — ATENDIMENTO
- * ============================================================
- */
-
 function StepService({ data, set }) {
   return (
     <div className="space-y-5">
-
       <h2 className="font-heading font-semibold text-lg">
         Como você atende
       </h2>
@@ -1685,12 +1396,10 @@ function StepService({ data, set }) {
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Valor da sessão">
           <TextInput
             type="number"
             min="0"
-            step="0.01"
             value={data.price}
             onChange={(e) =>
               set(
@@ -1737,7 +1446,6 @@ function StepService({ data, set }) {
             ]}
           />
         </Field>
-
       </div>
 
       <Field label="Dias disponíveis">
@@ -1779,16 +1487,9 @@ function StepService({ data, set }) {
           rows={5}
         />
       </Field>
-
     </div>
   );
 }
-
-/*
- * ============================================================
- * ETAPA 4 — FOTO
- * ============================================================
- */
 
 function StepPhoto({
   data,
@@ -1798,9 +1499,7 @@ function StepPhoto({
 }) {
   return (
     <div className="space-y-5">
-
       <div>
-
         <h2 className="font-heading font-semibold text-lg">
           Sua foto profissional
         </h2>
@@ -1808,15 +1507,11 @@ function StepPhoto({
         <p className="text-sm text-muted-foreground mt-1">
           Escolha uma foto clara e profissional.
         </p>
-
       </div>
 
       <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-
         {data.photo_url ? (
-
           <div className="space-y-4">
-
             <img
               src={data.photo_url}
               alt="Foto profissional"
@@ -1831,20 +1526,15 @@ function StepPhoto({
                   ""
                 )
               }
-              className="text-sm text-red-600 hover:underline"
               disabled={uploading}
+              className="text-sm text-red-600 hover:underline"
             >
               Remover foto
             </button>
-
           </div>
-
         ) : (
-
           <label className="cursor-pointer block">
-
             <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
-
               {uploading ? (
                 <Loader2
                   size={28}
@@ -1853,7 +1543,6 @@ function StepPhoto({
               ) : (
                 <Camera size={28} />
               )}
-
             </div>
 
             <div className="font-semibold">
@@ -1868,355 +1557,3 @@ function StepPhoto({
 
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                upload(
-                  e.target.files?.[0],
-                  "photo_url"
-                );
-
-                e.target.value = "";
-              }}
-            />
-
-          </label>
-
-        )}
-
-      </div>
-
-    </div>
-  );
-}
-
-/*
- * ============================================================
- * ETAPA 5 — VÍDEO
- * ============================================================
- */
-
-function StepVideo({
-  data,
-  upload,
-  uploading,
-  set,
-}) {
-  return (
-    <div className="space-y-5">
-
-      <div>
-
-        <h2 className="font-heading font-semibold text-lg">
-          Vídeo de apresentação
-        </h2>
-
-        <p className="text-sm text-muted-foreground mt-1">
-          Apresente-se brevemente aos pacientes.
-          O vídeo é opcional.
-        </p>
-
-      </div>
-
-      <div className="rounded-2xl border border-dashed border-border p-6">
-
-        {data.video_url ? (
-
-          <div className="space-y-4">
-
-            <video
-              src={data.video_url}
-              controls
-              playsInline
-              className="w-full max-h-96 rounded-2xl bg-black"
-            />
-
-            <button
-              type="button"
-              onClick={() =>
-                set(
-                  "video_url",
-                  ""
-                )
-              }
-              className="text-sm text-red-600 hover:underline"
-              disabled={uploading}
-            >
-              Remover vídeo
-            </button>
-
-          </div>
-
-        ) : (
-
-          <label className="cursor-pointer block text-center">
-
-            <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
-
-              {uploading ? (
-                <Loader2
-                  size={28}
-                  className="animate-spin"
-                />
-              ) : (
-                <Video size={28} />
-              )}
-
-            </div>
-
-            <div className="font-semibold">
-              {uploading
-                ? "Enviando vídeo..."
-                : "Selecionar vídeo"}
-            </div>
-
-            <p className="text-xs text-muted-foreground mt-2">
-              MP4, WEBM ou MOV · máximo 150 MB
-            </p>
-
-            <input
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                upload(
-                  e.target.files?.[0],
-                  "video_url"
-                );
-
-                e.target.value = "";
-              }}
-            />
-
-          </label>
-
-        )}
-
-      </div>
-
-    </div>
-  );
-}
-
-/*
- * ============================================================
- * ETAPA 6 — REVISÃO
- * ============================================================
- */
-
-function StepReview({ data }) {
-  return (
-    <div className="space-y-6">
-
-      <div>
-
-        <h2 className="font-heading font-semibold text-lg">
-          Revise seu cadastro
-        </h2>
-
-        <p className="text-sm text-muted-foreground mt-1">
-          Confira as informações antes de enviar.
-        </p>
-
-      </div>
-
-      <div className="space-y-4">
-
-        <ReviewItem
-          label="Nome"
-          value={
-            data.professional_name ||
-            data.full_name
-          }
-        />
-
-        <ReviewItem
-          label="E-mail"
-          value={data.email}
-        />
-
-        <ReviewItem
-          label="Telefone"
-          value={data.phone}
-        />
-
-        <ReviewItem
-          label="Localização"
-          value={`${data.city} - ${data.state}`}
-        />
-
-        <ReviewItem
-          label="CRP"
-          value={`CRP ${data.crp_region} - ${data.crp_number}`}
-        />
-
-        <ReviewItem
-          label="Formação"
-          value={data.education}
-        />
-
-        <ReviewItem
-          label="Instituição"
-          value={data.institution}
-        />
-
-        <ReviewItem
-          label="Ano de formação"
-          value={data.graduation_year}
-        />
-
-        <ReviewItem
-          label="Experiência"
-          value={data.experience}
-        />
-
-        <ReviewItem
-          label="Modalidades"
-          value={
-            data.modalities?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Público"
-          value={
-            data.audience?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Idiomas"
-          value={
-            data.languages?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Especializações"
-          value={
-            data.specializations?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Abordagens"
-          value={
-            data.approaches?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Temas"
-          value={
-            data.themes?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Dias disponíveis"
-          value={
-            data.available_days?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Horários"
-          value={
-            data.available_slots?.join(", ") ||
-            "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Valor"
-          value={
-            Number(data.price) > 0
-              ? `R$ ${Number(data.price).toFixed(2)}`
-              : "Não informado"
-          }
-        />
-
-        <ReviewItem
-          label="Duração"
-          value={
-            `${data.session_duration} minutos`
-          }
-        />
-
-        <ReviewItem
-          label="Foto"
-          value={
-            data.photo_url
-              ? "Enviada ✓"
-              : "Não enviada"
-          }
-        />
-
-        <ReviewItem
-          label="Vídeo"
-          value={
-            data.video_url
-              ? "Enviado ✓"
-              : "Não enviado"
-          }
-        />
-
-      </div>
-
-      <div className="rounded-2xl bg-muted/50 p-4 text-sm">
-
-        <div className="flex gap-3">
-
-          <ShieldCheck
-            size={20}
-            className="shrink-0"
-          />
-
-          <p>
-            Seu cadastro profissional será
-            analisado pela equipe do EntreNós.
-            O perfil ficará privado até a
-            conclusão da verificação.
-          </p>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
-
-/*
- * ============================================================
- * ITEM DA REVISÃO
- * ============================================================
- */
-
-function ReviewItem({
-  label,
-  value,
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-border pb-3">
-
-      <span className="text-sm font-medium">
-        {label}
-      </span>
-
-      <span className="text-sm text-muted-foreground sm:text-right">
-        {value || "Não informado"}
-      </span>
-
-    </div>
-  );
-}
