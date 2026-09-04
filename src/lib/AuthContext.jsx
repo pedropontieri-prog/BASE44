@@ -1,4 +1,3 @@
-```jsx
 import React, {
   createContext,
   useContext,
@@ -14,7 +13,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] =
+    useState(false);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
@@ -49,7 +49,11 @@ export const AuthProvider = ({ children }) => {
         .maybeSingle();
 
       if (error) {
-        console.warn("Não foi possível carregar o perfil:", error);
+        console.warn(
+          "Não foi possível carregar o perfil:",
+          error
+        );
+
         return userData;
       }
 
@@ -195,7 +199,9 @@ export const AuthProvider = ({ children }) => {
             return;
           }
 
-          const profile = await loadUserProfile(session.user);
+          const profile = await loadUserProfile(
+            session.user
+          );
 
           if (!mounted) {
             return;
@@ -221,7 +227,8 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(true);
       setAuthError(null);
 
-      const { error } = await supabase.auth.signOut();
+      const { error } =
+        await supabase.auth.signOut();
 
       if (error) {
         throw error;
@@ -235,7 +242,10 @@ export const AuthProvider = ({ children }) => {
         window.location.href = "/";
       }
     } catch (error) {
-      console.error("Erro ao sair:", error);
+      console.error(
+        "Erro ao sair:",
+        error
+      );
 
       setAuthError({
         type: "logout_error",
@@ -257,14 +267,19 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    const currentPath = `${pathname}${search}${hash}`;
+    const currentPath =
+      `${pathname}${search}${hash}`;
 
     const returnTo =
-      currentPath && currentPath !== "/login"
-        ? `?returnTo=${encodeURIComponent(currentPath)}`
+      currentPath &&
+      currentPath !== "/login"
+        ? `?returnTo=${encodeURIComponent(
+            currentPath
+          )}`
         : "";
 
-    window.location.href = `/login${returnTo}`;
+    window.location.href =
+      `/login${returnTo}`;
   };
 
   const value = {
@@ -300,4 +315,3 @@ export const useAuth = () => {
 
   return context;
 };
-```
