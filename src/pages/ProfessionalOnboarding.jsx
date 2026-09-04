@@ -16,6 +16,7 @@ import {
 
 import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/AuthContext";
 
 import {
   Field,
@@ -169,6 +170,19 @@ const DEFAULTS = {
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
+  /*
+   * IMPORTANTE:
+   * A autenticação agora vem do AuthContext.
+   * Não fazemos outro onAuthStateChange nesta página.
+   */
+  const auth = useAuth();
+
+  const contextUser = auth?.user || null;
+  const isAuthenticated = Boolean(
+    auth?.isAuthenticated && contextUser?.id
+  );
+  const isLoadingAuth = Boolean(auth?.isLoadingAuth);
+
   const [step, setStep] = useState(0);
   const [data, setData] = useState(DEFAULTS);
 
@@ -177,169 +191,64 @@ export default function ProfessionalOnboarding() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
-  const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(null);
-
+  /*
+   * Preenche os dados assim que o AuthContext
+   * disponibilizar o usuário.
+   */
   useEffect(() => {
-    let mounted = true;
+    if (!contextUser) {
+      return;
+    }
 
-    const applyUser = (currentUser) => {
-      if (!mounted) return;
+    setData((current) => ({
+      ...current,
 
-      if (currentUser) {
-        setUser(currentUser);
+      email:
+        contextUser.email ||
+        current.email,
 
-        setData((current) => ({
-          ...current,
-          email:
-            currentUser.email ||
-            current.email,
-          full_name:
-            currentUser.user_metadata?.full_name ||
-            currentUser.user_metadata?.name ||
-            current.full_name,
-        }));
+      full_name:
+        contextUser.full_name ||
+        contextUser.name ||
+        current.full_name,
+    }));
 
-        setError("");
-      } else {
-        setUser(null);
-      }
-    };
+    setError("");
+  }, [
+    contextUser?.id,
+    contextUser?.email,
+    contextUser?.full_name,
+    contextUser?.name,
+  ]);
 
-    const loadSession = async () => {
-      try {
-        console.log(
-          "EntreNós: verificando sessão..."
-        );
+  /*
+   * Se o AuthContext terminar de carregar sem usuário,
+   * redirecionamos para login.
+   *
+   * Não fazemos isso durante o carregamento para evitar
+   * o falso "sessão expirou".
+   */
+  useEffect(() => {
+    if (isLoadingAuth) {
+      return;
+    }
 
-        const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
+    if (!isAuthenticated) {
+      setError("Sua sessão expirou. Faça login novamente.");
 
-        if (!mounted) return;
+      const timer = setTimeout(() => {
+        navigate("/login", {
+          replace: true,
+        });
+      }, 1200);
 
-        if (sessionError) {
-          console.error(
-            "EntreNós: erro ao recuperar sessão:",
-            sessionError
-          );
-
-          setAuthLoading(false);
-
-          setError(
-            "Não foi possível verificar sua sessão. Faça login novamente."
-          );
-
-          return;
-        }
-
-        const currentUser =
-          sessionData?.session?.user || null;
-
-        console.log(
-          "EntreNós: sessão recuperada:",
-          currentUser?.id || "nenhum usuário"
-        );
-
-        applyUser(currentUser);
-
-        setAuthLoading(false);
-
-        if (!currentUser) {
-          setError(
-            "Sua sessão expirou. Faça login novamente."
-          );
-        }
-      } catch (err) {
-        console.error(
-          "EntreNós: erro inesperado ao carregar sessão:",
-          err
-        );
-
-        if (!mounted) return;
-
-        setAuthLoading(false);
-
-        setError(
-          "Não foi possível carregar sua sessão. Faça login novamente."
-        );
-      }
-    };
-
-    const {
-      data: authListener,
-    } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        console.log(
-          "EntreNós Auth:",
-          event,
-          session?.user?.id || "sem usuário"
-        );
-
-        if (event === "INITIAL_SESSION") {
-          if (session?.user) {
-            applyUser(session.user);
-          }
-
-          return;
-        }
-
-        if (
-          event === "SIGNED_IN" &&
-          session?.user
-        ) {
-          applyUser(session.user);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (
-          event === "TOKEN_REFRESHED" &&
-          session?.user
-        ) {
-          applyUser(session.user);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (
-          event === "USER_UPDATED" &&
-          session?.user
-        ) {
-          applyUser(session.user);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (event === "SIGNED_OUT") {
-          setUser(null);
-          setAuthLoading(false);
-
-          setError(
-            "Sua sessão expirou. Faça login novamente."
-          );
-
-          return;
-        }
-
-        if (session?.user) {
-          applyUser(session.user);
-          setAuthLoading(false);
-        }
-      }
-    );
-
-    loadSession();
-
-    return () => {
-      mounted = false;
-
-      authListener?.subscription?.unsubscribe();
-    };
-  }, []);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isLoadingAuth,
+    isAuthenticated,
+    navigate,
+  ]);
 
   const set = (key, value) => {
     setData((current) => ({
@@ -379,11 +288,14 @@ export default function ProfessionalOnboarding() {
     return true;
   };
 
+  /*
+   * Obtém o usuário diretamente do Supabase quando
+   * precisamos garantir que a sessão ainda é válida.
+   *
+   * Isso é diferente de usar getSession() para decidir
+   * toda a autenticação da página.
+   */
   const getAuthenticatedUser = async () => {
-    if (user?.id) {
-      return user;
-    }
-
     const {
       data: authData,
       error: authError,
@@ -400,7 +312,7 @@ export default function ProfessionalOnboarding() {
       );
     }
 
-    if (!authData?.user) {
+    if (!authData?.user?.id) {
       throw new Error(
         "Sua sessão expirou. Faça login novamente."
       );
@@ -416,8 +328,9 @@ export default function ProfessionalOnboarding() {
 
     setError("");
 
-    const MAX_PHOTO_SIZE =
-      150 * 1024 * 1024;
+    const MAX_PHOTO_SIZE = 150 * 1024 * 1024;
+
+    const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
 
     const PHOTO_TYPES = [
       "image/jpeg",
@@ -458,6 +371,14 @@ export default function ProfessionalOnboarding() {
 
         return;
       }
+
+      if (file.size > MAX_VIDEO_SIZE) {
+        setError(
+          "O vídeo deve ter no máximo 500 MB."
+        );
+
+        return;
+      }
     }
 
     setUploading(true);
@@ -470,8 +391,7 @@ export default function ProfessionalOnboarding() {
         file.name
           .split(".")
           .pop()
-          ?.toLowerCase() ||
-        "file";
+          ?.toLowerCase() || "file";
 
       const fileName =
         `${crypto.randomUUID()}.${extension}`;
@@ -535,6 +455,10 @@ export default function ProfessionalOnboarding() {
   };
 
   const submit = async () => {
+    if (submitting || uploading) {
+      return;
+    }
+
     setError("");
 
     if (!data.email?.trim()) {
@@ -594,16 +518,12 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    if (
-      submitting ||
-      uploading
-    ) {
-      return;
-    }
-
     setSubmitting(true);
 
     try {
+      /*
+       * Sempre valida a sessão no momento do envio.
+       */
       const authenticatedUser =
         await getAuthenticatedUser();
 
@@ -645,16 +565,12 @@ export default function ProfessionalOnboarding() {
             : null,
 
         specializations:
-          Array.isArray(
-            data.specializations
-          )
+          Array.isArray(data.specializations)
             ? data.specializations
             : [],
 
         approaches:
-          Array.isArray(
-            data.approaches
-          )
+          Array.isArray(data.approaches)
             ? data.approaches
             : [],
 
@@ -702,21 +618,15 @@ export default function ProfessionalOnboarding() {
           Number(data.price) || 0,
 
         session_duration:
-          Number(
-            data.session_duration
-          ) || 50,
+          Number(data.session_duration) || 50,
 
         available_days:
-          Array.isArray(
-            data.available_days
-          )
+          Array.isArray(data.available_days)
             ? data.available_days
             : [],
 
         available_slots:
-          Array.isArray(
-            data.available_slots
-          )
+          Array.isArray(data.available_slots)
             ? data.available_slots
             : [],
 
@@ -756,6 +666,9 @@ export default function ProfessionalOnboarding() {
         psychologistData
       );
 
+      /*
+       * Verifica se já existe cadastro para esse usuário.
+       */
       const {
         data: existingPsychologist,
         error: existingError,
@@ -777,6 +690,9 @@ export default function ProfessionalOnboarding() {
         throw existingError;
       }
 
+      /*
+       * Atualiza cadastro existente.
+       */
       if (existingPsychologist?.id) {
         const {
           error: updateError,
@@ -807,7 +723,12 @@ export default function ProfessionalOnboarding() {
           "EntreNós: cadastro atualizado:",
           existingPsychologist.id
         );
-      } else {
+      }
+
+      /*
+       * Cria novo cadastro.
+       */
+      else {
         const {
           data: insertedPsychologist,
           error: insertError,
@@ -841,17 +762,26 @@ export default function ProfessionalOnboarding() {
         err
       );
 
-      const message =
+      const rawMessage =
         err?.message ||
         "Não foi possível enviar o cadastro.";
 
-      setError(message);
+      const normalizedMessage =
+        rawMessage.toLowerCase();
 
-      if (
-        message
-          .toLowerCase()
-          .includes("sessão")
-      ) {
+      const sessionError =
+        normalizedMessage.includes("sessão") ||
+        normalizedMessage.includes("session") ||
+        normalizedMessage.includes("jwt") ||
+        normalizedMessage.includes("token") ||
+        normalizedMessage.includes("not authenticated") ||
+        normalizedMessage.includes("unauthorized");
+
+      if (sessionError) {
+        setError(
+          "Sua sessão expirou. Faça login novamente."
+        );
+
         setTimeout(() => {
           navigate(
             "/login",
@@ -859,14 +789,18 @@ export default function ProfessionalOnboarding() {
               replace: true,
             }
           );
-        }, 1500);
+        }, 1200);
+
+        return;
       }
+
+      setError(rawMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (authLoading) {
+  if (isLoadingAuth) {
     return (
       <PageShell>
         <div className="min-h-[60vh] flex items-center justify-center px-4">
@@ -885,18 +819,48 @@ export default function ProfessionalOnboarding() {
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <PageShell>
+        <div className="max-w-xl mx-auto px-4 pt-20 pb-20 text-center">
+          <div className="w-20 h-20 rounded-3xl bg-red-100 dark:bg-red-500/15 mx-auto flex items-center justify-center mb-6">
+            <X
+              size={40}
+              className="text-red-600"
+            />
+          </div>
+
+          <h1 className="text-2xl font-heading font-bold">
+            Sessão expirada
+          </h1>
+
+          <p className="text-muted-foreground mt-3">
+            Sua sessão não está mais disponível.
+            Faça login novamente para continuar
+            seu cadastro profissional.
+          </p>
+
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 mt-7 px-6 py-3 rounded-full gradient-brand text-white font-semibold"
+          >
+            Fazer login
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+      </PageShell>
+    );
+  }
+
   if (done) {
     return (
       <PageShell>
         <div className="max-w-xl mx-auto px-4 pt-20 pb-20 text-center">
-
           <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6">
-
             <Check
               size={40}
               className="text-emerald-600"
             />
-
           </div>
 
           <h1 className="text-2xl font-heading font-bold">
@@ -911,7 +875,6 @@ export default function ProfessionalOnboarding() {
           </p>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-
             <Link
               to="/painel-profissional"
               className="px-6 py-3 rounded-full gradient-brand text-white font-semibold"
@@ -925,9 +888,7 @@ export default function ProfessionalOnboarding() {
             >
               Voltar ao início
             </Link>
-
           </div>
-
         </div>
       </PageShell>
     );
@@ -935,11 +896,8 @@ export default function ProfessionalOnboarding() {
 
   return (
     <PageShell>
-
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
-
         <div className="text-center mb-8">
-
           <h1 className="text-3xl font-heading font-bold">
             Cadastro profissional
           </h1>
@@ -947,12 +905,10 @@ export default function ProfessionalOnboarding() {
           <p className="text-muted-foreground mt-2 text-sm">
             Conte um pouco sobre você. Leva poucos minutos.
           </p>
-
         </div>
 
         {error && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
-
             <X
               size={18}
               className="shrink-0 mt-0.5"
@@ -961,12 +917,10 @@ export default function ProfessionalOnboarding() {
             <span>
               {error}
             </span>
-
           </div>
         )}
 
         <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2 gap-1">
-
           {STEPS.map((s, i) => {
             const Icon = s.icon;
 
@@ -975,7 +929,6 @@ export default function ProfessionalOnboarding() {
                 key={s.key}
                 className="flex items-center gap-2 shrink-0"
               >
-
                 <div
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
                     i < step
@@ -985,13 +938,11 @@ export default function ProfessionalOnboarding() {
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-
                   {i < step ? (
                     <Check size={16} />
                   ) : (
                     <Icon size={16} />
                   )}
-
                 </div>
 
                 <span
@@ -1013,18 +964,15 @@ export default function ProfessionalOnboarding() {
                     }`}
                   />
                 )}
-
               </div>
             );
           })}
-
         </div>
 
         <div
           className="card-elevated p-6 sm:p-8 animate-fade-in"
           key={step}
         >
-
           {step === 0 && (
             <StepPersonal
               data={data}
@@ -1069,11 +1017,9 @@ export default function ProfessionalOnboarding() {
               data={data}
             />
           )}
-
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-
           <button
             type="button"
             onClick={() =>
@@ -1091,19 +1037,15 @@ export default function ProfessionalOnboarding() {
             }
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-40 hover:bg-muted transition-all"
           >
-
             <ArrowLeft size={16} />
 
             Voltar
-
           </button>
 
           {step < STEPS.length - 1 ? (
-
             <button
               type="button"
               onClick={() => {
-
                 setError("");
 
                 if (validate()) {
@@ -1112,7 +1054,6 @@ export default function ProfessionalOnboarding() {
                       current + 1
                   );
                 } else {
-
                   if (step === 0) {
                     setError(
                       "Preencha nome, e-mail, cidade e estado."
@@ -1136,9 +1077,7 @@ export default function ProfessionalOnboarding() {
                       "Envie uma foto profissional."
                     );
                   }
-
                 }
-
               }}
               disabled={
                 !validate() ||
@@ -1147,26 +1086,21 @@ export default function ProfessionalOnboarding() {
               }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
-
               Continuar
 
               <ArrowRight size={16} />
-
             </button>
-
           ) : (
-
             <button
               type="button"
               onClick={submit}
               disabled={
                 submitting ||
                 uploading ||
-                !user
+                !isAuthenticated
               }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
-
               {submitting ? (
                 <>
                   <Loader2
@@ -1183,15 +1117,10 @@ export default function ProfessionalOnboarding() {
                   Enviar para verificação
                 </>
               )}
-
             </button>
-
           )}
-
         </div>
-
       </div>
-
     </PageShell>
   );
 }
@@ -1199,13 +1128,11 @@ export default function ProfessionalOnboarding() {
 function StepPersonal({ data, set }) {
   return (
     <div className="space-y-4">
-
       <h2 className="font-heading font-semibold text-lg">
         Dados pessoais
       </h2>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Nome completo *">
           <TextInput
             value={data.full_name}
@@ -1302,9 +1229,7 @@ function StepPersonal({ data, set }) {
             }
           />
         </Field>
-
       </div>
-
     </div>
   );
 }
@@ -1312,13 +1237,11 @@ function StepPersonal({ data, set }) {
 function StepProfessional({ data, set }) {
   return (
     <div className="space-y-5">
-
       <h2 className="font-heading font-semibold text-lg">
         Dados profissionais
       </h2>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Número do CRP *">
           <TextInput
             value={data.crp_number}
@@ -1398,7 +1321,6 @@ function StepProfessional({ data, set }) {
             placeholder="Ex.: 5 anos"
           />
         </Field>
-
       </div>
 
       <Field
@@ -1429,7 +1351,6 @@ function StepProfessional({ data, set }) {
           }
         />
       </Field>
-
     </div>
   );
 }
@@ -1437,7 +1358,6 @@ function StepProfessional({ data, set }) {
 function StepService({ data, set }) {
   return (
     <div className="space-y-5">
-
       <h2 className="font-heading font-semibold text-lg">
         Como você atende
       </h2>
@@ -1498,7 +1418,6 @@ function StepService({ data, set }) {
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
-
         <Field label="Valor da sessão">
           <TextInput
             type="number"
@@ -1510,6 +1429,7 @@ function StepService({ data, set }) {
               )
             }
             placeholder="150"
+            min="0"
           />
         </Field>
 
@@ -1548,7 +1468,6 @@ function StepService({ data, set }) {
             ]}
           />
         </Field>
-
       </div>
 
       <Field label="Dias disponíveis">
@@ -1590,7 +1509,6 @@ function StepService({ data, set }) {
           rows={5}
         />
       </Field>
-
     </div>
   );
 }
@@ -1603,9 +1521,7 @@ function StepPhoto({
 }) {
   return (
     <div className="space-y-5">
-
       <div>
-
         <h2 className="font-heading font-semibold text-lg">
           Sua foto profissional
         </h2>
@@ -1613,15 +1529,11 @@ function StepPhoto({
         <p className="text-sm text-muted-foreground mt-1">
           Escolha uma foto clara e profissional.
         </p>
-
       </div>
 
       <div className="rounded-2xl border border-dashed border-border p-6 text-center">
-
         {data.photo_url ? (
-
           <div className="space-y-4">
-
             <img
               src={data.photo_url}
               alt="Foto profissional"
@@ -1641,15 +1553,10 @@ function StepPhoto({
             >
               Remover foto
             </button>
-
           </div>
-
         ) : (
-
           <label className="cursor-pointer block">
-
             <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
-
               {uploading ? (
                 <Loader2
                   size={28}
@@ -1658,7 +1565,6 @@ function StepPhoto({
               ) : (
                 <Camera size={28} />
               )}
-
             </div>
 
             <div className="font-semibold">
@@ -1685,13 +1591,9 @@ function StepPhoto({
                 e.target.value = "";
               }}
             />
-
           </label>
-
         )}
-
       </div>
-
     </div>
   );
 }
@@ -1704,9 +1606,7 @@ function StepVideo({
 }) {
   return (
     <div className="space-y-5">
-
       <div>
-
         <h2 className="font-heading font-semibold text-lg">
           Vídeo de apresentação
         </h2>
@@ -1714,15 +1614,11 @@ function StepVideo({
         <p className="text-sm text-muted-foreground mt-1">
           Apresente-se brevemente aos pacientes.
         </p>
-
       </div>
 
       <div className="rounded-2xl border border-dashed border-border p-6">
-
         {data.video_url ? (
-
           <div className="space-y-4">
-
             <video
               src={data.video_url}
               controls
@@ -1742,15 +1638,10 @@ function StepVideo({
             >
               Remover vídeo
             </button>
-
           </div>
-
         ) : (
-
           <label className="cursor-pointer block text-center">
-
             <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
-
               {uploading ? (
                 <Loader2
                   size={28}
@@ -1759,7 +1650,6 @@ function StepVideo({
               ) : (
                 <Video size={28} />
               )}
-
             </div>
 
             <div className="font-semibold">
@@ -1769,7 +1659,7 @@ function StepVideo({
             </div>
 
             <p className="text-xs text-muted-foreground mt-2">
-              MP4, WEBM ou MOV
+              MP4, WEBM ou MOV · máximo 500 MB
             </p>
 
             <input
@@ -1786,13 +1676,9 @@ function StepVideo({
                 e.target.value = "";
               }}
             />
-
           </label>
-
         )}
-
       </div>
-
     </div>
   );
 }
@@ -1800,9 +1686,7 @@ function StepVideo({
 function StepReview({ data }) {
   return (
     <div className="space-y-6">
-
       <div>
-
         <h2 className="font-heading font-semibold text-lg">
           Revise seu cadastro
         </h2>
@@ -1810,11 +1694,9 @@ function StepReview({ data }) {
         <p className="text-sm text-muted-foreground mt-1">
           Confira as informações antes de enviar.
         </p>
-
       </div>
 
       <div className="space-y-4">
-
         <ReviewItem
           label="Nome"
           value={
@@ -1894,6 +1776,14 @@ function StepReview({ data }) {
         />
 
         <ReviewItem
+          label="Temas"
+          value={
+            data.themes?.join(", ") ||
+            "Não informado"
+          }
+        />
+
+        <ReviewItem
           label="Dias disponíveis"
           value={
             data.available_days?.join(", ") ||
@@ -1942,13 +1832,10 @@ function StepReview({ data }) {
               : "Não enviado"
           }
         />
-
       </div>
 
       <div className="rounded-2xl bg-muted/50 p-4 text-sm">
-
         <div className="flex gap-3">
-
           <ShieldCheck
             size={20}
             className="shrink-0"
@@ -1959,11 +1846,8 @@ function StepReview({ data }) {
             equipe antes que o perfil seja
             disponibilizado publicamente.
           </p>
-
         </div>
-
       </div>
-
     </div>
   );
 }
@@ -1974,7 +1858,6 @@ function ReviewItem({
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-border pb-3">
-
       <span className="text-sm font-medium">
         {label}
       </span>
@@ -1982,7 +1865,6 @@ function ReviewItem({
       <span className="text-sm text-muted-foreground sm:text-right">
         {value || "Não informado"}
       </span>
-
     </div>
   );
 }
