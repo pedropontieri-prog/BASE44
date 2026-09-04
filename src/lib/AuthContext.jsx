@@ -1,9 +1,11 @@
+```jsx
 import React, {
   createContext,
   useContext,
   useEffect,
   useState,
 } from "react";
+
 import { supabase } from "@/lib/supabase";
 
 const AuthContext = createContext(null);
@@ -22,43 +24,78 @@ export const AuthProvider = ({ children }) => {
       return null;
     }
 
+    const metadata = authUser.user_metadata || {};
+
     const userData = {
       id: authUser.id,
       email: authUser.email || "",
-      name:
-        authUser.user_metadata?.name ||
-        authUser.user_metadata?.full_name ||
-        "",
-      full_name:
-        authUser.user_metadata?.full_name ||
-        authUser.user_metadata?.name ||
-        "",
-      avatar_url: authUser.user_metadata?.avatar_url || null,
-      role: authUser.user_metadata?.role || "patient",
+      name: metadata.name || metadata.full_name || "",
+      full_name: metadata.full_name || metadata.name || "",
+      avatar_url: metadata.avatar_url || null,
+      role: metadata.role || "patient",
       created_at: authUser.created_at,
-      updated_at: authUser.updated_at,
+      updated_at: authUser.updated_at || authUser.created_at,
+      user_metadata: metadata,
     };
 
     try {
-      const { data: profile, error } = await supabase
+      const {
+        data: profile,
+        error,
+      } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", authUser.id)
         .maybeSingle();
 
-      if (!error && profile) {
-        return {
-          ...userData,
-          ...profile,
-          id: authUser.id,
-          email: authUser.email || profile.email || "",
-        };
+      if (error) {
+        console.warn("Não foi possível carregar o perfil:", error);
+        return userData;
       }
-    } catch (error) {
-      console.warn("Não foi possível carregar o perfil:", error);
-    }
 
-    return userData;
+      if (!profile) {
+        return userData;
+      }
+
+      return {
+        ...userData,
+        ...profile,
+
+        id: authUser.id,
+
+        email:
+          authUser.email ||
+          profile.email ||
+          "",
+
+        name:
+          profile.name ||
+          profile.full_name ||
+          userData.name,
+
+        full_name:
+          profile.full_name ||
+          profile.name ||
+          userData.full_name,
+
+        avatar_url:
+          profile.avatar_url ||
+          userData.avatar_url,
+
+        role:
+          profile.role ||
+          userData.role,
+
+        user_metadata: metadata,
+      };
+    } catch (error) {
+      console.warn(
+        "Erro inesperado ao carregar o perfil:",
+        error
+      );
+
+      return userData;
+    }
   };
 
   const checkUserAuth = async () => {
@@ -78,6 +115,7 @@ export const AuthProvider = ({ children }) => {
       if (!session?.user) {
         setUser(null);
         setIsAuthenticated(false);
+
         return null;
       }
 
@@ -88,7 +126,10 @@ export const AuthProvider = ({ children }) => {
 
       return profile;
     } catch (error) {
-      console.error("Erro ao verificar autenticação:", error);
+      console.error(
+        "Erro ao verificar autenticação:",
+        error
+      );
 
       setUser(null);
       setIsAuthenticated(false);
@@ -96,7 +137,8 @@ export const AuthProvider = ({ children }) => {
       setAuthError({
         type: "auth_error",
         message:
-          error?.message || "Não foi possível verificar sua autenticação.",
+          error?.message ||
+          "Não foi possível verificar sua autenticação.",
       });
 
       return null;
@@ -108,54 +150,65 @@ export const AuthProvider = ({ children }) => {
 
   const checkAppState = async () => {
     setIsLoadingPublicSettings(false);
+
     return checkUserAuth();
   };
 
   useEffect(() => {
     let mounted = true;
 
-    const initialize = async () => {
+    const initializeAuth = async () => {
       await checkUserAuth();
     };
 
-    initialize();
+    initializeAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
+    } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) {
+          return;
+        }
 
-      if (event === "SIGNED_OUT") {
-        setUser(null);
-        setIsAuthenticated(false);
-        setAuthError(null);
-        setAuthChecked(true);
-        setIsLoadingAuth(false);
-        return;
-      }
+        if (event === "SIGNED_OUT") {
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError(null);
+          setAuthChecked(true);
+          setIsLoadingAuth(false);
 
-      if (
-        event === "SIGNED_IN" ||
-        event === "USER_UPDATED" ||
-        event === "INITIAL_SESSION"
-      ) {
-        if (session?.user) {
+          return;
+        }
+
+        if (
+          event === "SIGNED_IN" ||
+          event === "USER_UPDATED" ||
+          event === "INITIAL_SESSION"
+        ) {
+          if (!session?.user) {
+            setUser(null);
+            setIsAuthenticated(false);
+            setAuthChecked(true);
+            setIsLoadingAuth(false);
+
+            return;
+          }
+
           const profile = await loadUserProfile(session.user);
 
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
 
           setUser(profile);
           setIsAuthenticated(true);
           setAuthError(null);
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
+          setAuthChecked(true);
+          setIsLoadingAuth(false);
         }
-
-        setAuthChecked(true);
-        setIsLoadingAuth(false);
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -176,6 +229,7 @@ export const AuthProvider = ({ children }) => {
 
       setUser(null);
       setIsAuthenticated(false);
+      setAuthChecked(true);
 
       if (shouldRedirect) {
         window.location.href = "/";
@@ -186,7 +240,8 @@ export const AuthProvider = ({ children }) => {
       setAuthError({
         type: "logout_error",
         message:
-          error?.message || "Não foi possível sair da conta.",
+          error?.message ||
+          "Não foi possível sair da conta.",
       });
     } finally {
       setIsLoadingAuth(false);
@@ -194,14 +249,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    const currentPath =
-      window.location.pathname +
-      window.location.search +
-      window.location.hash;
+    const pathname = window.location.pathname;
+    const search = window.location.search;
+    const hash = window.location.hash;
 
-    if (window.location.pathname === "/login") {
+    if (pathname === "/login") {
       return;
     }
+
+    const currentPath = `${pathname}${search}${hash}`;
 
     const returnTo =
       currentPath && currentPath !== "/login"
@@ -211,22 +267,23 @@ export const AuthProvider = ({ children }) => {
     window.location.href = `/login${returnTo}`;
   };
 
+  const value = {
+    user,
+    isAuthenticated,
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    authError,
+    appPublicSettings,
+    authChecked,
+
+    logout,
+    navigateToLogin,
+    checkUserAuth,
+    checkAppState,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        isLoadingAuth,
-        isLoadingPublicSettings,
-        authError,
-        appPublicSettings,
-        authChecked,
-        logout,
-        navigateToLogin,
-        checkUserAuth,
-        checkAppState,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -236,8 +293,11 @@ export const useAuth = () => {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error(
+      "useAuth must be used within an AuthProvider"
+    );
   }
 
   return context;
 };
+```
