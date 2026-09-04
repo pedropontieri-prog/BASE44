@@ -12,8 +12,6 @@ import {
   ShieldCheck,
   Loader2,
   X,
-  Lock,
-  Mail,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
@@ -28,12 +26,36 @@ import {
 } from "@/components/onboarding/FormFields";
 
 const STEPS = [
-  { key: "personal", label: "Pessoal", icon: User },
-  { key: "professional", label: "Profissional", icon: Briefcase },
-  { key: "service", label: "Atendimento", icon: Calendar },
-  { key: "photo", label: "Foto", icon: Camera },
-  { key: "video", label: "Vídeo", icon: Video },
-  { key: "review", label: "Revisão", icon: ShieldCheck },
+  {
+    key: "personal",
+    label: "Pessoal",
+    icon: User,
+  },
+  {
+    key: "professional",
+    label: "Profissional",
+    icon: Briefcase,
+  },
+  {
+    key: "service",
+    label: "Atendimento",
+    icon: Calendar,
+  },
+  {
+    key: "photo",
+    label: "Foto",
+    icon: Camera,
+  },
+  {
+    key: "video",
+    label: "Vídeo",
+    icon: Video,
+  },
+  {
+    key: "review",
+    label: "Revisão",
+    icon: ShieldCheck,
+  },
 ];
 
 const SPEC_OPTS = [
@@ -124,10 +146,13 @@ const SLOT_OPTS = [
   "21:00",
 ];
 
-const REGION_OPTS = Array.from({ length: 15 }, (_, i) => ({
-  v: String(i + 1).padStart(2, "0"),
-  l: `CRP ${String(i + 1).padStart(2, "0")}`,
-}));
+const REGION_OPTS = Array.from(
+  { length: 15 },
+  (_, index) => ({
+    v: String(index + 1).padStart(2, "0"),
+    l: `CRP ${String(index + 1).padStart(2, "0")}`,
+  })
+);
 
 const DEFAULTS = {
   full_name: "",
@@ -146,13 +171,14 @@ const DEFAULTS = {
 
   specializations: [],
   approaches: [],
+  specialties: [],
   themes: [],
   modalities: ["online"],
   languages: ["Português"],
   audience: ["Adultos"],
   experience: "",
 
-  price: "",
+  price: 0,
   session_duration: 50,
   available_days: [],
   available_slots: [],
@@ -167,143 +193,292 @@ const DEFAULTS = {
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
-  const [accountCreated, setAccountCreated] = useState(false);
-  const [accountLoading, setAccountLoading] = useState(true);
-
   const [step, setStep] = useState(0);
   const [data, setData] = useState(DEFAULTS);
 
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
-  const [user, setUser] = useState(null);
-
-  /*
-   * Verifica somente se já existe uma conta autenticada.
-   *
-   * IMPORTANTE:
-   * ausência de sessão NÃO é tratada como "sessão expirada".
-   * Significa apenas que o usuário ainda precisa criar
-   * a conta profissional.
-   */
   useEffect(() => {
     let mounted = true;
 
-    const loadAuth = async () => {
-      try {
-        setAccountLoading(true);
-        setError("");
-
-        const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (sessionError) {
-          console.error(
-            "EntreNós: erro ao recuperar sessão:",
-            sessionError
-          );
-
-          setUser(null);
-          setAccountCreated(false);
+    const loadProfessionalSession =
+      async () => {
+        try {
+          setAuthLoading(true);
+          setError("");
 
           /*
-           * Não exibimos "sessão expirada".
-           * O usuário ainda pode criar sua conta.
+           * getUser valida o usuário atual no Auth.
            */
-          return;
-        }
+          const {
+            data: userData,
+            error: userError,
+          } =
+            await supabase.auth.getUser();
 
-        const currentUser =
-          sessionData?.session?.user || null;
+          if (userError) {
+            throw userError;
+          }
 
-        if (currentUser) {
+          const currentUser =
+            userData?.user || null;
+
+          if (!mounted) {
+            return;
+          }
+
+          /*
+           * Aqui NÃO usamos "sessão expirada".
+           *
+           * Se não existe sessão, significa que o
+           * usuário precisa entrar/criar conta.
+           */
+          if (!currentUser) {
+            setUser(null);
+            setAuthLoading(false);
+            return;
+          }
+
+          const role =
+            currentUser.user_metadata?.role;
+
+          /*
+           * Se a conta não for profissional,
+           * não permitimos usar o onboarding.
+           */
+          if (
+            role &&
+            role !== "professional"
+          ) {
+            setError(
+              "Esta é uma conta de paciente. Para se cadastrar como profissional, crie uma conta profissional."
+            );
+
+            setUser(null);
+            setAuthLoading(false);
+            return;
+          }
+
           setUser(currentUser);
-          setAccountCreated(true);
 
           setData((current) => ({
             ...current,
             email:
-              current.email ||
               currentUser.email ||
-              "",
+              current.email,
+
             full_name:
-              current.full_name ||
-              currentUser.user_metadata?.full_name ||
-              currentUser.user_metadata?.name ||
-              "",
+              currentUser.user_metadata
+                ?.full_name ||
+              currentUser.user_metadata
+                ?.name ||
+              current.full_name,
           }));
-        } else {
+
+          /*
+           * Recupera cadastro existente para permitir
+           * continuar/editá-lo.
+           */
+          const {
+            data: existing,
+            error: existingError,
+          } = await supabase
+            .from("psychologists")
+            .select("*")
+            .eq(
+              "user_id",
+              currentUser.id
+            )
+            .maybeSingle();
+
+          if (
+            existingError &&
+            existingError.code !== "PGRST116"
+          ) {
+            console.warn(
+              "Não foi possível carregar cadastro existente:",
+              existingError
+            );
+          }
+
+          if (existing && mounted) {
+            setData((current) => ({
+              ...current,
+
+              professional_name:
+                existing.professional_name ||
+                current.professional_name,
+
+              crp_number:
+                existing.crp_number ||
+                current.crp_number,
+
+              crp_region:
+                existing.crp_region ||
+                current.crp_region,
+
+              education:
+                existing.education ||
+                current.education,
+
+              institution:
+                existing.institution ||
+                current.institution,
+
+              graduation_year:
+                existing.graduation_year ||
+                current.graduation_year,
+
+              specializations:
+                existing.specializations ||
+                current.specializations,
+
+              approaches:
+                existing.approaches ||
+                current.approaches,
+
+              experience:
+                existing.experience ||
+                current.experience,
+
+              themes:
+                existing.topics ||
+                current.themes,
+
+              modalities:
+                existing.modalities ||
+                current.modalities,
+
+              languages:
+                existing.languages ||
+                current.languages,
+
+              audience:
+                existing.audience ||
+                current.audience,
+
+              city:
+                existing.city ||
+                current.city,
+
+              state:
+                existing.state ||
+                current.state,
+
+              phone:
+                existing.phone ||
+                current.phone,
+
+              gender:
+                existing.gender ||
+                current.gender,
+
+              price:
+                existing.session_price ??
+                current.price,
+
+              session_duration:
+                existing.session_duration ??
+                current.session_duration,
+
+              available_days:
+                existing.available_days ||
+                current.available_days,
+
+              available_slots:
+                existing.available_slots ||
+                current.available_slots,
+
+              cancellation_policy:
+                existing.cancellation_policy ||
+                current.cancellation_policy,
+
+              address:
+                existing.address ||
+                current.address,
+
+              about:
+                existing.bio ||
+                current.about,
+
+              photo_url:
+                existing.profile_photo_url ||
+                current.photo_url,
+
+              video_url:
+                existing.presentation_video_url ||
+                current.video_url,
+            }));
+          }
+        } catch (err) {
+          console.error(
+            "Erro ao carregar usuário profissional:",
+            err
+          );
+
+          if (!mounted) {
+            return;
+          }
+
           setUser(null);
-          setAccountCreated(false);
+        } finally {
+          if (mounted) {
+            setAuthLoading(false);
+          }
         }
-      } catch (err) {
-        console.error(
-          "EntreNós: erro ao carregar autenticação:",
-          err
-        );
+      };
 
-        if (!mounted) return;
-
-        setUser(null);
-        setAccountCreated(false);
-      } finally {
-        if (mounted) {
-          setAccountLoading(false);
-        }
-      }
-    };
+    loadProfessionalSession();
 
     const {
       data: authListener,
-    } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
+    } =
+      supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (!mounted) {
+            return;
+          }
 
-        const currentUser =
-          session?.user || null;
+          if (
+            event === "SIGNED_IN" ||
+            event === "INITIAL_SESSION" ||
+            event === "TOKEN_REFRESHED" ||
+            event === "USER_UPDATED"
+          ) {
+            if (session?.user) {
+              setUser(session.user);
 
-        console.log(
-          "EntreNós Auth:",
-          event,
-          currentUser?.id || "sem usuário"
-        );
+              setData((current) => ({
+                ...current,
+                email:
+                  session.user.email ||
+                  current.email,
 
-        if (currentUser) {
-          setUser(currentUser);
-          setAccountCreated(true);
+                full_name:
+                  session.user.user_metadata
+                    ?.full_name ||
+                  session.user.user_metadata
+                    ?.name ||
+                  current.full_name,
+              }));
+            }
 
-          setData((current) => ({
-            ...current,
-            email:
-              current.email ||
-              currentUser.email ||
-              "",
-            full_name:
-              current.full_name ||
-              currentUser.user_metadata?.full_name ||
-              currentUser.user_metadata?.name ||
-              "",
-          }));
+            setAuthLoading(false);
+          }
 
-          setAccountLoading(false);
-          return;
+          if (event === "SIGNED_OUT") {
+            setUser(null);
+            setAuthLoading(false);
+          }
         }
-
-        if (event === "SIGNED_OUT") {
-          setUser(null);
-          setAccountCreated(false);
-          setAccountLoading(false);
-        }
-      }
-    );
-
-    loadAuth();
+      );
 
     return () => {
       mounted = false;
@@ -311,9 +486,6 @@ export default function ProfessionalOnboarding() {
     };
   }, []);
 
-  /*
-   * Atualiza qualquer campo do formulário.
-   */
   const set = (key, value) => {
     setData((current) => ({
       ...current,
@@ -321,209 +493,95 @@ export default function ProfessionalOnboarding() {
     }));
   };
 
-  /*
-   * CRIAÇÃO DA CONTA PROFISSIONAL
-   */
-  const createProfessionalAccount = async () => {
-    setError("");
-
-    const fullName = data.full_name?.trim();
-    const email = data.email?.trim().toLowerCase();
-
-    if (!fullName) {
-      setError("Informe seu nome completo.");
-      return;
-    }
-
-    if (!email) {
-      setError("Informe seu e-mail profissional.");
-      return;
-    }
-
-    if (!email.includes("@")) {
-      setError("Informe um e-mail válido.");
-      return;
-    }
-
-    if (!data.password) {
-      setError("Crie uma senha.");
-      return;
-    }
-
-    if (data.password.length < 6) {
-      setError(
-        "A senha deve ter pelo menos 6 caracteres."
+  const validate = () => {
+    if (step === 0) {
+      return Boolean(
+        data.full_name?.trim() &&
+          data.email?.trim() &&
+          data.city?.trim() &&
+          data.state?.trim()
       );
-      return;
     }
 
-    if (!data.passwordConfirmation) {
-      setError(
-        "Confirme sua senha."
+    if (step === 1) {
+      return Boolean(
+        data.crp_number?.trim() &&
+          data.crp_region
       );
-      return;
     }
 
-    if (
-      data.password !==
-      data.passwordConfirmation
-    ) {
-      setError(
-        "As senhas não coincidem."
+    if (step === 2) {
+      return Boolean(
+        Array.isArray(data.modalities) &&
+          data.modalities.length > 0
       );
-      return;
     }
 
-    setAccountLoading(true);
+    if (step === 3) {
+      return Boolean(data.photo_url);
+    }
 
-    try {
+    return true;
+  };
+
+  const getAuthenticatedUser =
+    async () => {
       /*
-       * O role fica salvo no metadata.
-       * Isso permite diferenciar a conta profissional
-       * de uma conta comum.
+       * Nunca confiamos somente no estado React.
+       * Pegamos o usuário diretamente do Auth.
        */
       const {
-        data: signUpData,
-        error: signUpError,
-      } = await supabase.auth.signUp({
-        email,
-        password: data.password,
-        options: {
-          data: {
-            name: fullName,
-            full_name: fullName,
-            role: "professional",
-            account_type: "professional",
-          },
-        },
-      });
+        data: userData,
+        error: userError,
+      } =
+        await supabase.auth.getUser();
 
-      if (signUpError) {
-        throw signUpError;
+      if (userError) {
+        throw userError;
       }
 
-      const createdUser =
-        signUpData?.user || null;
-
-      const createdSession =
-        signUpData?.session || null;
-
-      /*
-       * Com confirmação de e-mail desligada,
-       * normalmente já teremos uma sessão.
-       */
-      if (createdUser && createdSession) {
-        setUser(createdUser);
-        setAccountCreated(true);
-
-        setData((current) => ({
-          ...current,
-          email:
-            createdUser.email ||
-            email,
-          full_name:
-            current.full_name ||
-            fullName,
-          password: "",
-          passwordConfirmation: "",
-        }));
-
-        setError("");
-        return;
-      }
-
-      /*
-       * Se o Supabase estiver configurado para exigir
-       * confirmação de e-mail, não existe sessão ainda.
-       */
-      if (createdUser && !createdSession) {
-        setError(
-          "Conta criada. Verifique seu e-mail para confirmar a conta e depois entre para continuar o cadastro profissional."
+      if (!userData?.user) {
+        throw new Error(
+          "Você precisa estar logado em uma conta profissional para continuar."
         );
-
-        setAccountCreated(false);
-
-        /*
-         * Não manda o usuário para uma página de erro.
-         * Mostramos a opção de entrar.
-         */
-        return;
       }
 
-      throw new Error(
-        "Não foi possível criar a conta profissional."
-      );
-    } catch (err) {
-      console.error(
-        "EntreNós: erro ao criar conta profissional:",
-        err
-      );
+      const currentUser =
+        userData.user;
 
-      let message =
-        err?.message ||
-        "Não foi possível criar sua conta.";
+      const role =
+        currentUser.user_metadata?.role;
 
       if (
-        message
-          .toLowerCase()
-          .includes("already registered")
+        role &&
+        role !== "professional"
       ) {
-        message =
-          "Este e-mail já possui uma conta. Entre na sua conta para continuar.";
+        throw new Error(
+          "Esta conta não é uma conta profissional."
+        );
       }
 
-      setError(message);
-    } finally {
-      setAccountLoading(false);
+      return currentUser;
+    };
+
+  const upload = async (
+    file,
+    key
+  ) => {
+    if (!file) {
+      return;
     }
-  };
-
-  /*
-   * Recupera usuário autenticado com segurança.
-   */
-  const getAuthenticatedUser = async () => {
-    const {
-      data: authData,
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError) {
-      console.error(
-        "EntreNós: erro ao obter usuário:",
-        authError
-      );
-
-      throw new Error(
-        "Não foi possível confirmar sua conta. Entre novamente."
-      );
-    }
-
-    if (!authData?.user?.id) {
-      throw new Error(
-        "Você precisa estar conectado para continuar o cadastro profissional."
-      );
-    }
-
-    return authData.user;
-  };
-
-  /*
-   * UPLOAD
-   */
-  const upload = async (file, key) => {
-    if (!file) return;
 
     setError("");
 
     const MAX_PHOTO_SIZE =
-      150 * 1024 * 1024;
+      10 * 1024 * 1024;
 
     const MAX_VIDEO_SIZE =
-      500 * 1024 * 1024;
+      200 * 1024 * 1024;
 
     const PHOTO_TYPES = [
       "image/jpeg",
-      "image/jpg",
       "image/png",
       "image/webp",
     ];
@@ -544,7 +602,7 @@ export default function ProfessionalOnboarding() {
 
       if (file.size > MAX_PHOTO_SIZE) {
         setError(
-          "A foto deve ter no máximo 150 MB."
+          "A foto deve ter no máximo 10 MB."
         );
         return;
       }
@@ -560,7 +618,7 @@ export default function ProfessionalOnboarding() {
 
       if (file.size > MAX_VIDEO_SIZE) {
         setError(
-          "O vídeo deve ter no máximo 500 MB."
+          "O vídeo deve ter no máximo 200 MB."
         );
         return;
       }
@@ -576,7 +634,8 @@ export default function ProfessionalOnboarding() {
         file.name
           .split(".")
           .pop()
-          ?.toLowerCase() || "file";
+          ?.toLowerCase() ||
+        "file";
 
       const fileName =
         `${crypto.randomUUID()}.${extension}`;
@@ -612,7 +671,9 @@ export default function ProfessionalOnboarding() {
       } =
         supabase.storage
           .from("profiles")
-          .getPublicUrl(filePath);
+          .getPublicUrl(
+            filePath
+          );
 
       const publicUrl =
         publicUrlData?.publicUrl;
@@ -626,141 +687,62 @@ export default function ProfessionalOnboarding() {
       set(key, publicUrl);
     } catch (err) {
       console.error(
-        "EntreNós: erro no upload:",
+        "Erro no upload profissional:",
         err
       );
 
       setError(
         err?.message ||
-        "Não foi possível enviar o arquivo."
+          "Não foi possível enviar o arquivo."
       );
     } finally {
       setUploading(false);
     }
   };
 
-  /*
-   * VALIDAÇÃO DAS ETAPAS
-   */
-  const validate = () => {
-    if (step === 0) {
-      return Boolean(
-        data.full_name?.trim() &&
-        data.email?.trim() &&
-        data.city?.trim() &&
-        data.state?.trim()
-      );
-    }
-
-    if (step === 1) {
-      return Boolean(
-        data.crp_number?.trim() &&
-        data.crp_region
-      );
-    }
-
-    if (step === 2) {
-      return Boolean(
-        Array.isArray(data.modalities) &&
-        data.modalities.length > 0
-      );
-    }
-
-    if (step === 3) {
-      return Boolean(data.photo_url);
-    }
-
-    return true;
-  };
-
-  /*
-   * ENVIO FINAL
-   */
   const submit = async () => {
-    if (submitting || uploading) {
+    setError("");
+
+    if (!validate()) {
+      if (step === 0) {
+        setError(
+          "Preencha nome, e-mail, cidade e estado."
+        );
+      }
+
+      if (step === 1) {
+        setError(
+          "Informe o CRP e a região."
+        );
+      }
+
+      if (step === 2) {
+        setError(
+          "Selecione pelo menos uma modalidade."
+        );
+      }
+
+      if (step === 3) {
+        setError(
+          "Envie uma foto profissional."
+        );
+      }
+
       return;
     }
 
-    setError("");
+    if (
+      submitting ||
+      uploading
+    ) {
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const authenticatedUser =
         await getAuthenticatedUser();
-
-      if (!authenticatedUser?.id) {
-        throw new Error(
-          "Não foi possível identificar sua conta."
-        );
-      }
-
-      if (!data.full_name?.trim()) {
-        setError(
-          "Informe seu nome completo."
-        );
-        setStep(0);
-        return;
-      }
-
-      if (!data.email?.trim()) {
-        setError(
-          "Informe seu e-mail."
-        );
-        setStep(0);
-        return;
-      }
-
-      if (!data.city?.trim()) {
-        setError(
-          "Informe sua cidade."
-        );
-        setStep(0);
-        return;
-      }
-
-      if (!data.state?.trim()) {
-        setError(
-          "Informe seu estado."
-        );
-        setStep(0);
-        return;
-      }
-
-      if (!data.crp_number?.trim()) {
-        setError(
-          "Informe seu número do CRP."
-        );
-        setStep(1);
-        return;
-      }
-
-      if (!data.crp_region) {
-        setError(
-          "Selecione a região do CRP."
-        );
-        setStep(1);
-        return;
-      }
-
-      if (
-        !Array.isArray(data.modalities) ||
-        data.modalities.length === 0
-      ) {
-        setError(
-          "Selecione pelo menos uma modalidade."
-        );
-        setStep(2);
-        return;
-      }
-
-      if (!data.photo_url) {
-        setError(
-          "Envie uma foto profissional."
-        );
-        setStep(3);
-        return;
-      }
-
-      setSubmitting(true);
 
       const psychologistData = {
         user_id:
@@ -786,7 +768,9 @@ export default function ProfessionalOnboarding() {
 
         graduation_year:
           data.graduation_year
-            ? Number(data.graduation_year)
+            ? Number(
+                data.graduation_year
+              )
             : null,
 
         specializations:
@@ -813,17 +797,23 @@ export default function ProfessionalOnboarding() {
             : [],
 
         modalities:
-          Array.isArray(data.modalities)
+          Array.isArray(
+            data.modalities
+          )
             ? data.modalities
             : [],
 
         languages:
-          Array.isArray(data.languages)
+          Array.isArray(
+            data.languages
+          )
             ? data.languages
             : [],
 
         audience:
-          Array.isArray(data.audience)
+          Array.isArray(
+            data.audience
+          )
             ? data.audience
             : [],
 
@@ -896,13 +886,8 @@ export default function ProfessionalOnboarding() {
           false,
       };
 
-      console.log(
-        "EntreNós: salvando profissional:",
-        authenticatedUser.id
-      );
-
       /*
-       * Verifica se já existe cadastro profissional.
+       * Verifica se já existe cadastro.
        */
       const {
         data: existingPsychologist,
@@ -920,10 +905,9 @@ export default function ProfessionalOnboarding() {
         throw existingError;
       }
 
-      /*
-       * Atualiza cadastro existente.
-       */
-      if (existingPsychologist?.id) {
+      if (
+        existingPsychologist?.id
+      ) {
         const {
           error: updateError,
         } = await supabase
@@ -943,16 +927,7 @@ export default function ProfessionalOnboarding() {
         if (updateError) {
           throw updateError;
         }
-
-        console.log(
-          "EntreNós: cadastro profissional atualizado."
-        );
-      }
-
-      /*
-       * Cria novo cadastro.
-       */
-      else {
+      } else {
         const {
           error: insertError,
         } = await supabase
@@ -964,43 +939,68 @@ export default function ProfessionalOnboarding() {
         if (insertError) {
           throw insertError;
         }
-
-        console.log(
-          "EntreNós: cadastro profissional criado."
-        );
       }
+
+      /*
+       * Mantém o usuário identificado como
+       * profissional no Auth.
+       */
+      await supabase.auth.updateUser({
+        data: {
+          role: "professional",
+          account_type: "professional",
+          professional_account: true,
+        },
+      });
 
       setDone(true);
     } catch (err) {
       console.error(
-        "EntreNós: erro ao salvar profissional:",
+        "Erro ao salvar cadastro profissional:",
         err
       );
 
-      setError(
+      const message =
         err?.message ||
-        "Não foi possível enviar o cadastro."
-      );
+        "Não foi possível enviar seu cadastro.";
+
+      setError(message);
+
+      /*
+       * Só mandamos para login se realmente
+       * não houver usuário autenticado.
+       */
+      if (
+        message
+          .toLowerCase()
+          .includes("precisa estar logado")
+      ) {
+        setTimeout(() => {
+          navigate(
+            "/login?returnTo=/cadastro-profissional/dados",
+            {
+              replace: true,
+            }
+          );
+        }, 1200);
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  /*
-   * CARREGAMENTO INICIAL
-   */
-  if (accountLoading) {
+  if (authLoading) {
     return (
       <PageShell>
         <div className="min-h-[60vh] flex items-center justify-center px-4">
           <div className="text-center">
             <Loader2
-              size={34}
+              size={32}
               className="animate-spin mx-auto mb-4"
             />
 
             <p className="text-sm text-muted-foreground">
-              Preparando seu cadastro profissional...
+              Carregando cadastro profissional...
             </p>
           </div>
         </div>
@@ -1009,8 +1009,64 @@ export default function ProfessionalOnboarding() {
   }
 
   /*
-   * CADASTRO FINALIZADO
+   * Usuário não autenticado:
+   * não mostramos "sessão expirada".
+   *
+   * Mostramos a entrada correta do fluxo.
    */
+  if (!user) {
+    return (
+      <PageShell>
+        <div className="min-h-[65vh] flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md text-center">
+            <div className="w-20 h-20 rounded-3xl gradient-brand mx-auto flex items-center justify-center text-white mb-6">
+              <Briefcase size={38} />
+            </div>
+
+            <h1 className="text-2xl font-heading font-bold">
+              Cadastro profissional
+            </h1>
+
+            <p className="text-muted-foreground mt-3">
+              Para começar seu cadastro como
+              psicólogo(a), primeiro crie sua
+              conta profissional.
+            </p>
+
+            {error && (
+              <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-left">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-7 flex flex-col gap-3">
+              <Link
+                to="/cadastro-profissional"
+                className="w-full px-6 py-3 rounded-full gradient-brand text-white font-semibold"
+              >
+                Criar conta profissional
+              </Link>
+
+              <Link
+                to="/login?returnTo=/cadastro-profissional/dados"
+                className="w-full px-6 py-3 rounded-full glass-strong font-semibold"
+              >
+                Já tenho conta profissional
+              </Link>
+
+              <Link
+                to="/"
+                className="text-sm text-muted-foreground hover:text-foreground mt-2"
+              >
+                Voltar ao início
+              </Link>
+            </div>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
   if (done) {
     return (
       <PageShell>
@@ -1027,9 +1083,11 @@ export default function ProfessionalOnboarding() {
           </h1>
 
           <p className="text-muted-foreground mt-3">
-            Recebemos seu perfil profissional.
-            Nossa equipe vai revisar seu CRP e
-            suas informações antes da publicação.
+            Recebemos seu perfil. Nossa equipe
+            vai revisar seu CRP e suas
+            informações profissionais. Você
+            receberá uma notificação quando for
+            aprovado(a).
           </p>
 
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
@@ -1052,173 +1110,6 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  /*
-   * ETAPA 1 — CRIAR CONTA PROFISSIONAL
-   */
-  if (!accountCreated || !user) {
-    return (
-      <PageShell>
-        <div className="max-w-lg mx-auto px-4 sm:px-6 pt-12 pb-20">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl gradient-brand text-white mx-auto flex items-center justify-center mb-5">
-              <Briefcase size={30} />
-            </div>
-
-            <h1 className="text-3xl font-heading font-bold">
-              Cadastro profissional
-            </h1>
-
-            <p className="text-muted-foreground mt-2">
-              Crie sua conta profissional para
-              começar seu cadastro no EntreNós.
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
-              <X
-                size={18}
-                className="shrink-0 mt-0.5"
-              />
-
-              <span>
-                {error}
-              </span>
-            </div>
-          )}
-
-          <div className="card-elevated p-6 sm:p-8">
-            <div className="space-y-5">
-              <Field label="Nome completo *">
-                <TextInput
-                  value={data.full_name}
-                  onChange={(e) =>
-                    set(
-                      "full_name",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Seu nome completo"
-                  autoComplete="name"
-                />
-              </Field>
-
-              <Field
-                label="E-mail profissional *"
-              >
-                <TextInput
-                  type="email"
-                  value={data.email}
-                  onChange={(e) =>
-                    set(
-                      "email",
-                      e.target.value
-                    )
-                  }
-                  placeholder="seuemail@exemplo.com"
-                  autoComplete="email"
-                />
-              </Field>
-
-              <Field label="Senha *">
-                <TextInput
-                  type="password"
-                  value={data.password || ""}
-                  onChange={(e) =>
-                    set(
-                      "password",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Mínimo de 6 caracteres"
-                  autoComplete="new-password"
-                />
-              </Field>
-
-              <Field label="Confirmar senha *">
-                <TextInput
-                  type="password"
-                  value={
-                    data.passwordConfirmation ||
-                    ""
-                  }
-                  onChange={(e) =>
-                    set(
-                      "passwordConfirmation",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Digite a senha novamente"
-                  autoComplete="new-password"
-                />
-              </Field>
-
-              <div className="rounded-xl bg-muted/50 p-4 flex gap-3 text-sm text-muted-foreground">
-                <Lock
-                  size={19}
-                  className="shrink-0 mt-0.5"
-                />
-
-                <p>
-                  Sua conta será usada para
-                  proteger seu cadastro profissional
-                  e vincular seu perfil ao seu CRP.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  createProfessionalAccount
-                }
-                disabled={accountLoading}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft disabled:opacity-50"
-              >
-                {accountLoading ? (
-                  <>
-                    <Loader2
-                      size={18}
-                      className="animate-spin"
-                    />
-                    Criando conta...
-                  </>
-                ) : (
-                  <>
-                    Criar conta profissional
-                    <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
-
-              <div className="text-center text-sm text-muted-foreground">
-                Já possui uma conta?
-                {" "}
-                <Link
-                  to="/login?returnTo=%2Fcadastro-profissional"
-                  className="font-semibold text-foreground hover:underline"
-                >
-                  Entrar
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 text-center">
-            <Link
-              to="/"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Voltar ao início
-            </Link>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  /*
-   * ETAPA 2 — ONBOARDING
-   */
   return (
     <PageShell>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
@@ -1228,8 +1119,7 @@ export default function ProfessionalOnboarding() {
           </h1>
 
           <p className="text-muted-foreground mt-2 text-sm">
-            Agora vamos montar seu perfil
-            profissional. Leva poucos minutos.
+            Complete seu perfil profissional.
           </p>
         </div>
 
@@ -1240,31 +1130,29 @@ export default function ProfessionalOnboarding() {
               className="shrink-0 mt-0.5"
             />
 
-            <span>
-              {error}
-            </span>
+            <span>{error}</span>
           </div>
         )}
 
         <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2 gap-1">
-          {STEPS.map((s, i) => {
-            const Icon = s.icon;
+          {STEPS.map((item, index) => {
+            const Icon = item.icon;
 
             return (
               <div
-                key={s.key}
+                key={item.key}
                 className="flex items-center gap-2 shrink-0"
               >
                 <div
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
-                    i < step
+                    index < step
                       ? "bg-emerald-500 text-white"
-                      : i === step
+                      : index === step
                       ? "gradient-brand text-white shadow-soft"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {i < step ? (
+                  {index < step ? (
                     <Check size={16} />
                   ) : (
                     <Icon size={16} />
@@ -1273,18 +1161,19 @@ export default function ProfessionalOnboarding() {
 
                 <span
                   className={`text-xs font-medium hidden sm:block ${
-                    i === step
+                    index === step
                       ? "text-foreground"
                       : "text-muted-foreground"
                   }`}
                 >
-                  {s.label}
+                  {item.label}
                 </span>
 
-                {i < STEPS.length - 1 && (
+                {index <
+                  STEPS.length - 1 && (
                   <div
                     className={`w-4 h-0.5 ${
-                      i < step
+                      index < step
                         ? "bg-emerald-500"
                         : "bg-border"
                     }`}
@@ -1339,9 +1228,7 @@ export default function ProfessionalOnboarding() {
           )}
 
           {step === 5 && (
-            <StepReview
-              data={data}
-            />
+            <StepReview data={data} />
           )}
         </div>
 
@@ -1350,10 +1237,7 @@ export default function ProfessionalOnboarding() {
             type="button"
             onClick={() =>
               setStep((current) =>
-                Math.max(
-                  0,
-                  current - 1
-                )
+                Math.max(0, current - 1)
               )
             }
             disabled={
@@ -1474,7 +1358,9 @@ function StepPersonal({ data, set }) {
           hint="Como quer ser conhecido(a)"
         >
           <TextInput
-            value={data.professional_name}
+            value={
+              data.professional_name
+            }
             onChange={(e) =>
               set(
                 "professional_name",
@@ -1558,7 +1444,10 @@ function StepPersonal({ data, set }) {
   );
 }
 
-function StepProfessional({ data, set }) {
+function StepProfessional({
+  data,
+  set,
+}) {
   return (
     <div className="space-y-5">
       <h2 className="font-heading font-semibold text-lg">
@@ -1622,7 +1511,9 @@ function StepProfessional({ data, set }) {
         <Field label="Ano de formação">
           <TextInput
             type="number"
-            value={data.graduation_year}
+            value={
+              data.graduation_year
+            }
             onChange={(e) =>
               set(
                 "graduation_year",
@@ -1653,7 +1544,9 @@ function StepProfessional({ data, set }) {
       >
         <ChipGroup
           options={SPEC_OPTS}
-          value={data.specializations}
+          value={
+            data.specializations
+          }
           onChange={(value) =>
             set(
               "specializations",
@@ -1679,7 +1572,10 @@ function StepProfessional({ data, set }) {
   );
 }
 
-function StepService({ data, set }) {
+function StepService({
+  data,
+  set,
+}) {
   return (
     <div className="space-y-5">
       <h2 className="font-heading font-semibold text-lg">
@@ -1746,7 +1642,6 @@ function StepService({ data, set }) {
           <TextInput
             type="number"
             min="0"
-            step="0.01"
             value={data.price}
             onChange={(e) =>
               set(
@@ -1798,7 +1693,9 @@ function StepService({ data, set }) {
       <Field label="Dias disponíveis">
         <ChipGroup
           options={DAY_OPTS}
-          value={data.available_days}
+          value={
+            data.available_days
+          }
           onChange={(value) =>
             set(
               "available_days",
@@ -1811,7 +1708,9 @@ function StepService({ data, set }) {
       <Field label="Horários disponíveis">
         <ChipGroup
           options={SLOT_OPTS}
-          value={data.available_slots}
+          value={
+            data.available_slots
+          }
           onChange={(value) =>
             set(
               "available_slots",
@@ -1873,8 +1772,8 @@ function StepPhoto({
                   ""
                 )
               }
-              className="text-sm text-red-600 hover:underline"
               disabled={uploading}
+              className="text-sm text-red-600 hover:underline"
             >
               Remover foto
             </button>
@@ -1899,12 +1798,12 @@ function StepPhoto({
             </div>
 
             <p className="text-xs text-muted-foreground mt-2">
-              JPG, PNG ou WEBP · máximo 150 MB
+              JPG, PNG ou WEBP · máximo 10 MB
             </p>
 
             <input
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               disabled={uploading}
               onChange={(e) => {
@@ -1912,3 +1811,283 @@ function StepPhoto({
                   e.target.files?.[0],
                   "photo_url"
                 );
+
+                e.target.value = "";
+              }}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StepVideo({
+  data,
+  upload,
+  uploading,
+  set,
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="font-heading font-semibold text-lg">
+          Vídeo de apresentação
+        </h2>
+
+        <p className="text-sm text-muted-foreground mt-1">
+          Apresente-se brevemente aos pacientes.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-dashed border-border p-6">
+        {data.video_url ? (
+          <div className="space-y-4">
+            <video
+              src={data.video_url}
+              controls
+              className="w-full max-h-96 rounded-2xl bg-black"
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                set(
+                  "video_url",
+                  ""
+                )
+              }
+              disabled={uploading}
+              className="text-sm text-red-600 hover:underline"
+            >
+              Remover vídeo
+            </button>
+          </div>
+        ) : (
+          <label className="cursor-pointer block text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted mx-auto flex items-center justify-center mb-4">
+              {uploading ? (
+                <Loader2
+                  size={28}
+                  className="animate-spin"
+                />
+              ) : (
+                <Video size={28} />
+              )}
+            </div>
+
+            <div className="font-semibold">
+              {uploading
+                ? "Enviando vídeo..."
+                : "Selecionar vídeo"}
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-2">
+              MP4, WEBM ou MOV · máximo 200 MB
+            </p>
+
+            <input
+              type="file"
+              accept="video/mp4,video/webm,video/quicktime"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                upload(
+                  e.target.files?.[0],
+                  "video_url"
+                );
+
+                e.target.value = "";
+              }}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StepReview({ data }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-heading font-semibold text-lg">
+          Revise seu cadastro
+        </h2>
+
+        <p className="text-sm text-muted-foreground mt-1">
+          Confira as informações antes de enviar.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <ReviewItem
+          label="Nome"
+          value={
+            data.professional_name ||
+            data.full_name
+          }
+        />
+
+        <ReviewItem
+          label="E-mail"
+          value={data.email}
+        />
+
+        <ReviewItem
+          label="Telefone"
+          value={data.phone}
+        />
+
+        <ReviewItem
+          label="Localização"
+          value={`${data.city} - ${data.state}`}
+        />
+
+        <ReviewItem
+          label="CRP"
+          value={`CRP ${data.crp_region} - ${data.crp_number}`}
+        />
+
+        <ReviewItem
+          label="Formação"
+          value={data.education}
+        />
+
+        <ReviewItem
+          label="Experiência"
+          value={data.experience}
+        />
+
+        <ReviewItem
+          label="Modalidades"
+          value={
+            data.modalities?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Público"
+          value={
+            data.audience?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Idiomas"
+          value={
+            data.languages?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Especializações"
+          value={
+            data.specializations?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Abordagens"
+          value={
+            data.approaches?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Dias disponíveis"
+          value={
+            data.available_days?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Horários"
+          value={
+            data.available_slots?.join(
+              ", "
+            ) || "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Valor"
+          value={
+            data.price
+              ? `R$ ${Number(
+                  data.price
+                ).toFixed(2)}`
+              : "Não informado"
+          }
+        />
+
+        <ReviewItem
+          label="Duração"
+          value={`${data.session_duration} minutos`}
+        />
+
+        <ReviewItem
+          label="Foto"
+          value={
+            data.photo_url
+              ? "Enviada ✓"
+              : "Não enviada"
+          }
+        />
+
+        <ReviewItem
+          label="Vídeo"
+          value={
+            data.video_url
+              ? "Enviado ✓"
+              : "Não enviado"
+          }
+        />
+      </div>
+
+      <div className="rounded-2xl bg-muted/50 p-4 text-sm">
+        <div className="flex gap-3">
+          <ShieldCheck
+            size={20}
+            className="shrink-0"
+          />
+
+          <p>
+            Seu cadastro será analisado pela
+            equipe antes que o perfil seja
+            disponibilizado publicamente.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewItem({
+  label,
+  value,
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-border pb-3">
+      <span className="text-sm font-medium">
+        {label}
+      </span>
+
+      <span className="text-sm text-muted-foreground sm:text-right">
+        {value || "Não informado"}
+      </span>
+    </div>
+  );
+}
