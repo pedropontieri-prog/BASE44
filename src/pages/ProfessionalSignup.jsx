@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Briefcase,
-  Check,
   Eye,
   EyeOff,
   Loader2,
@@ -30,8 +29,13 @@ export default function ProfessionalSignup() {
 
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+
+  // Controle do código OTP
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -86,7 +90,11 @@ export default function ProfessionalSignup() {
       return "Informe seu e-mail.";
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        form.email
+      )
+    ) {
       return "Informe um e-mail válido.";
     }
 
@@ -94,14 +102,22 @@ export default function ProfessionalSignup() {
       return "A senha deve ter pelo menos 8 caracteres.";
     }
 
-    if (form.password !== form.confirm_password) {
+    if (
+      form.password !== form.confirm_password
+    ) {
       return "As senhas não coincidem.";
     }
 
     return "";
   };
 
-  const createProfessionalAccount = async (event) => {
+  /*
+   * CRIA A CONTA PROFISSIONAL
+   * E ENVIA O CÓDIGO OTP
+   */
+  const createProfessionalAccount = async (
+    event
+  ) => {
     event.preventDefault();
 
     if (loading) return;
@@ -118,11 +134,12 @@ export default function ProfessionalSignup() {
     setLoading(true);
 
     try {
-      const email = form.email.trim().toLowerCase();
-      const fullName = form.full_name.trim();
+      const email = form.email
+        .trim()
+        .toLowerCase();
 
-      const redirectUrl =
-        `${window.location.origin}/cadastro-profissional`;
+      const fullName =
+        form.full_name.trim();
 
       const {
         data,
@@ -130,11 +147,14 @@ export default function ProfessionalSignup() {
       } = await supabase.auth.signUp({
         email,
         password: form.password,
+
         options: {
-          emailRedirectTo: redirectUrl,
           data: {
             full_name: fullName,
             name: fullName,
+
+            // IMPORTANTE:
+            // identifica essa conta como profissional
             account_type: "professional",
             user_type: "professional",
             role: "professional",
@@ -147,8 +167,8 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * Se a confirmação de e-mail estiver desativada,
-       * o Supabase normalmente já devolve uma sessão.
+       * Caso o Supabase já tenha retornado
+       * uma sessão, não precisamos de OTP.
        */
       if (data?.session?.user) {
         navigate("/cadastro-profissional", {
@@ -159,12 +179,10 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * Se a confirmação de e-mail estiver ativada,
-       * não existe sessão ainda. Nesse caso mostramos
-       * uma tela orientando o profissional a confirmar
-       * o endereço.
+       * Confirmação de e-mail ativada:
+       * mostramos a tela para digitar o código.
        */
-      setSuccess(true);
+      setOtpSent(true);
     } catch (err) {
       console.error(
         "Erro ao criar conta profissional:",
@@ -175,16 +193,208 @@ export default function ProfessionalSignup() {
         err?.message ||
         "Não foi possível criar sua conta.";
 
+      const lowerMessage =
+        message.toLowerCase();
+
       if (
-        message
-          .toLowerCase()
-          .includes("password")
+        lowerMessage.includes("password")
       ) {
         message =
           "A senha informada não atende aos requisitos.";
       }
 
+      if (
+        lowerMessage.includes(
+          "rate limit"
+        ) ||
+        lowerMessage.includes(
+          "too many requests"
+        )
+      ) {
+        message =
+          "Muitas tentativas de envio de e-mail. Aguarde alguns minutos e tente novamente.";
+      }
+
+      if (
+        lowerMessage.includes(
+          "already registered"
+        )
+      ) {
+        message =
+          "Este e-mail já possui uma conta. Tente fazer login.";
+      }
+
       setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /*
+   * VERIFICA O CÓDIGO DE 6 DÍGITOS
+   */
+  const verifyOtp = async (event) => {
+    event.preventDefault();
+
+    if (verifyingOtp) return;
+
+    setError("");
+
+    const code = otp.trim();
+
+    if (!/^\d{6}$/.test(code)) {
+      setError(
+        "Digite o código de 6 dígitos recebido por e-mail."
+      );
+      return;
+    }
+
+    setVerifyingOtp(true);
+
+    try {
+      const email = form.email
+        .trim()
+        .toLowerCase();
+
+      const {
+        data,
+        error: verifyError,
+      } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "signup",
+      });
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      if (!data?.session?.user) {
+        throw new Error(
+          "Não foi possível confirmar sua conta."
+        );
+      }
+
+      /*
+       * Garante que a conta continua identificada
+       * como profissional após a confirmação.
+       */
+      const user = data.session.user;
+
+      const currentRole =
+        user.user_metadata?.role;
+
+      if (currentRole !== "professional") {
+        const {
+          error: updateError,
+        } = await supabase.auth.updateUser({
+          data: {
+            full_name:
+              form.full_name.trim(),
+
+            name:
+              form.full_name.trim(),
+
+            account_type:
+              "professional",
+
+            user_type:
+              "professional",
+
+            role:
+              "professional",
+          },
+        });
+
+        if (updateError) {
+          console.error(
+            "Erro ao atualizar tipo da conta:",
+            updateError
+          );
+        }
+      }
+
+      /*
+       * Código confirmado.
+       * Agora o usuário vai para o cadastro
+       * profissional.
+       */
+      navigate("/cadastro-profissional", {
+        replace: true,
+      });
+    } catch (err) {
+      console.error(
+        "Erro ao verificar código:",
+        err
+      );
+
+      let message =
+        err?.message ||
+        "Código inválido ou expirado.";
+
+      const lowerMessage =
+        message.toLowerCase();
+
+      if (
+        lowerMessage.includes(
+          "expired"
+        )
+      ) {
+        message =
+          "Esse código expirou. Solicite um novo código.";
+      }
+
+      if (
+        lowerMessage.includes(
+          "invalid"
+        )
+      ) {
+        message =
+          "Código inválido. Confira os 6 números e tente novamente.";
+      }
+
+      setError(message);
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  /*
+   * ENVIA NOVAMENTE O CÓDIGO
+   */
+  const resendOtp = async () => {
+    if (loading || verifyingOtp) return;
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const email = form.email
+        .trim()
+        .toLowerCase();
+
+      const {
+        error: resendError,
+      } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
+
+      if (resendError) {
+        throw resendError;
+      }
+
+      setOtp("");
+    } catch (err) {
+      console.error(
+        "Erro ao reenviar código:",
+        err
+      );
+
+      setError(
+        err?.message ||
+          "Não foi possível reenviar o código."
+      );
     } finally {
       setLoading(false);
     }
@@ -209,58 +419,124 @@ export default function ProfessionalSignup() {
     );
   }
 
-  if (success) {
+  /*
+   * TELA DE CONFIRMAÇÃO POR CÓDIGO
+   */
+  if (otpSent) {
     return (
       <PageShell>
         <div className="max-w-xl mx-auto px-4 pt-16 pb-20">
           <div className="card-elevated p-8 text-center">
             <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6">
-              <Check
+              <ShieldCheck
                 size={40}
                 className="text-emerald-600"
               />
             </div>
 
             <h1 className="text-2xl font-heading font-bold">
-              Conta criada!
+              Confirme seu e-mail
             </h1>
 
             <p className="text-muted-foreground mt-3 leading-relaxed">
-              Enviamos um link de confirmação para:
+              Enviamos um código de 6 dígitos
+              para:
             </p>
 
-            <p className="font-semibold mt-2">
+            <p className="font-semibold mt-2 break-all">
               {form.email}
             </p>
 
-            <p className="text-sm text-muted-foreground mt-4">
-              Confirme seu e-mail para ativar sua
-              conta profissional. Depois, entre na
-              plataforma para continuar o cadastro.
-            </p>
+            {error && (
+              <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 text-left">
+                {error}
+              </div>
+            )}
 
-            <div className="mt-7 flex flex-col gap-3">
-              <Link
-                to="/login"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full gradient-brand text-white font-semibold"
-              >
-                Fazer login
-                <ArrowRight size={17} />
-              </Link>
+            <form
+              onSubmit={verifyOtp}
+              className="mt-7 space-y-4"
+            >
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otp}
+                onChange={(e) =>
+                  setOtp(
+                    e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 6)
+                  )
+                }
+                placeholder="000000"
+                autoComplete="one-time-code"
+                autoFocus
+                disabled={verifyingOtp}
+                className="w-full rounded-xl border border-border bg-background px-4 py-4 text-center text-2xl tracking-[0.5em] font-bold outline-none focus:ring-2 focus:ring-primary/30"
+              />
 
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center px-6 py-3 rounded-full glass-strong font-semibold"
+              <button
+                type="submit"
+                disabled={
+                  verifyingOtp ||
+                  otp.length !== 6
+                }
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full gradient-brand text-white font-semibold shadow-soft disabled:opacity-50"
               >
-                Voltar ao início
-              </Link>
-            </div>
+                {verifyingOtp ? (
+                  <>
+                    <Loader2
+                      size={18}
+                      className="animate-spin"
+                    />
+                    Confirmando...
+                  </>
+                ) : (
+                  <>
+                    Confirmar e continuar
+                    <ArrowRight
+                      size={18}
+                    />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <button
+              type="button"
+              onClick={resendOtp}
+              disabled={
+                loading ||
+                verifyingOtp
+              }
+              className="mt-5 text-sm font-semibold hover:underline disabled:opacity-50"
+            >
+              {loading
+                ? "Enviando..."
+                : "Reenviar código"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOtpSent(false);
+                setOtp("");
+                setError("");
+              }}
+              className="block mx-auto mt-4 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Voltar e alterar e-mail
+            </button>
           </div>
         </div>
       </PageShell>
     );
   }
 
+  /*
+   * FORMULÁRIO DE CADASTRO
+   */
   return (
     <PageShell>
       <div className="max-w-xl mx-auto px-4 sm:px-6 pt-10 pb-20">
@@ -285,8 +561,8 @@ export default function ProfessionalSignup() {
           </h1>
 
           <p className="text-muted-foreground mt-2">
-            Crie sua conta profissional para começar
-            seu cadastro no EntreNós.
+            Crie sua conta profissional para
+            começar seu cadastro no EntreNós.
           </p>
         </div>
 
@@ -297,7 +573,9 @@ export default function ProfessionalSignup() {
         )}
 
         <form
-          onSubmit={createProfessionalAccount}
+          onSubmit={
+            createProfessionalAccount
+          }
           className="card-elevated p-6 sm:p-8 space-y-5"
         >
           <div>
@@ -371,7 +649,8 @@ export default function ProfessionalSignup() {
                 type="button"
                 onClick={() =>
                   setShowPassword(
-                    (current) => !current
+                    (current) =>
+                      !current
                   )
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -398,7 +677,9 @@ export default function ProfessionalSignup() {
                     ? "text"
                     : "password"
                 }
-                value={form.confirm_password}
+                value={
+                  form.confirm_password
+                }
                 onChange={(e) =>
                   update(
                     "confirm_password",
@@ -415,7 +696,8 @@ export default function ProfessionalSignup() {
                 type="button"
                 onClick={() =>
                   setShowConfirmPassword(
-                    (current) => !current
+                    (current) =>
+                      !current
                   )
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -443,9 +725,10 @@ export default function ProfessionalSignup() {
                 </p>
 
                 <p className="mt-1">
-                  Depois de criar sua conta, você
-                  preencherá seus dados profissionais,
-                  CRP, especialidades, foto e vídeo.
+                  Depois de criar sua conta,
+                  você preencherá seus dados
+                  profissionais, CRP,
+                  especialidades, foto e vídeo.
                 </p>
               </div>
             </div>
