@@ -2194,4 +2194,28 @@ export default function ProfessionalOnboarding() {
               <button
                 type="button"
                 onClick={submit}
-                disabled={
+                disabled={<button
+type="button"
+onClick={submit}
+disabled={submitting}
+className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+
+{submitting ? (
+<>
+<Loader2 className="h-5 w-5 animate-spin" />
+Enviando...
+</>
+) : (
+<>
+<Check className="h-5 w-5" />
+Enviar cadastro
+</>
+)}
+</button>
+)}
+</div>
+</div>
+</div>
+</PageShell>
+);
+}
