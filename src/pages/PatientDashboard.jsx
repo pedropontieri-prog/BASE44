@@ -1,5 +1,5 @@
 ```jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -67,6 +67,22 @@ function getAppointmentDate(appointment) {
     return null;
   }
 
+  if (appointment.scheduled_at) {
+    const date = new Date(appointment.scheduled_at);
+
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  if (appointment.starts_at) {
+    const date = new Date(appointment.starts_at);
+
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
   if (appointment.date) {
     const dateString = String(appointment.date);
 
@@ -75,8 +91,13 @@ function getAppointmentDate(appointment) {
       appointment.slot ||
       '00:00';
 
+    const normalizedTime =
+      String(timeString).length === 5
+        ? `${timeString}:00`
+        : String(timeString);
+
     const date = new Date(
-      `${dateString}T${timeString}:00`
+      `${dateString}T${normalizedTime}`
     );
 
     if (!Number.isNaN(date.getTime())) {
@@ -90,27 +111,52 @@ function getAppointmentDate(appointment) {
     }
   }
 
-  if (appointment.scheduled_at) {
-    const date = new Date(
-      appointment.scheduled_at
-    );
-
-    if (!Number.isNaN(date.getTime())) {
-      return date;
-    }
-  }
-
-  if (appointment.starts_at) {
-    const date = new Date(
-      appointment.starts_at
-    );
-
-    if (!Number.isNaN(date.getTime())) {
-      return date;
-    }
-  }
-
   return null;
+}
+
+function formatDate(date) {
+  if (!date) {
+    return 'Data não informada';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatDateLong(date) {
+  if (!date) {
+    return 'Data não informada';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatTime(date, appointment) {
+  if (appointment?.time) {
+    return String(appointment.time).slice(0, 5);
+  }
+
+  if (appointment?.slot) {
+    return String(appointment.slot).slice(0, 5);
+  }
+
+  if (date) {
+    return new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+  }
+
+  return 'Horário não informado';
 }
 
 function getPsychologistName(appointment) {
@@ -119,22 +165,34 @@ function getPsychologistName(appointment) {
     appointment?.psychologistName ||
     appointment?.professional_name ||
     appointment?.professionalName ||
+    appointment?.psychologist?.professional_name ||
+    appointment?.psychologist?.name ||
     'Psicólogo'
   );
 }
 
 function getAppointmentTime(appointment) {
-  return (
-    appointment?.time ||
-    appointment?.slot ||
-    ''
-  );
+  const date = getAppointmentDate(appointment);
+
+  return formatTime(date, appointment);
 }
 
 function getAppointmentModality(appointment) {
   return (
     appointment?.modality ||
+    appointment?.mode ||
+    appointment?.type ||
     'online'
+  ).toLowerCase();
+}
+
+function isOnlineAppointment(appointment) {
+  const modality = getAppointmentModality(appointment);
+
+  return (
+    modality === 'online' ||
+    modality === 'video' ||
+    modality === 'videochamada'
   );
 }
 
@@ -149,73 +207,161 @@ function getStatusLabel(status) {
     no_show: 'Não compareceu',
   };
 
-  return labels[status] || status || 'Agendada';
+  return (
+    labels[String(status || '').toLowerCase()] ||
+    status ||
+    'Agendada'
+  );
 }
 
 function getStatusClass(status) {
+  const normalizedStatus =
+    String(status || '').toLowerCase();
+
   if (
-    status === 'cancelled' ||
-    status === 'canceled'
+    normalizedStatus === 'cancelled' ||
+    normalizedStatus === 'canceled'
   ) {
     return 'bg-red-50 text-red-600 dark:bg-red-500/10';
   }
 
-  if (status === 'completed') {
+  if (normalizedStatus === 'completed') {
     return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10';
   }
 
-  if (status === 'pending') {
+  if (normalizedStatus === 'pending') {
     return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10';
   }
 
   return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10';
 }
 
-async function fetchAppointments(userId) {
-  let result = await supabase
-    .from('appointments')
-    .select('*')
-    .eq('patient_id', userId);
+function getAppointmentId(appointment) {
+  return (
+    appointment?.id ||
+    appointment?.appointment_id ||
+    appointment?.appointmentId ||
+    null
+  );
+}
 
-  if (
-    result.error &&
-    (
-      result.error.message?.includes('patient_id') ||
-      result.error.message?.includes('column')
-    )
-  ) {
-    result = await supabase
+function getRoomId(appointment) {
+  return (
+    appointment?.room_id ||
+    appointment?.roomId ||
+    getAppointmentId(appointment)
+  );
+}
+
+async function fetchAppointments(userId) {
+  const attempts = [
+    {
+      column: 'patient_id',
+      value: userId,
+    },
+    {
+      column: 'user_id',
+      value: userId,
+    },
+  ];
+
+  let lastError = null;
+
+  for (const attempt of attempts) {
+    const result = await supabase
       .from('appointments')
       .select('*')
-      .eq('user_id', userId);
+      .eq(attempt.column, attempt.value);
+
+    if (!result.error) {
+      const data = Array.isArray(result.data)
+        ? result.data
+        : [];
+
+      return data.sort((a, b) => {
+        const dateA = getAppointmentDate(a);
+        const dateB = getAppointmentDate(b);
+
+        if (!dateA && !dateB) {
+          return 0;
+        }
+
+        if (!dateA) {
+          return 1;
+        }
+
+        if (!dateB) {
+          return -1;
+        }
+
+        return (
+          dateA.getTime() -
+          dateB.getTime()
+        );
+      });
+    }
+
+    lastError = result.error;
+
+    const message = String(
+      result.error.message || ''
+    ).toLowerCase();
+
+    const shouldTryNext =
+      message.includes(attempt.column) ||
+      message.includes('column') ||
+      message.includes('does not exist') ||
+      result.error.code === '42703';
+
+    if (!shouldTryNext) {
+      throw result.error;
+    }
   }
 
-  if (result.error) {
-    throw result.error;
+  throw lastError || new Error(
+    'Não foi possível carregar as consultas.'
+  );
+}
+
+function getFriendlyError(error) {
+  const message = String(
+    error?.message || ''
+  ).toLowerCase();
+
+  if (
+    message.includes('jwt') ||
+    message.includes('session') ||
+    message.includes('not authenticated') ||
+    message.includes('unauthorized')
+  ) {
+    return 'Sua sessão expirou. Faça login novamente.';
   }
 
-  const data = Array.isArray(result.data)
-    ? result.data
-    : [];
+  if (
+    message.includes('row-level security') ||
+    message.includes('permission denied')
+  ) {
+    return 'Você não tem permissão para visualizar suas consultas.';
+  }
 
-  return data.sort((a, b) => {
-    const dateA = getAppointmentDate(a);
-    const dateB = getAppointmentDate(b);
+  if (
+    message.includes('appointments') &&
+    (
+      message.includes('relation') ||
+      message.includes('does not exist')
+    )
+  ) {
+    return 'A tabela de consultas não foi encontrada no banco de dados.';
+  }
 
-    if (!dateA && !dateB) {
-      return 0;
-    }
+  if (
+    message.includes('patient_id') ||
+    message.includes('user_id')
+  ) {
+    return 'Não foi possível identificar o paciente desta consulta.';
+  }
 
-    if (!dateA) {
-      return 1;
-    }
-
-    if (!dateB) {
-      return -1;
-    }
-
-    return dateA.getTime() - dateB.getTime();
-  });
+  return 'Não foi possível carregar suas consultas. Tente novamente.';
 }
 
 export default function PatientDashboard() {
@@ -235,68 +381,73 @@ export default function PatientDashboard() {
     );
   }, [location.state]);
 
-  async function loadAppointments() {
-    setLoading(true);
-    setError('');
+  const loadAppointments = useCallback(
+    async () => {
+      setLoading(true);
+      setError('');
 
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      if (userError) {
-        throw userError;
-      }
+        if (userError) {
+          throw userError;
+        }
 
-      if (!user) {
+        if (!user) {
+          setAppointments([]);
+          setError(
+            'Sua sessão não foi encontrada. Faça login novamente.'
+          );
+          return;
+        }
+
+        const data =
+          await fetchAppointments(user.id);
+
+        setAppointments(data);
+      } catch (loadError) {
+        console.error(
+          'Erro ao carregar consultas:',
+          loadError
+        );
+
+        console.error(
+          'Mensagem do Supabase:',
+          loadError?.message
+        );
+
+        console.error(
+          'Detalhes do Supabase:',
+          loadError?.details
+        );
+
+        console.error(
+          'Código do Supabase:',
+          loadError?.code
+        );
+
         setAppointments([]);
         setError(
-          'Sua sessão não foi encontrada. Faça login novamente.'
+          getFriendlyError(loadError)
         );
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      const data = await fetchAppointments(user.id);
-
-      setAppointments(data);
-    } catch (loadError) {
-      console.error(
-        'Erro ao carregar consultas:',
-        loadError
-      );
-
-      console.error(
-        'Mensagem do Supabase:',
-        loadError?.message
-      );
-
-      console.error(
-        'Detalhes do Supabase:',
-        loadError?.details
-      );
-
-      console.error(
-        'Código do Supabase:',
-        loadError?.code
-      );
-
-      setAppointments([]);
-
-      setError(
-        loadError?.message ||
-        'Não foi possível carregar suas consultas.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
 
     async function initialLoad() {
       try {
+        setLoading(true);
+        setError('');
+
         const {
           data: { user },
           error: userError,
@@ -317,7 +468,8 @@ export default function PatientDashboard() {
           return;
         }
 
-        const data = await fetchAppointments(user.id);
+        const data =
+          await fetchAppointments(user.id);
 
         if (mounted) {
           setAppointments(data);
@@ -328,22 +480,10 @@ export default function PatientDashboard() {
           loadError
         );
 
-        console.error(
-          'Mensagem do Supabase:',
-          loadError?.message
-        );
-
-        console.error(
-          'Código do Supabase:',
-          loadError?.code
-        );
-
         if (mounted) {
           setAppointments([]);
-
           setError(
-            loadError?.message ||
-            'Não foi possível carregar suas consultas.'
+            getFriendlyError(loadError)
           );
         }
       } finally {
@@ -365,7 +505,9 @@ export default function PatientDashboard() {
   const upcomingAppointments = useMemo(() => {
     return appointments
       .filter((appointment) => {
-        const status = appointment.status;
+        const status = String(
+          appointment?.status || ''
+        ).toLowerCase();
 
         const cancelled =
           status === 'cancelled' ||
@@ -408,13 +550,14 @@ export default function PatientDashboard() {
           dateB.getTime()
         );
       });
-  }, [appointments]);
+  }, [appointments, now]);
 
   const historyAppointments = useMemo(() => {
     return appointments
       .filter((appointment) => {
-        const status =
-          appointment.status;
+        const status = String(
+          appointment?.status || ''
+        ).toLowerCase();
 
         if (
           status === 'completed' ||
@@ -458,13 +601,26 @@ export default function PatientDashboard() {
           dateA.getTime()
         );
       });
-  }, [appointments]);
-
-  async function reloadAppointments() {
-    await loadAppointments();
-  }
+  }, [appointments, now]);
 
   const next = upcomingAppointments[0];
+
+  const getVideoLinkState = (appointment) => {
+    return {
+      roomId: getRoomId(appointment),
+      appointmentId:
+        getAppointmentId(appointment),
+      role: 'patient',
+      psychologistName:
+        getPsychologistName(appointment),
+      time:
+        getAppointmentTime(appointment),
+      date:
+        appointment?.date ||
+        getAppointmentDate(appointment)?.toISOString() ||
+        '',
+    };
+  };
 
   return (
     <PageShell>
@@ -516,13 +672,20 @@ export default function PatientDashboard() {
 
                   <Info
                     label="Data"
-                    value={[
-                      confirmed.day,
+                    value={
+                      confirmed.day ||
+                      confirmed.date ||
+                      'Não informada'
+                    }
+                  />
+
+                  <Info
+                    label="Horário"
+                    value={
                       confirmed.slot ||
-                        confirmed.time,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
+                      confirmed.time ||
+                      'Não informado'
+                    }
                   />
 
                   <Info
@@ -538,29 +701,26 @@ export default function PatientDashboard() {
                     <div className="sm:col-span-2">
 
                       <Link
-                        to={{
-                          pathname: '/videochamada',
-                          search:
-                            `?name=${encodeURIComponent(
-                              confirmed.psychologistName ||
-                              confirmed.professionalName ||
-                              'Psicólogo'
-                            )}&time=${encodeURIComponent(
-                              confirmed.slot ||
-                              confirmed.time ||
-                              ''
-                            )}`,
-                        }}
+                        to="/videochamada"
                         state={{
                           roomId:
+                            confirmed.roomId ||
                             confirmed.appointmentId ||
                             confirmed.id ||
                             null,
+
+                          appointmentId:
+                            confirmed.appointmentId ||
+                            confirmed.id ||
+                            null,
+
                           role: 'patient',
+
                           psychologistName:
                             confirmed.psychologistName ||
                             confirmed.professionalName ||
                             'Psicólogo',
+
                           time:
                             confirmed.slot ||
                             confirmed.time ||
@@ -600,7 +760,7 @@ export default function PatientDashboard() {
 
               <button
                 type="button"
-                onClick={reloadAppointments}
+                onClick={loadAppointments}
                 disabled={loading}
                 className="shrink-0 inline-flex items-center gap-2 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
               >
@@ -612,6 +772,7 @@ export default function PatientDashboard() {
                       : ''
                   }
                 />
+
                 Atualizar
               </button>
 
@@ -648,29 +809,31 @@ export default function PatientDashboard() {
                       {getPsychologistName(next)}
                     </h2>
 
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {formatDateLong(
+                        getAppointmentDate(next)
+                      )}
+                    </p>
+
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
 
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={15} />
 
-                        {next.date ||
-                          next.scheduled_at ||
-                          'Data não informada'}
+                        {formatDate(
+                          getAppointmentDate(next)
+                        )}
                       </span>
 
-                      {getAppointmentTime(next) && (
-                        <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock size={15} />
 
-                          <Clock size={15} />
-
-                          {getAppointmentTime(next)}
-
-                        </span>
-                      )}
+                        {getAppointmentTime(next)}
+                      </span>
 
                       <span className="inline-flex items-center gap-1.5">
 
-                        {getAppointmentModality(next) === 'online' ? (
+                        {isOnlineAppointment(next) ? (
                           <>
                             <Video size={15} />
                             Online
@@ -686,18 +849,10 @@ export default function PatientDashboard() {
 
                     </div>
 
-                    {getAppointmentModality(next) === 'online' && (
+                    {isOnlineAppointment(next) && (
                       <Link
                         to="/videochamada"
-                        state={{
-                          roomId: next.id,
-                          appointmentId: next.id,
-                          role: 'patient',
-                          psychologistName:
-                            getPsychologistName(next),
-                          time:
-                            getAppointmentTime(next),
-                        }}
+                        state={getVideoLinkState(next)}
                         className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
                       >
                         <Video size={17} />
@@ -737,7 +892,7 @@ export default function PatientDashboard() {
 
                 <button
                   type="button"
-                  onClick={reloadAppointments}
+                  onClick={loadAppointments}
                   disabled={loading}
                   className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline disabled:opacity-50"
                 >
@@ -775,10 +930,17 @@ export default function PatientDashboard() {
 
                   {upcomingAppointments
                     .slice(0, 5)
-                    .map((appointment) => (
+                    .map((appointment, index) => (
                       <AppointmentItem
-                        key={appointment.id}
-                        appointment={appointment}
+                        key={
+                          getAppointmentId(
+                            appointment
+                          ) ||
+                          `upcoming-${index}`
+                        }
+                        appointment={
+                          appointment
+                        }
                       />
                     ))}
 
@@ -813,10 +975,17 @@ export default function PatientDashboard() {
 
                   {historyAppointments
                     .slice(0, 10)
-                    .map((appointment) => (
+                    .map((appointment, index) => (
                       <AppointmentItem
-                        key={appointment.id}
-                        appointment={appointment}
+                        key={
+                          getAppointmentId(
+                            appointment
+                          ) ||
+                          `history-${index}`
+                        }
+                        appointment={
+                          appointment
+                        }
                         history
                       />
                     ))}
@@ -933,8 +1102,23 @@ function AppointmentItem({
     getAppointmentModality(appointment);
 
   const status =
-    appointment.status ||
+    appointment?.status ||
     'scheduled';
+
+  const appointmentDate =
+    getAppointmentDate(appointment);
+
+  const appointmentId =
+    getAppointmentId(appointment);
+
+  const online =
+    isOnlineAppointment(appointment);
+
+  const canEnter =
+    !history &&
+    online &&
+    status !== 'cancelled' &&
+    status !== 'canceled';
 
   return (
     <div className="flex items-center justify-between gap-4 p-3 rounded-xl hover:bg-muted transition-colors">
@@ -947,18 +1131,17 @@ function AppointmentItem({
 
         <p className="text-xs text-muted-foreground mt-0.5">
 
-          {appointment.date ||
-            appointment.scheduled_at ||
-            'Data não informada'}
+          {formatDate(appointmentDate)}
 
           {' · '}
 
-          {getAppointmentTime(appointment) ||
-            'Horário não informado'}
+          {getAppointmentTime(
+            appointment
+          )}
 
           {' · '}
 
-          {modality === 'online'
+          {online
             ? 'Online'
             : 'Presencial'}
 
@@ -968,30 +1151,43 @@ function AppointmentItem({
 
       <div className="flex items-center gap-2 shrink-0">
 
-        {!history &&
-          modality === 'online' &&
-          status !== 'cancelled' &&
-          status !== 'canceled' && (
-            <Link
-              to="/videochamada"
-              state={{
-                roomId: appointment.id,
-                appointmentId: appointment.id,
-                role: 'patient',
-                psychologistName:
-                  getPsychologistName(appointment),
-                time:
-                  getAppointmentTime(appointment),
-              }}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
-            >
-              <Video size={13} />
-              Entrar
-            </Link>
-          )}
+        {canEnter && (
+          <Link
+            to="/videochamada"
+            state={{
+              roomId:
+                getRoomId(appointment),
+
+              appointmentId,
+
+              role: 'patient',
+
+              psychologistName:
+                getPsychologistName(
+                  appointment
+                ),
+
+              time:
+                getAppointmentTime(
+                  appointment
+                ),
+
+              date:
+                appointment?.date ||
+                appointmentDate?.toISOString() ||
+                '',
+            }}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
+          >
+            <Video size={13} />
+            Entrar
+          </Link>
+        )}
 
         <span
-          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(status)}`}
+          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(
+            status
+          )}`}
         >
           {getStatusLabel(status)}
         </span>
@@ -1001,7 +1197,10 @@ function AppointmentItem({
   );
 }
 
-function Info({ label, value }) {
+function Info({
+  label,
+  value,
+}) {
   return (
     <div>
 
