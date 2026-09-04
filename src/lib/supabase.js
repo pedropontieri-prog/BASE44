@@ -5,14 +5,12 @@ const supabasePublishableKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 if (!supabaseUrl) {
-  throw new Error(
-    "VITE_SUPABASE_URL não configurada. Verifique o arquivo .env.local."
-  );
+  throw new Error("VITE_SUPABASE_URL não configurada.");
 }
 
 if (!supabasePublishableKey) {
   throw new Error(
-    "VITE_SUPABASE_PUBLISHABLE_KEY não configurada. Verifique o arquivo .env.local."
+    "VITE_SUPABASE_PUBLISHABLE_KEY não configurada."
   );
 }
 
@@ -24,9 +22,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: "entrenos-auth",
       storage: window.localStorage,
-      flowType: "pkce",
     },
   }
 );
