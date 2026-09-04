@@ -119,17 +119,14 @@ const SLOT_OPTS = [
   "21:00",
 ];
 
-const REGION_OPTS = Array.from(
-  { length: 24 },
-  function (_, i) {
-    const value = String(i + 1).padStart(2, "0");
+const REGION_OPTS = Array.from({ length: 24 }, function (_, i) {
+  const value = String(i + 1).padStart(2, "0");
 
-    return {
-      value: value,
-      label: "CRP " + value,
-    };
-  }
-);
+  return {
+    value,
+    label: "CRP " + value,
+  };
+});
 
 const DEFAULTS = {
   full_name: "",
@@ -828,8 +825,8 @@ export default function ProfessionalOnboarding() {
           data: signUpData,
           error: signUpError,
         } = await supabase.auth.signUp({
-          email: email,
-          password: password,
+          email,
+          password,
           options: {
             data: {
               full_name: authName.trim(),
@@ -867,8 +864,8 @@ export default function ProfessionalOnboarding() {
           data: loginData,
           error: loginError,
         } = await supabase.auth.signInWithPassword({
-          email: email,
-          password: password,
+          email,
+          password,
         });
 
         if (loginError) {
@@ -1312,10 +1309,7 @@ export default function ProfessionalOnboarding() {
                     value={authName}
                     onChange={(value) => {
                       setAuthName(value);
-                      set(
-                        "full_name",
-                        value
-                      );
+                      set("full_name", value);
                     }}
                     placeholder="Digite seu nome completo"
                     required
@@ -2194,28 +2188,25 @@ export default function ProfessionalOnboarding() {
               <button
                 type="button"
                 onClick={submit}
-                disabled={<button
-type="button"
-onClick={submit}
-disabled={submitting}
-className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-
-{submitting ? (
-<>
-<Loader2 className="h-5 w-5 animate-spin" />
-Enviando...
-</>
-) : (
-<>
-<Check className="h-5 w-5" />
-Enviar cadastro
-</>
-)}
-</button>
-)}
-</div>
-</div>
-</div>
-</PageShell>
-);
+                disabled={submitting}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-5 w-5" />
+                    Enviar cadastro
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
 }
