@@ -1,4 +1,3 @@
-```jsx
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
@@ -57,71 +56,6 @@ function LoadingScreen() {
   );
 }
 
-// ==================== ROTAS PROTEGIDAS ====================
-
-function ProtectedRoutes() {
-  return (
-    <Route
-      element={
-        <ProtectedRoute
-          unauthenticatedElement={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
-        />
-      }
-    >
-      {/* ==================== PACIENTE ==================== */}
-
-      <Route
-        path="/agendamento"
-        element={<BookingConfirmation />}
-      />
-
-      <Route
-        path="/painel"
-        element={<PatientDashboard />}
-      />
-
-      <Route
-        path="/diario"
-        element={<Journal />}
-      />
-
-      <Route
-        path="/favoritos"
-        element={<Favorites />}
-      />
-
-      <Route
-        path="/notificacoes"
-        element={<Notifications />}
-      />
-
-      {/* ==================== PROFISSIONAL ==================== */}
-
-      <Route
-        path="/cadastro-profissional"
-        element={<ProfessionalOnboarding />}
-      />
-
-      <Route
-        path="/painel-profissional"
-        element={<PsychologistDashboard />}
-      />
-
-      {/* ==================== ADMIN ==================== */}
-
-      <Route
-        path="/verificacao"
-        element={<AdminVerification />}
-      />
-    </Route>
-  );
-}
-
 // ==================== APLICAÇÃO AUTENTICADA ====================
 
 function AuthenticatedApp() {
@@ -131,8 +65,6 @@ function AuthenticatedApp() {
     authError,
   } = useAuth();
 
-  // Aguarda a verificação da sessão
-  // antes de renderizar as páginas.
   if (
     isLoadingAuth ||
     isLoadingPublicSettings
@@ -140,7 +72,6 @@ function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  // Usuário não cadastrado
   if (
     authError?.type === "user_not_registered"
   ) {
@@ -205,7 +136,64 @@ function AuthenticatedApp() {
 
       {/* ==================== ROTAS PROTEGIDAS ==================== */}
 
-      <ProtectedRoutes />
+      <Route
+        element={
+          <ProtectedRoute
+            unauthenticatedElement={
+              <Navigate
+                to="/login"
+                replace
+              />
+            }
+          />
+        }
+      >
+        {/* ==================== PACIENTE ==================== */}
+
+        <Route
+          path="/agendamento"
+          element={<BookingConfirmation />}
+        />
+
+        <Route
+          path="/painel"
+          element={<PatientDashboard />}
+        />
+
+        <Route
+          path="/diario"
+          element={<Journal />}
+        />
+
+        <Route
+          path="/favoritos"
+          element={<Favorites />}
+        />
+
+        <Route
+          path="/notificacoes"
+          element={<Notifications />}
+        />
+
+        {/* ==================== PROFISSIONAL ==================== */}
+
+        <Route
+          path="/cadastro-profissional"
+          element={<ProfessionalOnboarding />}
+        />
+
+        <Route
+          path="/painel-profissional"
+          element={<PsychologistDashboard />}
+        />
+
+        {/* ==================== ADMIN ==================== */}
+
+        <Route
+          path="/verificacao"
+          element={<AdminVerification />}
+        />
+      </Route>
 
       {/* ==================== 404 ==================== */}
 
@@ -237,5 +225,6 @@ function App() {
   );
 }
 
+// ==================== EXPORT ====================
+
 export default App;
-```
