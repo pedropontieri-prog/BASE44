@@ -23,12 +23,12 @@ import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
-{ key: "personal", label: "Pessoal", icon: User },
-{ key: "professional", label: "Profissional", icon: ShieldCheck },
-{ key: "service", label: "Atendimento", icon: Calendar },
-{ key: "photo", label: "Foto", icon: Camera },
-{ key: "video", label: "Vídeo", icon: Video },
-{ key: "review", label: "Revisão", icon: Check },
+{ title: "Pessoal", icon: User },
+{ title: "Profissional", icon: ShieldCheck },
+{ title: "Atendimento", icon: Calendar },
+{ title: "Foto", icon: Camera },
+{ title: "Vídeo", icon: Video },
+{ title: "Revisão", icon: Check },
 ];
 
 const SPEC_OPTS = [
@@ -167,63 +167,79 @@ video_url: "",
 };
 
 function getFriendlyError(error) {
-const message = String(
-error && error.message ? error.message : ""
-).toLowerCase();
+const message =
+error && error.message
+? String(error.message)
+: "Ocorreu um erro inesperado.";
 
-if (message.includes("invalid login credentials")) {
+const normalized = message.toLowerCase();
+
+if (
+normalized.includes("invalid login credentials") ||
+normalized.includes("invalid credentials")
+) {
 return "E-mail ou senha incorretos.";
 }
 
-if (message.includes("email not confirmed")) {
+if (
+normalized.includes("email not confirmed") ||
+normalized.includes("email_not_confirmed")
+) {
 return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.";
 }
 
-if (message.includes("user already registered")) {
-return "Este e-mail já possui uma conta. Use a opção Entrar.";
+if (
+normalized.includes("user already registered") ||
+normalized.includes("already registered")
+) {
+return "Este e-mail já está cadastrado. Tente entrar na sua conta.";
 }
 
-if (message.includes("password")) {
+if (
+normalized.includes("password") &&
+(normalized.includes("at least") ||
+normalized.includes("characters") ||
+normalized.includes("short"))
+) {
 return "A senha deve ter pelo menos 6 caracteres.";
 }
 
-if (message.includes("duplicate")) {
+if (
+normalized.includes("duplicate") ||
+normalized.includes("unique constraint")
+) {
 return "Este cadastro já existe.";
 }
 
 if (
-message.includes("row-level security") ||
-message.includes("permission")
+normalized.includes("row-level security") ||
+normalized.includes("permission denied") ||
+normalized.includes("not authorized")
 ) {
-return "O Supabase bloqueou o cadastro por causa das permissões.";
+return "Você não tem permissão para realizar esta operação.";
 }
 
 if (
-message.includes("bucket") ||
-message.includes("storage") ||
-message.includes("object")
+normalized.includes("bucket") ||
+normalized.includes("storage") ||
+normalized.includes("object")
 ) {
-return "Não foi possível enviar o arquivo. Verifique o Storage do Supabase.";
+return "Não foi possível enviar o arquivo. Verifique as configurações de armazenamento.";
 }
 
-return (
-(error && error.message) ||
-"Não foi possível concluir a operação."
-);
+return message;
 }
 
 function makeFileName(file) {
+const originalName = file && file.name ? file.name : "arquivo";
+const parts = originalName.split(".");
 const extension =
-file.name && file.name.split(".").pop()
-? file.name.split(".").pop().toLowerCase()
-: "file";
+parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "bin";
 
 const id =
 typeof crypto !== "undefined" && crypto.randomUUID
 ? crypto.randomUUID()
-: String(Date.now()) +
-"-" +
-Math.random().toString(36).slice(2);
+: String(Date.now()) + "-" + Math.random().toString(36).slice(2);
 
 return id + "." + extension;
 }
@@ -238,8 +254,7 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && ( <span className="text-red-500">*</span>
-)} </span>
+{required && <span className="text-red-500">*</span>} </span>
 
 ```
   <input
@@ -247,6 +262,7 @@ return ( <label className="block"> <span className="block text-sm font-medium mb
     value={value || ""}
     onChange={(e) => onChange(e.target.value)}
     placeholder={placeholder}
+    required={required}
     className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
   />
 </label>
@@ -264,14 +280,14 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && ( <span className="text-red-500">*</span>
-)} </span>
+{required && <span className="text-red-500">*</span>} </span>
 
 ```
   <select
     value={value || ""}
     onChange={(e) => onChange(e.target.value)}
-    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+    required={required}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
   >
     <option value="">Selecione...</option>
 
@@ -306,7 +322,7 @@ return ( <label className="block"> <span className="block text-sm font-medium mb
     onChange={(e) => onChange(e.target.value)}
     placeholder={placeholder}
     rows={rows}
-    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
   />
 </label>
 ```
@@ -321,26 +337,29 @@ values = [],
 onChange,
 multiple = true,
 }) {
-const toggle = (option) => {
+function toggle(option) {
 if (!multiple) {
-onChange(
-values.includes(option) ? [] : [option]
-);
-return;
+if (values.includes(option)) {
+onChange([]);
+} else {
+onChange([option]);
 }
 
 ```
-onChange(
-  values.includes(option)
-    ? values.filter((item) => item !== option)
-    : [...values, option]
-);
+  return;
+}
+
+if (values.includes(option)) {
+  onChange(values.filter((item) => item !== option));
+} else {
+  onChange([...values, option]);
+}
 ```
 
-};
+}
 
-return ( <div> <p className="text-sm font-medium mb-2">
-{label} </p>
+return ( <div> <span className="block text-sm font-medium mb-3">
+{label} </span>
 
 ```
   <div className="flex flex-wrap gap-2">
@@ -349,14 +368,13 @@ return ( <div> <p className="text-sm font-medium mb-2">
 
       return (
         <button
-          type="button"
           key={option}
+          type="button"
           onClick={() => toggle(option)}
           className={
-            "rounded-full border px-3 py-2 text-sm transition " +
-            (active
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-background border-border hover:border-primary")
+            active
+              ? "rounded-full border border-primary bg-primary px-4 py-2 text-sm text-primary-foreground"
+              : "rounded-full border border-border bg-background px-4 py-2 text-sm hover:border-primary hover:text-primary"
           }
         >
           {option}
@@ -380,90 +398,87 @@ onRemove,
 }) {
 const isPhoto = type === "photo";
 
-return ( <div className="space-y-5">
-<label
-className={
-"block border-2 border-dashed border-border rounded-3xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition " +
-(uploading
-? "opacity-60 pointer-events-none"
-: "")
-}
->
-{isPhoto ? ( <Camera
-         size={44}
-         className="mx-auto text-primary mb-4"
-       />
-) : ( <Video
-         size={44}
-         className="mx-auto text-primary mb-4"
-       />
-)}
+return ( <div className="rounded-2xl border border-border bg-card p-5"> <div className="mb-4"> <h3 className="font-semibold">
+{isPhoto
+? "Foto de perfil"
+: "Vídeo de apresentação"} </h3>
 
 ```
-    <p className="font-semibold text-lg">
-      {uploading
-        ? "Enviando " +
-          (isPhoto ? "foto" : "vídeo") +
-          "..."
-        : file
-        ? "Trocar arquivo"
-        : "Adicionar " +
-          (isPhoto
-            ? "foto de perfil"
-            : "vídeo de apresentação")}
-    </p>
-
-    <p className="text-sm text-muted-foreground mt-2">
+    <p className="mt-1 text-sm text-muted-foreground">
       {isPhoto
-        ? "JPG, PNG ou WEBP • máximo 10 MB"
-        : "MP4, WEBM ou MOV • máximo 200 MB"}
+        ? "Use uma foto profissional, clara e atual."
+        : "Apresente-se brevemente para que os pacientes conheçam você."}
     </p>
+  </div>
 
-    <input
-      type="file"
-      accept={
-        isPhoto
-          ? "image/jpeg,image/png,image/webp"
-          : "video/mp4,video/webm,video/quicktime"
-      }
-      className="hidden"
-      disabled={uploading}
-      onChange={(e) =>
-        onChange(
-          e.target.files
-            ? e.target.files[0]
-            : null
-        )
-      }
-    />
-  </label>
-
-  {preview && (
-    <div className="rounded-3xl border border-border bg-background p-5">
+  {preview ? (
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-muted">
       {isPhoto ? (
         <img
           src={preview}
-          alt="Pré-visualização da foto profissional"
-          className="w-48 h-48 object-cover rounded-3xl mx-auto"
+          alt="Pré-visualização"
+          className="h-72 w-full object-cover"
         />
       ) : (
         <video
           src={preview}
           controls
-          playsInline
-          className="w-full max-h-[420px] rounded-3xl mx-auto"
+          className="h-72 w-full object-cover"
         />
       )}
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="mt-5 mx-auto flex items-center gap-2 text-sm text-red-600 hover:underline"
-      >
-        <X size={16} />
-        Remover {isPhoto ? "foto" : "vídeo"}
-      </button>
+      {!uploading && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute right-3 top-3 rounded-full bg-background/90 p-2 shadow"
+          aria-label="Remover arquivo"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      )}
     </div>
+  ) : (
+    <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 text-center hover:border-primary">
+      <input
+        type="file"
+        accept={
+          isPhoto
+            ? "image/jpeg,image/png,image/webp"
+            : "video/mp4,video/webm,video/quicktime"
+        }
+        className="hidden"
+        onChange={onChange}
+        disabled={uploading}
+      />
+
+      {uploading ? (
+        <Loader2 className="mb-3 h-10 w-10 animate-spin text-primary" />
+      ) : isPhoto ? (
+        <Camera className="mb-3 h-10 w-10 text-muted-foreground" />
+      ) : (
+        <Video className="mb-3 h-10 w-10 text-muted-foreground" />
+      )}
+
+      <span className="font-medium">
+        {uploading
+          ? "Enviando " +
+            (isPhoto ? "foto" : "vídeo") +
+            "..."
+          : file
+          ? "Trocar arquivo"
+          : "Adicionar " +
+            (isPhoto
+              ? "foto de perfil"
+              : "vídeo de apresentação")}
+      </span>
+
+      <span className="mt-2 text-xs text-muted-foreground">
+        {isPhoto
+          ? "JPG, PNG ou WEBP • até 10 MB"
+          : "MP4, WEBM ou MOV • até 200 MB"}
+      </span>
+    </label>
   )}
 </div>
 ```
@@ -479,160 +494,150 @@ const [data, setData] = useState(DEFAULTS);
 
 const [authLoading, setAuthLoading] = useState(true);
 const [authMode, setAuthMode] = useState("register");
-const [authenticatedUser, setAuthenticatedUser] =
-useState(null);
+const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
 const [authName, setAuthName] = useState("");
 const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
-const [showPassword, setShowPassword] =
-useState(false);
+const [showPassword, setShowPassword] = useState(false);
+const [authSubmitting, setAuthSubmitting] = useState(false);
 
-const [authSubmitting, setAuthSubmitting] =
-useState(false);
 const [submitting, setSubmitting] = useState(false);
 const [uploading, setUploading] = useState(false);
 const [done, setDone] = useState(false);
-const [confirmationSent, setConfirmationSent] =
-useState(false);
+const [confirmationSent, setConfirmationSent] = useState(false);
 const [error, setError] = useState("");
 
 const [photoFile, setPhotoFile] = useState(null);
 const [videoFile, setVideoFile] = useState(null);
-
-const [photoPreview, setPhotoPreview] =
-useState("");
-const [videoPreview, setVideoPreview] =
-useState("");
+const [photoPreview, setPhotoPreview] = useState("");
+const [videoPreview, setVideoPreview] = useState("");
 
 const isAuthenticated = Boolean(
 authenticatedUser && authenticatedUser.id
 );
 
-const displayName = useMemo(
-() =>
-data.professional_name ||
-data.full_name ||
-(authenticatedUser &&
-authenticatedUser.user_metadata &&
-authenticatedUser.user_metadata.full_name) ||
-(authenticatedUser &&
-authenticatedUser.user_metadata &&
-authenticatedUser.user_metadata.name) ||
-"Profissional",
-[
-data.professional_name,
-data.full_name,
-authenticatedUser,
-]
-);
+const displayName = useMemo(() => {
+if (data.professional_name) {
+return data.professional_name;
+}
 
-const set = (key, value) => {
+```
+if (data.full_name) {
+  return data.full_name;
+}
+
+if (
+  authenticatedUser &&
+  authenticatedUser.user_metadata &&
+  authenticatedUser.user_metadata.full_name
+) {
+  return authenticatedUser.user_metadata.full_name;
+}
+
+if (
+  authenticatedUser &&
+  authenticatedUser.user_metadata &&
+  authenticatedUser.user_metadata.name
+) {
+  return authenticatedUser.user_metadata.name;
+}
+
+return "Profissional";
+```
+
+}, [data.professional_name, data.full_name, authenticatedUser]);
+
+function set(key, value) {
 setData((current) => ({
 ...current,
 [key]: value,
 }));
-};
+}
 
 useEffect(() => {
 let mounted = true;
 
 ```
-const loadSession = async () => {
+async function loadSession() {
   try {
-    setAuthLoading(true);
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
 
-    const {
-      data: sessionData,
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    if (sessionError) {
+      throw sessionError;
+    }
 
     if (!mounted) {
       return;
     }
 
-    if (sessionError) {
-      setAuthenticatedUser(null);
-      return;
-    }
-
-    const user =
-      sessionData &&
-      sessionData.session &&
-      sessionData.session.user
-        ? sessionData.session.user
-        : null;
+    const user = sessionData && sessionData.session
+      ? sessionData.session.user
+      : null;
 
     setAuthenticatedUser(user);
 
     if (user) {
+      const metadata = user.user_metadata || {};
+
       setData((current) => ({
         ...current,
-        email:
-          current.email ||
-          user.email ||
-          "",
+        email: user.email || current.email,
         full_name:
           current.full_name ||
-          (user.user_metadata &&
-            user.user_metadata.full_name) ||
-          (user.user_metadata &&
-            user.user_metadata.name) ||
+          metadata.full_name ||
+          metadata.name ||
           "",
       }));
-    }
-  } catch (err) {
-    console.error(err);
 
+      setAuthEmail(user.email || "");
+      setAuthName(
+        metadata.full_name ||
+          metadata.name ||
+          ""
+      );
+    }
+  } catch (sessionError) {
     if (mounted) {
-      setAuthenticatedUser(null);
+      setError(getFriendlyError(sessionError));
     }
   } finally {
     if (mounted) {
       setAuthLoading(false);
     }
   }
-};
+}
 
 loadSession();
 
 const {
-  data: listener,
+  data: authSubscription,
 } = supabase.auth.onAuthStateChange(
-  (event, session) => {
+  (_event, session) => {
     if (!mounted) {
       return;
     }
 
-    const user =
-      session && session.user
-        ? session.user
-        : null;
+    const user = session ? session.user : null;
+
+    setAuthenticatedUser(user);
 
     if (user) {
-      setAuthenticatedUser(user);
+      const metadata = user.user_metadata || {};
 
       setData((current) => ({
         ...current,
-        email:
-          current.email ||
-          user.email ||
-          "",
+        email: user.email || current.email,
         full_name:
           current.full_name ||
-          (user.user_metadata &&
-            user.user_metadata.full_name) ||
-          (user.user_metadata &&
-            user.user_metadata.name) ||
+          metadata.full_name ||
+          metadata.name ||
           "",
       }));
-    }
 
-    if (event === "SIGNED_OUT") {
-      setAuthenticatedUser(null);
+      setAuthEmail(user.email || "");
     }
-
-    setAuthLoading(false);
   }
 );
 
@@ -640,10 +645,10 @@ return () => {
   mounted = false;
 
   if (
-    listener &&
-    listener.subscription
+    authSubscription &&
+    authSubscription.subscription
   ) {
-    listener.subscription.unsubscribe();
+    authSubscription.subscription.unsubscribe();
   }
 };
 ```
@@ -652,18 +657,12 @@ return () => {
 
 useEffect(() => {
 return () => {
-if (
-photoPreview &&
-photoPreview.startsWith("blob:")
-) {
+if (photoPreview) {
 URL.revokeObjectURL(photoPreview);
 }
 
 ```
-  if (
-    videoPreview &&
-    videoPreview.startsWith("blob:")
-  ) {
+  if (videoPreview) {
     URL.revokeObjectURL(videoPreview);
   }
 };
@@ -671,7 +670,7 @@ URL.revokeObjectURL(photoPreview);
 
 }, [photoPreview, videoPreview]);
 
-const validatePhoto = (file) => {
+function validatePhoto(file) {
 if (!file) {
 return "Selecione uma foto.";
 }
@@ -685,7 +684,7 @@ const allowedTypes = [
 ];
 
 if (!allowedTypes.includes(file.type)) {
-  return "Formato de foto não permitido. Envie JPG, PNG ou WEBP.";
+  return "A foto deve estar em JPG, PNG ou WEBP.";
 }
 
 if (file.size > 10 * 1024 * 1024) {
@@ -695,9 +694,9 @@ if (file.size > 10 * 1024 * 1024) {
 return "";
 ```
 
-};
+}
 
-const validateVideo = (file) => {
+function validateVideo(file) {
 if (!file) {
 return "Selecione um vídeo.";
 }
@@ -710,7 +709,7 @@ const allowedTypes = [
 ];
 
 if (!allowedTypes.includes(file.type)) {
-  return "Formato de vídeo não permitido. Envie MP4, WEBM ou MOV.";
+  return "O vídeo deve estar em MP4, WEBM ou MOV.";
 }
 
 if (file.size > 200 * 1024 * 1024) {
@@ -720,73 +719,62 @@ if (file.size > 200 * 1024 * 1024) {
 return "";
 ```
 
-};
+}
 
-const handlePhotoSelect = (file) => {
-setError("");
+function handlePhotoChange(event) {
+const file =
+event.target.files && event.target.files[0]
+? event.target.files[0]
+: null;
 
 ```
-if (!file) {
+const validationError = validatePhoto(file);
+
+if (validationError) {
+  setError(validationError);
   return;
 }
 
-const validation = validatePhoto(file);
-
-if (validation) {
-  setError(validation);
-  return;
-}
-
-if (
-  photoPreview &&
-  photoPreview.startsWith("blob:")
-) {
+if (photoPreview) {
   URL.revokeObjectURL(photoPreview);
 }
 
-const preview = URL.createObjectURL(file);
-
 setPhotoFile(file);
-setPhotoPreview(preview);
-```
-
-};
-
-const handleVideoSelect = (file) => {
+setPhotoPreview(URL.createObjectURL(file));
+set("photo_url", "");
 setError("");
+```
+
+}
+
+function handleVideoChange(event) {
+const file =
+event.target.files && event.target.files[0]
+? event.target.files[0]
+: null;
 
 ```
-if (!file) {
+const validationError = validateVideo(file);
+
+if (validationError) {
+  setError(validationError);
   return;
 }
 
-const validation = validateVideo(file);
-
-if (validation) {
-  setError(validation);
-  return;
-}
-
-if (
-  videoPreview &&
-  videoPreview.startsWith("blob:")
-) {
+if (videoPreview) {
   URL.revokeObjectURL(videoPreview);
 }
 
-const preview = URL.createObjectURL(file);
-
 setVideoFile(file);
-setVideoPreview(preview);
+setVideoPreview(URL.createObjectURL(file));
+set("video_url", "");
+setError("");
 ```
 
-};
+}
 
-const removePhoto = () => {
-if (
-photoPreview &&
-photoPreview.startsWith("blob:")
-) {
+function removePhoto() {
+if (photoPreview) {
 URL.revokeObjectURL(photoPreview);
 }
 
@@ -794,16 +782,12 @@ URL.revokeObjectURL(photoPreview);
 setPhotoFile(null);
 setPhotoPreview("");
 set("photo_url", "");
-setError("");
 ```
 
-};
+}
 
-const removeVideo = () => {
-if (
-videoPreview &&
-videoPreview.startsWith("blob:")
-) {
+function removeVideo() {
+if (videoPreview) {
 URL.revokeObjectURL(videoPreview);
 }
 
@@ -811,37 +795,35 @@ URL.revokeObjectURL(videoPreview);
 setVideoFile(null);
 setVideoPreview("");
 set("video_url", "");
-setError("");
 ```
 
-};
+}
 
-const authenticateProfessional = async () => {
+async function authenticateProfessional() {
 setError("");
+setConfirmationSent(false);
 
 ```
-if (!authEmail.trim()) {
-  setError("Informe seu e-mail profissional.");
+const email = authEmail.trim().toLowerCase();
+const password = authPassword;
+
+if (!email) {
+  setError("Digite seu e-mail.");
   return;
 }
 
-if (!authPassword) {
-  setError("Informe sua senha.");
+if (!password) {
+  setError("Digite sua senha.");
   return;
 }
 
-if (authPassword.length < 6) {
-  setError(
-    "A senha deve ter pelo menos 6 caracteres."
-  );
+if (password.length < 6) {
+  setError("A senha deve ter pelo menos 6 caracteres.");
   return;
 }
 
-if (
-  authMode === "register" &&
-  !authName.trim()
-) {
-  setError("Informe seu nome completo.");
+if (authMode === "register" && !authName.trim()) {
+  setError("Digite seu nome completo.");
   return;
 }
 
@@ -849,281 +831,211 @@ setAuthSubmitting(true);
 
 try {
   if (authMode === "register") {
-    const {
-      data: signUpData,
-      error: signUpError,
-    } = await supabase.auth.signUp({
-      email: authEmail
-        .trim()
-        .toLowerCase(),
-      password: authPassword,
-      options: {
-        data: {
-          full_name: authName.trim(),
-          name: authName.trim(),
-          role: "psychologist",
-          account_type: "professional",
-          user_type: "professional",
+    const { data: signUpData, error: signUpError } =
+      await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            full_name: authName.trim(),
+            name: authName.trim(),
+            role: "psychologist",
+            account_type: "professional",
+            user_type: "professional",
+          },
         },
-      },
-    });
+      });
 
     if (signUpError) {
       throw signUpError;
     }
 
-    const user =
-      signUpData && signUpData.user
-        ? signUpData.user
-        : null;
+    if (signUpData.session && signUpData.user) {
+      setAuthenticatedUser(signUpData.user);
+
+      setData((current) => ({
+        ...current,
+        email: signUpData.user.email || email,
+        full_name:
+          authName.trim() || current.full_name,
+      }));
+
+      setStep(0);
+    } else if (signUpData.user) {
+      setConfirmationSent(true);
+      setError(
+        "Cadastro realizado. Confirme seu e-mail antes de entrar."
+      );
+    }
+  } else {
+    const { data: loginData, error: loginError } =
+      await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+    if (loginError) {
+      throw loginError;
+    }
+
+    const user = loginData.user;
+
+    setAuthenticatedUser(user);
+
+    const metadata = user.user_metadata || {};
 
     setData((current) => ({
       ...current,
+      email: user.email || email,
       full_name:
         current.full_name ||
-        authName.trim(),
-      email:
-        current.email ||
-        authEmail.trim().toLowerCase(),
+        metadata.full_name ||
+        metadata.name ||
+        "",
     }));
 
-    if (
-      signUpData &&
-      signUpData.session &&
-      signUpData.session.user
-    ) {
-      setAuthenticatedUser(
-        signUpData.session.user
-      );
-      setConfirmationSent(false);
-      setStep(0);
-      return;
-    }
-
-    if (user) {
-      setConfirmationSent(true);
-      setError(
-        "Conta criada. Confirme seu e-mail e depois entre para continuar o cadastro profissional."
-      );
-      return;
-    }
-
-    throw new Error(
-      "A conta foi criada, mas não foi possível iniciar a sessão."
-    );
+    setStep(0);
   }
-
-  const {
-    data: loginData,
-    error: loginError,
-  } = await supabase.auth.signInWithPassword({
-    email: authEmail
-      .trim()
-      .toLowerCase(),
-    password: authPassword,
-  });
-
-  if (loginError) {
-    throw loginError;
-  }
-
-  if (
-    !loginData ||
-    !loginData.user
-  ) {
-    throw new Error(
-      "Não foi possível iniciar a sessão."
-    );
-  }
-
-  setAuthenticatedUser(loginData.user);
-
-  setData((current) => ({
-    ...current,
-    email:
-      current.email ||
-      loginData.user.email ||
-      "",
-    full_name:
-      current.full_name ||
-      (loginData.user.user_metadata &&
-        loginData.user.user_metadata.full_name) ||
-      (loginData.user.user_metadata &&
-        loginData.user.user_metadata.name) ||
-      "",
-  }));
-
-  setStep(0);
-  setConfirmationSent(false);
-  setError("");
-} catch (err) {
-  console.error(
-    "EntreNós: erro na autenticação:",
-    err
-  );
-
-  setError(getFriendlyError(err));
+} catch (authError) {
+  setError(getFriendlyError(authError));
 } finally {
   setAuthSubmitting(false);
 }
 ```
 
-};
-
-const resendConfirmation = async () => {
-if (!authEmail.trim()) {
-setError("Informe seu e-mail.");
-return;
 }
 
-```
-setAuthSubmitting(true);
+async function resendConfirmation() {
 setError("");
 
+```
+if (!authEmail.trim()) {
+  setError("Digite seu e-mail.");
+  return;
+}
+
 try {
-  const {
-    error: resendError,
-  } = await supabase.auth.resend({
-    type: "signup",
-    email: authEmail
-      .trim()
-      .toLowerCase(),
-  });
+  const { error: resendError } =
+    await supabase.auth.resend({
+      type: "signup",
+      email: authEmail.trim().toLowerCase(),
+    });
 
   if (resendError) {
     throw resendError;
   }
 
-  setError(
-    "E-mail de confirmação reenviado. Verifique sua caixa de entrada."
-  );
-} catch (err) {
-  setError(getFriendlyError(err));
-} finally {
-  setAuthSubmitting(false);
+  setConfirmationSent(true);
+} catch (resendError) {
+  setError(getFriendlyError(resendError));
 }
 ```
 
-};
+}
 
-const logoutProfessional = async () => {
+async function logoutProfessional() {
 await supabase.auth.signOut();
 
 ```
 setAuthenticatedUser(null);
-setConfirmationSent(false);
-setStep(0);
 setData(DEFAULTS);
-
+setStep(0);
+setDone(false);
+setError("");
+setAuthName("");
+setAuthEmail("");
+setAuthPassword("");
 setPhotoFile(null);
 setVideoFile(null);
 
-setPhotoPreview("");
-setVideoPreview("");
-
-setError("");
-```
-
-};
-
-const uploadFileToStorage = async (
-file,
-type,
-userId
-) => {
-if (!file) {
-return "";
+if (photoPreview) {
+  URL.revokeObjectURL(photoPreview);
 }
 
+if (videoPreview) {
+  URL.revokeObjectURL(videoPreview);
+}
+
+setPhotoPreview("");
+setVideoPreview("");
 ```
-const isPhoto = type === "photo";
 
-const folder = isPhoto
-  ? "professionals/" +
-    userId +
-    "/photos"
-  : "professionals/" +
-    userId +
-    "/videos";
+}
 
+async function uploadFileToStorage(file, type, userId) {
+const folder =
+type === "photo"
+? "professionals/" + userId + "/photos"
+: "professionals/" + userId + "/videos";
+
+```
 const filePath =
   folder + "/" + makeFileName(file);
 
-const {
-  error: uploadError,
-} = await supabase.storage
-  .from("profiles")
-  .upload(
-    filePath,
-    file,
-    {
+const { error: uploadError } =
+  await supabase.storage
+    .from("profiles")
+    .upload(filePath, file, {
       cacheControl: "3600",
       upsert: false,
       contentType: file.type,
-    }
-  );
+    });
 
 if (uploadError) {
   throw uploadError;
 }
 
-const {
-  data: publicUrlData,
-} = supabase.storage
-  .from("profiles")
-  .getPublicUrl(filePath);
+const { data: publicData } =
+  supabase.storage
+    .from("profiles")
+    .getPublicUrl(filePath);
 
-if (
-  !publicUrlData ||
-  !publicUrlData.publicUrl
-) {
-  throw new Error(
-    "Não foi possível obter a URL do arquivo."
-  );
-}
-
-return publicUrlData.publicUrl;
+return publicData.publicUrl;
 ```
 
-};
+}
 
-const uploadPendingFiles = async (userId) => {
-let photoUrl = data.photo_url;
-let videoUrl = data.video_url;
+async function uploadPendingFiles(userId) {
+let nextData = {
+...data,
+};
 
 ```
 if (photoFile) {
-  photoUrl =
-    await uploadFileToStorage(
-      photoFile,
-      "photo",
-      userId
-    );
+  const photoUrl = await uploadFileToStorage(
+    photoFile,
+    "photo",
+    userId
+  );
 
-  set("photo_url", photoUrl);
+  nextData = {
+    ...nextData,
+    photo_url: photoUrl,
+  };
 }
 
 if (videoFile) {
-  videoUrl =
-    await uploadFileToStorage(
-      videoFile,
-      "video",
-      userId
-    );
+  const videoUrl = await uploadFileToStorage(
+    videoFile,
+    "video",
+    userId
+  );
 
-  set("video_url", videoUrl);
+  nextData = {
+    ...nextData,
+    video_url: videoUrl,
+  };
 }
 
-return {
-  photoUrl,
-  videoUrl,
-};
+setData(nextData);
+
+return nextData;
 ```
 
-};
+}
 
-const validateStep = () => {
-if (step === 0) {
+function validateStep(stepNumber) {
+if (stepNumber === 0) {
 if (!data.full_name.trim()) {
 return "Informe seu nome completo.";
 }
@@ -1137,16 +1049,14 @@ return "Informe seu nome completo.";
     return "Informe sua cidade.";
   }
 
-  if (
-    data.state.trim().length !== 2
-  ) {
+  if (!data.state.trim() || data.state.trim().length !== 2) {
     return "Informe o estado com 2 letras.";
   }
 }
 
-if (step === 1) {
+if (stepNumber === 1) {
   if (!data.crp_number.trim()) {
-    return "Informe seu número do CRP.";
+    return "Informe o número do CRP.";
   }
 
   if (!data.crp_region) {
@@ -1154,26 +1064,23 @@ if (step === 1) {
   }
 }
 
-if (step === 2) {
-  if (!data.modalities.length) {
-    return "Selecione pelo menos uma modalidade.";
+if (stepNumber === 2) {
+  if (
+    !data.modalities ||
+    data.modalities.length === 0
+  ) {
+    return "Selecione pelo menos uma modalidade de atendimento.";
   }
 }
 
-if (step === 3) {
-  if (
-    !data.photo_url &&
-    !photoFile
-  ) {
-    return "Adicione uma foto profissional.";
+if (stepNumber === 3) {
+  if (!data.photo_url && !photoFile) {
+    return "Adicione uma foto de perfil.";
   }
 }
 
-if (step === 4) {
-  if (
-    !data.video_url &&
-    !videoFile
-  ) {
+if (stepNumber === 4) {
+  if (!data.video_url && !videoFile) {
     return "Adicione um vídeo de apresentação.";
   }
 }
@@ -1181,11 +1088,10 @@ if (step === 4) {
 return "";
 ```
 
-};
+}
 
-const nextStep = async () => {
-const validationError =
-validateStep();
+function nextStep() {
+const validationError = validateStep(step);
 
 ```
 if (validationError) {
@@ -1195,29 +1101,26 @@ if (validationError) {
 
 setError("");
 
-setStep((current) =>
-  Math.min(
-    current + 1,
-    STEPS.length - 1
-  )
-);
+if (step < STEPS.length - 1) {
+  setStep((current) => current + 1);
+}
 ```
 
-};
+}
 
-const previousStep = () => {
+function previousStep() {
 setError("");
 
 ```
-setStep((current) =>
-  Math.max(current - 1, 0)
-);
+if (step > 0) {
+  setStep((current) => current - 1);
+}
 ```
 
-};
+}
 
-const submit = async () => {
-if (submitting || uploading) {
+async function submit() {
+if (submitting) {
 return;
 }
 
@@ -1225,128 +1128,55 @@ return;
 setError("");
 
 if (!isAuthenticated) {
-  setError(
-    "Entre na sua conta profissional para continuar."
-  );
+  setError("Faça login para continuar.");
   return;
 }
 
-for (
-  let index = 0;
-  index <= 4;
-  index += 1
-) {
-  let validation = "";
+for (let index = 0; index < 5; index += 1) {
+  const validationError = validateStep(index);
 
-  if (index === 0) {
-    if (!data.full_name.trim()) {
-      validation =
-        "Informe seu nome completo.";
-    } else if (!data.email.trim()) {
-      validation =
-        "Informe seu e-mail.";
-    } else if (!data.city.trim()) {
-      validation =
-        "Informe sua cidade.";
-    } else if (
-      data.state.trim().length !== 2
-    ) {
-      validation =
-        "Informe o estado com 2 letras.";
-    }
-  }
-
-  if (index === 1) {
-    if (!data.crp_number.trim()) {
-      validation =
-        "Informe seu número do CRP.";
-    } else if (!data.crp_region) {
-      validation =
-        "Selecione a região do CRP.";
-    }
-  }
-
-  if (
-    index === 2 &&
-    !data.modalities.length
-  ) {
-    validation =
-      "Selecione pelo menos uma modalidade.";
-  }
-
-  if (
-    index === 3 &&
-    !data.photo_url &&
-    !photoFile
-  ) {
-    validation =
-      "A foto profissional é obrigatória.";
-  }
-
-  if (
-    index === 4 &&
-    !data.video_url &&
-    !videoFile
-  ) {
-    validation =
-      "O vídeo de apresentação é obrigatório.";
-  }
-
-  if (validation) {
+  if (validationError) {
     setStep(index);
-    setError(validation);
+    setError(validationError);
     return;
   }
 }
 
 setSubmitting(true);
+setUploading(Boolean(photoFile || videoFile));
 
 try {
   const {
-    data: userData,
-    error: userError,
+    data: currentUserData,
+    error: currentUserError,
   } = await supabase.auth.getUser();
 
-  if (userError) {
-    throw userError;
+  if (currentUserError) {
+    throw currentUserError;
   }
 
-  const user =
-    userData && userData.user
-      ? userData.user
-      : null;
+  const user = currentUserData.user;
 
-  if (!user || !user.id) {
+  if (!user) {
     throw new Error(
-      "Sua sessão não está disponível. Entre novamente."
+      "Sua sessão expirou. Entre novamente."
     );
   }
 
-  setUploading(true);
+  const finalData = await uploadPendingFiles(user.id);
 
-  const {
-    photoUrl,
-    videoUrl,
-  } = await uploadPendingFiles(
-    user.id
-  );
-
-  setUploading(false);
-
-  const {
-    error: metadataError,
-  } = await supabase.auth.updateUser({
-    data: {
-      ...(user.user_metadata || {}),
-      full_name:
-        data.full_name.trim(),
-      name:
-        data.full_name.trim(),
-      role: "psychologist",
-      account_type: "professional",
-      user_type: "professional",
-    },
-  });
+  const { error: metadataError } =
+    await supabase.auth.updateUser({
+      data: {
+        full_name: finalData.full_name,
+        name:
+          finalData.professional_name ||
+          finalData.full_name,
+        role: "psychologist",
+        account_type: "professional",
+        user_type: "professional",
+      },
+    });
 
   if (metadataError) {
     throw metadataError;
@@ -1354,140 +1184,46 @@ try {
 
   const psychologistData = {
     user_id: user.id,
-
     professional_name:
-      data.professional_name.trim() ||
-      data.full_name.trim(),
-
-    crp_number:
-      data.crp_number.trim(),
-
-    crp_region:
-      data.crp_region,
-
-    education:
-      data.education.trim() || null,
-
-    institution:
-      data.institution.trim() || null,
-
-    graduation_year:
-      data.graduation_year
-        ? Number(
-            data.graduation_year
-          )
-        : null,
-
-    specializations:
-      Array.isArray(
-        data.specializations
-      )
-        ? data.specializations
-        : [],
-
-    approaches:
-      Array.isArray(
-        data.approaches
-      )
-        ? data.approaches
-        : [],
-
-    experience:
-      data.experience.trim() || null,
-
-    topics:
-      Array.isArray(data.themes)
-        ? data.themes
-        : [],
-
-    modalities:
-      Array.isArray(
-        data.modalities
-      )
-        ? data.modalities
-        : [],
-
-    languages:
-      Array.isArray(
-        data.languages
-      )
-        ? data.languages
-        : [],
-
-    audience:
-      Array.isArray(
-        data.audience
-      )
-        ? data.audience
-        : [],
-
-    city:
-      data.city.trim(),
-
-    state:
-      data.state
-        .trim()
-        .toUpperCase(),
-
-    phone:
-      data.phone.trim() || null,
-
-    gender:
-      data.gender.trim() || null,
-
-    session_price:
-      Number(data.price) || 0,
-
-    session_duration:
-      Number(
-        data.session_duration
-      ) || 50,
-
-    available_days:
-      Array.isArray(
-        data.available_days
-      )
-        ? data.available_days
-        : [],
-
-    available_slots:
-      Array.isArray(
-        data.available_slots
-      )
-        ? data.available_slots
-        : [],
-
+      finalData.professional_name ||
+      finalData.full_name,
+    crp_number: finalData.crp_number,
+    crp_region: finalData.crp_region,
+    education: finalData.education,
+    institution: finalData.institution,
+    graduation_year: finalData.graduation_year,
+    specializations: finalData.specializations,
+    approaches: finalData.approaches,
+    experience: finalData.experience,
+    topics: finalData.themes,
+    modalities: finalData.modalities,
+    languages: finalData.languages,
+    audience: finalData.audience,
+    city: finalData.city,
+    state: finalData.state,
+    phone: finalData.phone,
+    gender: finalData.gender,
+    session_price: finalData.price
+      ? Number(finalData.price)
+      : null,
+    session_duration: finalData.session_duration,
+    available_days: finalData.available_days,
+    available_slots: finalData.available_slots,
     cancellation_policy:
-      data.cancellation_policy.trim() ||
-      null,
-
-    address:
-      data.address.trim() || null,
-
-    bio:
-      data.about.trim() || null,
-
-    photo_url:
-      photoUrl || data.photo_url,
-
-    profile_photo_url:
-      photoUrl || data.photo_url,
-
+      finalData.cancellation_policy,
+    address: finalData.address,
+    bio: finalData.about,
+    photo_url: finalData.photo_url,
+    profile_photo_url: finalData.photo_url,
     presentation_video_url:
-      videoUrl || data.video_url,
-
-    presentation_video_status:
-      "pending",
-
-    verification_status:
-      "pending",
-
-    public_profile:
-      false,
+      finalData.video_url,
+    presentation_video_status: "pending",
+    verification_status: "pending",
+    public_profile: false,
   };
 
   const {
-    data: existing,
+    data: existingProfessional,
     error: existingError,
   } = await supabase
     .from("psychologists")
@@ -1499,34 +1235,21 @@ try {
     throw existingError;
   }
 
-  if (
-    existing &&
-    existing.id
-  ) {
-    const {
-      error: updateError,
-    } = await supabase
-      .from("psychologists")
-      .update(
-        psychologistData
-      )
-      .eq("id", existing.id)
-      .eq(
-        "user_id",
-        user.id
-      );
+  if (existingProfessional) {
+    const { error: updateError } =
+      await supabase
+        .from("psychologists")
+        .update(psychologistData)
+        .eq("id", existingProfessional.id);
 
     if (updateError) {
       throw updateError;
     }
   } else {
-    const {
-      error: insertError,
-    } = await supabase
-      .from("psychologists")
-      .insert(
-        psychologistData
-      );
+    const { error: insertError } =
+      await supabase
+        .from("psychologists")
+        .insert(psychologistData);
 
     if (insertError) {
       throw insertError;
@@ -1534,280 +1257,206 @@ try {
   }
 
   setDone(true);
-  setError("");
-} catch (err) {
-  console.error(
-    "EntreNós: erro ao salvar cadastro profissional:",
-    err
-  );
-
-  setError(
-    getFriendlyError(err)
-  );
+} catch (submitError) {
+  setError(getFriendlyError(submitError));
 } finally {
   setUploading(false);
   setSubmitting(false);
 }
 ```
 
-};
+}
 
 if (authLoading) {
-return ( <PageShell> <div className="min-h-[65vh] flex items-center justify-center px-4"> <div className="text-center"> <Loader2
-           size={34}
-           className="animate-spin mx-auto mb-4 text-primary"
-         />
-
-```
-        <p className="text-sm text-muted-foreground">
-          Verificando sua conta...
-        </p>
-      </div>
-    </div>
-  </PageShell>
+return ( <PageShell> <div className="flex min-h-[60vh] items-center justify-center"> <Loader2 className="h-8 w-8 animate-spin text-primary" /> </div> </PageShell>
 );
-```
-
 }
 
 if (!isAuthenticated) {
-return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div className="text-center mb-8"> <div className="w-16 h-16 rounded-3xl gradient-brand mx-auto flex items-center justify-center text-white mb-5 shadow-soft">
-{authMode === "register" ? ( <UserPlus size={30} />
-) : ( <LogIn size={30} />
+return ( <PageShell> <div className="mx-auto max-w-5xl px-4 py-10"> <div className="mx-auto max-w-xl"> <div className="mb-8 text-center"> <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+{authMode === "register" ? ( <UserPlus className="h-7 w-7" />
+) : ( <LogIn className="h-7 w-7" />
 )} </div>
 
 ```
-        <h1 className="text-3xl font-heading font-bold">
-          Área do profissional
-        </h1>
+          <h1 className="text-3xl font-bold">
+            {authMode === "register"
+              ? "Cadastre-se como profissional"
+              : "Entrar como profissional"}
+          </h1>
 
-        <p className="text-muted-foreground mt-2">
-          {authMode === "register"
-            ? "Crie sua conta profissional e já prepare seu perfil."
-            : "Entre na sua conta para continuar seu cadastro."}
-        </p>
-      </div>
-
-      <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm">
-        {authMode === "register" && (
-          <div className="mb-6">
-            <Input
-              label="Nome completo"
-              value={authName}
-              onChange={setAuthName}
-              placeholder="Seu nome completo"
-              required
-            />
-          </div>
-        )}
-
-        <div className="space-y-5">
-          <Input
-            label="E-mail"
-            value={authEmail}
-            onChange={setAuthEmail}
-            type="email"
-            placeholder="profissional@email.com"
-            required
-          />
-
-          <label className="block">
-            <span className="block text-sm font-medium mb-2">
-              Senha{" "}
-              <span className="text-red-500">
-                *
-              </span>
-            </span>
-
-            <div className="relative">
-              <input
-                type={
-                  showPassword
-                    ? "text"
-                    : "password"
-                }
-                value={authPassword}
-                onChange={(e) =>
-                  setAuthPassword(
-                    e.target.value
-                  )
-                }
-                placeholder="Mínimo de 6 caracteres"
-                className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowPassword(
-                    (value) => !value
-                  )
-                }
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                aria-label={
-                  showPassword
-                    ? "Ocultar senha"
-                    : "Mostrar senha"
-                }
-              >
-                {showPassword ? (
-                  <EyeOff size={20} />
-                ) : (
-                  <Eye size={20} />
-                )}
-              </button>
-            </div>
-          </label>
+          <p className="mt-2 text-muted-foreground">
+            {authMode === "register"
+              ? "Crie sua conta para começar seu perfil profissional."
+              : "Acesse sua conta e continue seu cadastro."}
+          </p>
         </div>
 
-        {authMode === "register" && (
-          <div className="mt-8 space-y-5">
+        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
+          <div className="space-y-5">
+            {authMode === "register" && (
+              <Input
+                label="Nome completo"
+                value={authName}
+                onChange={setAuthName}
+                placeholder="Digite seu nome completo"
+                required
+              />
+            )}
+
+            <Input
+              label="E-mail"
+              value={authEmail}
+              onChange={setAuthEmail}
+              type="email"
+              placeholder="seu@email.com"
+              required
+            />
+
             <div>
-              <h2 className="text-xl font-heading font-bold">
-                Seu perfil profissional
-              </h2>
+              <span className="mb-2 block text-sm font-medium">
+                Senha
+              </span>
 
-              <p className="text-sm text-muted-foreground mt-1">
-                Você poderá adicionar sua
-                foto e seu vídeo de
-                apresentação depois de
-                entrar na conta.
-              </p>
-            </div>
+              <div className="relative">
+                <input
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
+                  value={authPassword}
+                  onChange={(e) =>
+                    setAuthPassword(e.target.value)
+                  }
+                  placeholder="Mínimo de 6 caracteres"
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
 
-            <div className="grid md:grid-cols-2 gap-5">
-              <div className="rounded-2xl border border-border bg-background p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    <Camera size={20} />
-                  </div>
-
-                  <div>
-                    <p className="font-semibold">
-                      Foto de perfil
-                    </p>
-
-                    <p className="text-xs text-muted-foreground">
-                      JPG, PNG ou WEBP
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  Sua foto ficará
-                  vinculada ao perfil
-                  profissional.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-background p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    <Video size={20} />
-                  </div>
-
-                  <div>
-                    <p className="font-semibold">
-                      Vídeo de
-                      apresentação
-                    </p>
-
-                    <p className="text-xs text-muted-foreground">
-                      MP4, WEBM ou MOV
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  Apresente seu trabalho
-                  de forma breve e
-                  acolhedora.
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPassword(
+                      (current) => !current
+                    )
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  aria-label={
+                    showPassword
+                      ? "Ocultar senha"
+                      : "Mostrar senha"
+                  }
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
               </div>
             </div>
-          </div>
-        )}
 
-        {confirmationSent && (
-          <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <p className="font-medium">
-              Conta criada!
-            </p>
+            {confirmationSent && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+                <p className="font-medium">
+                  Confirmação enviada.
+                </p>
 
-            <p className="text-sm text-muted-foreground mt-1">
-              Confirme seu e-mail antes de
-              entrar. Depois volte aqui e use
-              a opção "Já tenho uma conta
-              profissional" para continuar o
-              cadastro, incluindo foto e
-              vídeo.
-            </p>
+                <p className="mt-1 text-muted-foreground">
+                  Verifique seu e-mail e confirme sua
+                  conta antes de entrar.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  className="mt-3 font-medium text-primary hover:underline"
+                >
+                  Reenviar confirmação
+                </button>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
+                {error}
+              </div>
+            )}
 
             <button
               type="button"
-              onClick={resendConfirmation}
+              onClick={authenticateProfessional}
               disabled={authSubmitting}
-              className="mt-3 text-sm font-medium text-primary hover:underline"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Reenviar confirmação
+              {authSubmitting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : authMode === "register" ? (
+                <UserPlus className="h-5 w-5" />
+              ) : (
+                <LogIn className="h-5 w-5" />
+              )}
+
+              {authMode === "register"
+                ? "Criar conta"
+                : "Entrar"}
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode((current) =>
+                  current === "register"
+                    ? "login"
+                    : "register"
+                );
+                setError("");
+                setConfirmationSent(false);
+              }}
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+            >
+              {authMode === "register"
+                ? "Já tenho uma conta"
+                : "Ainda não tenho uma conta"}
+            </button>
+
+            <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">
+              <Lock className="h-5 w-5 shrink-0" />
+
+              <span>
+                Seus dados são protegidos e utilizados
+                apenas para o funcionamento da plataforma.
+              </span>
+            </div>
           </div>
-        )}
+        </div>
 
-        {error && (
-          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm">
-            {error}
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <Camera className="mb-3 h-6 w-6 text-primary" />
+
+            <h2 className="font-semibold">
+              Perfil profissional
+            </h2>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Adicione sua foto e informações
+              profissionais.
+            </p>
           </div>
-        )}
 
-        <button
-          type="button"
-          onClick={
-            authenticateProfessional
-          }
-          disabled={authSubmitting}
-          className="mt-6 w-full rounded-xl bg-primary text-primary-foreground py-3.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          {authSubmitting ? (
-            <Loader2
-              size={20}
-              className="animate-spin"
-            />
-          ) : authMode === "register" ? (
-            <UserPlus size={20} />
-          ) : (
-            <LogIn size={20} />
-          )}
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <Video className="mb-3 h-6 w-6 text-primary" />
 
-          {authMode === "register"
-            ? "Criar conta"
-            : "Entrar"}
-        </button>
+            <h2 className="font-semibold">
+              Vídeo de apresentação
+            </h2>
 
-        <button
-          type="button"
-          onClick={() => {
-            setAuthMode(
-              (mode) =>
-                mode === "register"
-                  ? "login"
-                  : "register"
-            );
-
-            setError("");
-            setConfirmationSent(false);
-          }}
-          className="mt-4 w-full text-sm text-muted-foreground hover:text-foreground"
-        >
-          {authMode === "register"
-            ? "Já tenho uma conta profissional"
-            : "Ainda não tenho uma conta profissional"}
-        </button>
-      </div>
-
-      <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <Lock size={14} />
-        Seus dados são enviados por uma conexão segura.
+            <p className="mt-1 text-sm text-muted-foreground">
+              Apresente seu trabalho aos pacientes.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </PageShell>
@@ -1817,35 +1466,35 @@ return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div
 }
 
 if (done) {
-return ( <PageShell> <div className="max-w-2xl mx-auto px-4 py-16"> <div className="rounded-3xl border border-border bg-card p-8 sm:p-12 text-center shadow-sm"> <div className="w-20 h-20 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center mb-6"> <Check size={42} /> </div>
+return ( <PageShell> <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-10"> <div className="w-full rounded-3xl border border-border bg-card p-8 text-center shadow-sm md:p-12"> <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10 text-green-600"> <Check className="h-10 w-10" /> </div>
 
 ```
-        <h1 className="text-3xl font-heading font-bold">
+        <h1 className="text-3xl font-bold">
           Cadastro enviado!
         </h1>
 
-        <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-          Seu perfil profissional foi salvo
-          com sua foto e vídeo e ficará
-          aguardando a verificação antes de
-          ser publicado.
+        <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
+          Seu perfil profissional foi cadastrado e
+          enviado para análise. Assim que a verificação
+          for concluída, seu perfil poderá ser publicado.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium hover:bg-muted"
           >
+            <ArrowLeft className="h-5 w-5" />
             Voltar
           </button>
 
           <button
             type="button"
             onClick={logoutProfessional}
-            className="rounded-xl border border-border px-6 py-3 font-semibold flex items-center justify-center gap-2"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground hover:opacity-90"
           >
-            <LogOut size={18} />
+            <LogOut className="h-5 w-5" />
             Sair
           </button>
         </div>
@@ -1857,13 +1506,14 @@ return ( <PageShell> <div className="max-w-2xl mx-auto px-4 py-16"> <div classNa
 
 }
 
-const CurrentIcon = STEPS[step].icon;
+const progress =
+((step + 1) / STEPS.length) * 100;
 
-return ( <PageShell> <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12"> <div className="flex items-center justify-between gap-4 mb-8"> <div> <p className="text-sm text-muted-foreground">
+return ( <PageShell> <div className="mx-auto max-w-6xl px-4 py-8 md:py-10"> <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"> <div> <p className="text-sm text-muted-foreground">
 Olá, {displayName} </p>
 
 ```
-        <h1 className="text-3xl font-heading font-bold mt-1">
+        <h1 className="mt-1 text-3xl font-bold">
           Complete seu perfil profissional
         </h1>
       </div>
@@ -1871,15 +1521,15 @@ Olá, {displayName} </p>
       <button
         type="button"
         onClick={logoutProfessional}
-        className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm"
+        className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
       >
-        <LogOut size={17} />
+        <LogOut className="h-4 w-4" />
         Sair
       </button>
     </div>
 
-    <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm mb-6">
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+    <div className="mb-8 rounded-2xl border border-border bg-card p-4 md:p-5">
+      <div className="flex flex-wrap gap-2">
         {STEPS.map((item, index) => {
           const Icon = item.icon;
           const active = index === step;
@@ -1887,7 +1537,7 @@ Olá, {displayName} </p>
 
           return (
             <button
-              key={item.key}
+              key={item.title}
               type="button"
               onClick={() => {
                 if (index <= step) {
@@ -1895,107 +1545,88 @@ Olá, {displayName} </p>
                   setStep(index);
                 }
               }}
-              disabled={index > step}
               className={
-                "rounded-2xl p-3 text-center transition " +
-                (active
-                  ? "bg-primary text-primary-foreground"
+                active
+                  ? "flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
                   : completed
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted/40 text-muted-foreground") +
-                " disabled:cursor-not-allowed"
+                  ? "flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
+                  : "flex items-center gap-2 rounded-xl bg-muted px-4 py-2 text-sm font-medium text-muted-foreground"
               }
             >
-              <Icon
-                size={19}
-                className="mx-auto mb-1"
-              />
-
-              <span className="text-xs font-medium">
-                {item.label}
-              </span>
+              <Icon className="h-4 w-4" />
+              {item.title}
             </button>
           );
         })}
       </div>
 
-      <div className="h-2 rounded-full bg-muted mt-5 overflow-hidden">
+      <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full bg-primary transition-all"
-          style={{
-            width:
-              ((step + 1) /
-                STEPS.length) *
-                100 +
-              "%",
-          }}
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: progress + "%" }}
         />
       </div>
+
+      <p className="mt-3 text-sm text-muted-foreground">
+        Etapa {step + 1} de {STEPS.length}
+      </p>
     </div>
 
     {error && (
-      <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm flex items-start gap-3">
-        <X
-          size={18}
-          className="mt-0.5 shrink-0"
-        />
-
-        <span>{error}</span>
+      <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
+        {error}
       </div>
     )}
 
-    <div className="rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm">
+    <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
       {step === 0 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
-              Dados pessoais
+            <h2 className="text-2xl font-bold">
+              Informações pessoais
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Informações básicas para seu perfil.
+            <p className="mt-1 text-muted-foreground">
+              Conte um pouco sobre você.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid gap-5 md:grid-cols-2">
             <Input
               label="Nome completo"
               value={data.full_name}
-              onChange={(v) =>
-                set("full_name", v)
+              onChange={(value) =>
+                set("full_name", value)
               }
+              placeholder="Seu nome completo"
               required
             />
 
             <Input
               label="Nome profissional"
-              value={
-                data.professional_name
+              value={data.professional_name}
+              onChange={(value) =>
+                set("professional_name", value)
               }
-              onChange={(v) =>
-                set(
-                  "professional_name",
-                  v
-                )
-              }
-              placeholder="Como deseja aparecer no perfil"
+              placeholder="Como deseja ser apresentado"
             />
 
             <Input
               label="E-mail"
               value={data.email}
-              onChange={(v) =>
-                set("email", v)
+              onChange={(value) =>
+                set("email", value)
               }
               type="email"
+              placeholder="seu@email.com"
               required
             />
 
             <Input
               label="Telefone"
               value={data.phone}
-              onChange={(v) =>
-                set("phone", v)
+              onChange={(value) =>
+                set("phone", value)
               }
               placeholder="(00) 00000-0000"
             />
@@ -2003,41 +1634,38 @@ Olá, {displayName} </p>
             <Input
               label="Cidade"
               value={data.city}
-              onChange={(v) =>
-                set("city", v)
+              onChange={(value) =>
+                set("city", value)
               }
+              placeholder="Sua cidade"
               required
             />
 
             <Input
               label="Estado"
               value={data.state}
-              onChange={(v) =>
+              onChange={(value) =>
                 set(
                   "state",
-                  v
-                    .toUpperCase()
-                    .slice(0, 2)
+                  value.toUpperCase().slice(0, 2)
                 )
               }
               placeholder="SP"
               required
             />
 
-            <Input
+            <Select
               label="Gênero"
               value={data.gender}
-              onChange={(v) =>
-                set("gender", v)
+              onChange={(value) =>
+                set("gender", value)
               }
-            />
-
-            <Input
-              label="Endereço"
-              value={data.address}
-              onChange={(v) =>
-                set("address", v)
-              }
+              options={[
+                "Feminino",
+                "Masculino",
+                "Não binário",
+                "Prefiro não informar",
+              ]}
             />
           </div>
         </div>
@@ -2046,36 +1674,31 @@ Olá, {displayName} </p>
       {step === 1 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
-              Dados profissionais
+            <h2 className="text-2xl font-bold">
+              Informações profissionais
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Informe sua formação e registro profissional.
+            <p className="mt-1 text-muted-foreground">
+              Informe seus dados de formação e atuação.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid gap-5 md:grid-cols-2">
             <Input
               label="Número do CRP"
               value={data.crp_number}
-              onChange={(v) =>
-                set(
-                  "crp_number",
-                  v
-                )
+              onChange={(value) =>
+                set("crp_number", value)
               }
+              placeholder="Digite seu CRP"
               required
             />
 
             <Select
               label="Região do CRP"
               value={data.crp_region}
-              onChange={(v) =>
-                set(
-                  "crp_region",
-                  v
-                )
+              onChange={(value) =>
+                set("crp_region", value)
               }
               options={REGION_OPTS}
               required
@@ -2084,51 +1707,36 @@ Olá, {displayName} </p>
             <Input
               label="Formação"
               value={data.education}
-              onChange={(v) =>
-                set(
-                  "education",
-                  v
-                )
+              onChange={(value) =>
+                set("education", value)
               }
+              placeholder="Psicologia"
             />
 
             <Input
               label="Instituição"
               value={data.institution}
-              onChange={(v) =>
-                set(
-                  "institution",
-                  v
-                )
+              onChange={(value) =>
+                set("institution", value)
               }
+              placeholder="Nome da instituição"
             />
 
             <Input
               label="Ano de formação"
-              value={
-                data.graduation_year
+              value={data.graduation_year}
+              onChange={(value) =>
+                set("graduation_year", value)
               }
-              onChange={(v) =>
-                set(
-                  "graduation_year",
-                  v
-                    .replace(
-                      /\D/g,
-                      ""
-                    )
-                    .slice(0, 4)
-                )
-              }
+              type="number"
+              placeholder="2026"
             />
 
             <Input
-              label="Experiência"
+              label="Experiência profissional"
               value={data.experience}
-              onChange={(v) =>
-                set(
-                  "experience",
-                  v
-                )
+              onChange={(value) =>
+                set("experience", value)
               }
               placeholder="Ex.: 5 anos"
             />
@@ -2137,28 +1745,27 @@ Olá, {displayName} </p>
           <Chips
             label="Especializações"
             options={SPEC_OPTS}
-            values={
-              data.specializations
-            }
-            onChange={(v) =>
-              set(
-                "specializations",
-                v
-              )
+            values={data.specializations}
+            onChange={(values) =>
+              set("specializations", values)
             }
           />
 
           <Chips
             label="Abordagens terapêuticas"
             options={APPROACH_OPTS}
-            values={
-              data.approaches
+            values={data.approaches}
+            onChange={(values) =>
+              set("approaches", values)
             }
-            onChange={(v) =>
-              set(
-                "approaches",
-                v
-              )
+          />
+
+          <Chips
+            label="Especialidades"
+            options={SPEC_OPTS}
+            values={data.specialties}
+            onChange={(values) =>
+              set("specialties", values)
             }
           />
         </div>
@@ -2167,12 +1774,12 @@ Olá, {displayName} </p>
       {step === 2 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
+            <h2 className="text-2xl font-bold">
               Atendimento
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Defina como e quando você atende.
+            <p className="mt-1 text-muted-foreground">
+              Configure como você atende seus pacientes.
             </p>
           </div>
 
@@ -2181,25 +1788,20 @@ Olá, {displayName} </p>
             options={[
               "online",
               "presencial",
+              "híbrido",
             ]}
             values={data.modalities}
-            onChange={(v) =>
-              set(
-                "modalities",
-                v
-              )
+            onChange={(values) =>
+              set("modalities", values)
             }
           />
 
           <Chips
-            label="Idiomas"
-            options={LANG_OPTS}
-            values={data.languages}
-            onChange={(v) =>
-              set(
-                "languages",
-                v
-              )
+            label="Temas de atendimento"
+            options={THEME_OPTS}
+            values={data.themes}
+            onChange={(values) =>
+              set("themes", values)
             }
           />
 
@@ -2207,127 +1809,92 @@ Olá, {displayName} </p>
             label="Público"
             options={AUDIENCE_OPTS}
             values={data.audience}
-            onChange={(v) =>
-              set(
-                "audience",
-                v
-              )
+            onChange={(values) =>
+              set("audience", values)
             }
           />
 
           <Chips
-            label="Temas"
-            options={THEME_OPTS}
-            values={data.themes}
-            onChange={(v) =>
-              set(
-                "themes",
-                v
-              )
+            label="Idiomas"
+            options={LANG_OPTS}
+            values={data.languages}
+            onChange={(values) =>
+              set("languages", values)
             }
           />
 
-          <div className="grid sm:grid-cols-2 gap-5">
+          <div className="grid gap-5 md:grid-cols-2">
             <Input
-              label="Valor da sessão (R$)"
+              label="Valor da sessão"
               value={data.price}
-              onChange={(v) =>
-                set(
-                  "price",
-                  v
-                    .replace(
-                      ",",
-                      "."
-                    )
-                    .replace(
-                      /[^0-9.]/g,
-                      ""
-                    )
-                )
+              onChange={(value) =>
+                set("price", value)
               }
+              type="number"
+              placeholder="Ex.: 150"
             />
 
-            <Select
+            <Input
               label="Duração da sessão"
-              value={String(
-                data.session_duration
-              )}
-              onChange={(v) =>
+              value={data.session_duration}
+              onChange={(value) =>
                 set(
                   "session_duration",
-                  Number(v)
+                  value
                 )
               }
-              options={[
-                "30",
-                "40",
-                "50",
-                "60",
-                "90",
-              ].map(
-                (value) => ({
-                  value: value,
-                  label:
-                    value +
-                    " minutos",
-                })
-              )}
+              type="number"
+              placeholder="50"
             />
           </div>
 
           <Chips
             label="Dias disponíveis"
             options={DAY_OPTS}
-            values={
-              data.available_days
-            }
-            onChange={(v) =>
-              set(
-                "available_days",
-                v
-              )
+            values={data.available_days}
+            onChange={(values) =>
+              set("available_days", values)
             }
           />
 
           <Chips
             label="Horários disponíveis"
             options={SLOT_OPTS}
-            values={
-              data.available_slots
-            }
-            onChange={(v) =>
-              set(
-                "available_slots",
-                v
-              )
+            values={data.available_slots}
+            onChange={(values) =>
+              set("available_slots", values)
             }
           />
 
           <TextArea
             label="Política de cancelamento"
-            value={
-              data.cancellation_policy
-            }
-            onChange={(v) =>
+            value={data.cancellation_policy}
+            onChange={(value) =>
               set(
                 "cancellation_policy",
-                v
+                value
               )
             }
-            placeholder="Explique sua política de cancelamento e reagendamento."
+            placeholder="Informe sua política de cancelamento e reagendamento."
             rows={4}
+          />
+
+          <Input
+            label="Endereço"
+            value={data.address}
+            onChange={(value) =>
+              set("address", value)
+            }
+            placeholder="Endereço do atendimento presencial"
           />
 
           <TextArea
             label="Sobre você"
             value={data.about}
-            onChange={(v) =>
-              set(
-                "about",
-                v
-              )
+            onChange={(value) =>
+              set("about", value)
             }
-            placeholder="Conte um pouco sobre sua experiência e seu trabalho."
+            placeholder="Escreva uma apresentação profissional."
             rows={6}
           />
         </div>
@@ -2336,12 +1903,13 @@ Olá, {displayName} </p>
       {step === 3 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
-              Foto profissional
+            <h2 className="text-2xl font-bold">
+              Sua foto
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Adicione uma foto nítida para representar seu perfil profissional.
+            <p className="mt-1 text-muted-foreground">
+              Uma boa foto ajuda os pacientes a
+              reconhecerem seu perfil.
             </p>
           </div>
 
@@ -2349,33 +1917,25 @@ Olá, {displayName} </p>
             type="photo"
             file={photoFile}
             preview={
-              photoPreview ||
-              data.photo_url
+              photoPreview || data.photo_url
             }
             uploading={uploading}
-            onChange={
-              handlePhotoSelect
-            }
-            onRemove={
-              removePhoto
-            }
+            onChange={handlePhotoChange}
+            onRemove={removePhoto}
           />
-
-          <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-            A foto será enviada para o Storage do Supabase e vinculada ao seu perfil profissional.
-          </div>
         </div>
       )}
 
       {step === 4 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
+            <h2 className="text-2xl font-bold">
               Vídeo de apresentação
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Apresente seu trabalho de forma breve e acolhedora.
+            <p className="mt-1 text-muted-foreground">
+              Grave um vídeo curto apresentando seu
+              trabalho.
             </p>
           </div>
 
@@ -2383,230 +1943,211 @@ Olá, {displayName} </p>
             type="video"
             file={videoFile}
             preview={
-              videoPreview ||
-              data.video_url
+              videoPreview || data.video_url
             }
             uploading={uploading}
-            onChange={
-              handleVideoSelect
-            }
-            onRemove={
-              removeVideo
-            }
+            onChange={handleVideoChange}
+            onRemove={removeVideo}
           />
-
-          <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-            O vídeo será enviado para o Storage do Supabase e sua URL será salva no perfil.
-          </div>
         </div>
       )}
 
       {step === 5 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-heading font-bold">
-              Revisão
+            <h2 className="text-2xl font-bold">
+              Revisão do cadastro
             </h2>
 
-            <p className="text-muted-foreground mt-1">
-              Confira seus dados antes de enviar.
+            <p className="mt-1 text-muted-foreground">
+              Confira as informações antes de enviar.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            {[
-              [
-                "Nome",
-                data.full_name,
-              ],
-              [
-                "Nome profissional",
-                data.professional_name ||
-                  data.full_name,
-              ],
-              [
-                "E-mail",
-                data.email,
-              ],
-              [
-                "Cidade",
-                data.city +
-                  " - " +
-                  data.state,
-              ],
-              [
-                "CRP",
-                data.crp_number +
-                  " / " +
-                  data.crp_region,
-              ],
-              [
-                "Modalidades",
-                data.modalities.join(
-                  ", "
-                ),
-              ],
-              [
-                "Especializações",
-                data.specializations.join(
-                  ", "
-                ) ||
-                  "Não informado",
-              ],
-              [
-                "Abordagens",
-                data.approaches.join(
-                  ", "
-                ) ||
-                  "Não informado",
-              ],
-              [
-                "Público",
-                data.audience.join(
-                  ", "
-                ),
-              ],
-              [
-                "Idiomas",
-                data.languages.join(
-                  ", "
-                ),
-              ],
-              [
-                "Valor",
-                data.price
-                  ? "R$ " +
-                    data.price
-                  : "Não informado",
-              ],
-              [
-                "Duração",
-                data.session_duration +
-                  " minutos",
-              ],
-            ].map(
-              ([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl bg-muted/40 p-4"
-                >
-                  <p className="text-xs text-muted-foreground">
-                    {label}
-                  </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                Nome
+              </p>
 
-                  <p className="font-medium mt-1 break-words">
-                    {value ||
-                      "Não informado"}
-                  </p>
+              <p className="mt-1 font-medium">
+                {data.professional_name ||
+                  data.full_name ||
+                  "Não informado"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                E-mail
+              </p>
+
+              <p className="mt-1 font-medium break-all">
+                {data.email || "Não informado"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                CRP
+              </p>
+
+              <p className="mt-1 font-medium">
+                {data.crp_number
+                  ? "CRP " +
+                    data.crp_region +
+                    " - " +
+                    data.crp_number
+                  : "Não informado"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                Localização
+              </p>
+
+              <p className="mt-1 font-medium">
+                {data.city && data.state
+                  ? data.city +
+                    " - " +
+                    data.state
+                  : "Não informado"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                Modalidades
+              </p>
+
+              <p className="mt-1 font-medium">
+                {data.modalities &&
+                data.modalities.length > 0
+                  ? data.modalities.join(", ")
+                  : "Não informado"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">
+                Valor da sessão
+              </p>
+
+              <p className="mt-1 font-medium">
+                {data.price
+                  ? "R$ " + data.price
+                  : "Não informado"}
+              </p>
+            </div>
+          </div>
+
+          {data.specializations &&
+            data.specializations.length > 0 && (
+              <div>
+                <p className="mb-2 text-sm font-medium">
+                  Especializações
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {data.specializations.map(
+                    (item) => (
+                      <span
+                        key={item}
+                        className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"
+                      >
+                        {item}
+                      </span>
+                    )
+                  )}
                 </div>
-              )
+              </div>
             )}
-          </div>
 
-          <div className="grid md:grid-cols-2 gap-5">
-            {data.photo_url ||
-            photoPreview ? (
-              <div className="rounded-2xl border border-border p-4">
-                <p className="font-semibold mb-3">
-                  Foto
-                </p>
+          {photoPreview && (
+            <div>
+              <p className="mb-2 text-sm font-medium">
+                Foto
+              </p>
 
-                <img
-                  src={
-                    photoPreview ||
-                    data.photo_url
-                  }
-                  alt="Foto profissional"
-                  className="w-full h-64 object-cover rounded-2xl"
-                />
-              </div>
-            ) : null}
+              <img
+                src={photoPreview}
+                alt="Foto de perfil"
+                className="h-48 w-48 rounded-2xl object-cover"
+              />
+            </div>
+          )}
 
-            {data.video_url ||
-            videoPreview ? (
-              <div className="rounded-2xl border border-border p-4">
-                <p className="font-semibold mb-3">
-                  Vídeo
-                </p>
+          {videoPreview && (
+            <div>
+              <p className="mb-2 text-sm font-medium">
+                Vídeo
+              </p>
 
-                <video
-                  src={
-                    videoPreview ||
-                    data.video_url
-                  }
-                  controls
-                  className="w-full h-64 object-cover rounded-2xl"
-                />
-              </div>
-            ) : null}
-          </div>
+              <video
+                src={videoPreview}
+                controls
+                className="max-h-80 w-full rounded-2xl"
+              />
+            </div>
+          )}
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-            <p className="font-semibold">
-              Pronto para enviar?
-            </p>
+            <div className="flex gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 
-            <p className="text-sm text-muted-foreground mt-1">
-              Seu cadastro será salvo com status de verificação pendente e o perfil público permanecerá desativado até a aprovação.
-            </p>
+              <div>
+                <p className="font-medium">
+                  Seu perfil passará por verificação
+                </p>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Após o envio, nossa equipe poderá
+                  analisar suas informações antes de
+                  liberar o perfil publicamente.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-6 border-t border-border">
+      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={previousStep}
-          disabled={
-            step === 0 ||
-            submitting ||
-            uploading
-          }
-          className="rounded-xl border border-border px-5 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+          disabled={step === 0 || submitting}
+          className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft className="h-5 w-5" />
           Voltar
         </button>
 
-        {step <
-        STEPS.length - 1 ? (
+        {step < STEPS.length - 1 ? (
           <button
             type="button"
             onClick={nextStep}
-            disabled={
-              submitting ||
-              uploading
-            }
-            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+            disabled={submitting}
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continuar
-            <ArrowRight size={18} />
+            <ArrowRight className="h-5 w-5" />
           </button>
         ) : (
           <button
             type="button"
             onClick={submit}
-            disabled={
-              submitting ||
-              uploading
-            }
-            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+            disabled={submitting}
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ||
-            uploading ? (
+            {submitting ? (
               <>
-                <Loader2
-                  size={18}
-                  className="animate-spin"
-                />
-
-                {uploading
-                  ? "Enviando arquivos..."
-                  : "Salvando..."}
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Enviando...
               </>
             ) : (
               <>
-                <Check size={18} />
+                <Check className="h-5 w-5" />
                 Enviar cadastro
               </>
             )}
