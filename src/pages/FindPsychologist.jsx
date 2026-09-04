@@ -120,6 +120,8 @@ export default function FindPsychologist() {
           crp_region,
           verification_status,
           education,
+          institution,
+          graduation_year,
           specializations,
           approaches,
           experience,
@@ -129,14 +131,21 @@ export default function FindPsychologist() {
           audience,
           city,
           state,
+          phone,
+          gender,
           session_price,
           session_duration,
+          available_days,
+          available_slots,
+          cancellation_policy,
+          address,
           bio,
           profile_photo_url,
-          photo_url,
           presentation_video_url,
           presentation_video_status,
-          public_profile
+          public_profile,
+          created_at,
+          updated_at
         `)
         .eq('verification_status', 'approved')
         .eq('public_profile', true)
@@ -152,6 +161,7 @@ export default function FindPsychologist() {
         );
 
         setError(
+          supabaseError.message ||
           'Não foi possível carregar os profissionais.'
         );
 
@@ -167,6 +177,7 @@ export default function FindPsychologist() {
       );
 
       setError(
+        err?.message ||
         'Não foi possível carregar os profissionais.'
       );
 
@@ -207,6 +218,7 @@ export default function FindPsychologist() {
       const searchableValues = [
         psychologist.professional_name,
         psychologist.education,
+        psychologist.institution,
         psychologist.experience,
         psychologist.bio,
         psychologist.city,
