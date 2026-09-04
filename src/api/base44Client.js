@@ -1,4 +1,3 @@
-```javascript
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -108,4 +107,3 @@ export const base44 = {
  * dos componentes antigos.
  */
 export { supabase }
-```
