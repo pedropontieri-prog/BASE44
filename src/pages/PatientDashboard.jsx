@@ -1,3 +1,4 @@
+```jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -159,19 +160,62 @@ function getStatusClass(status) {
     return 'bg-red-50 text-red-600 dark:bg-red-500/10';
   }
 
-  if (
-    status === 'completed'
-  ) {
+  if (status === 'completed') {
     return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10';
   }
 
-  if (
-    status === 'pending'
-  ) {
+  if (status === 'pending') {
     return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10';
   }
 
   return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10';
+}
+
+async function fetchAppointments(userId) {
+  let result = await supabase
+    .from('appointments')
+    .select('*')
+    .eq('patient_id', userId);
+
+  if (
+    result.error &&
+    (
+      result.error.message?.includes('patient_id') ||
+      result.error.message?.includes('column')
+    )
+  ) {
+    result = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('user_id', userId);
+  }
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const data = Array.isArray(result.data)
+    ? result.data
+    : [];
+
+  return data.sort((a, b) => {
+    const dateA = getAppointmentDate(a);
+    const dateB = getAppointmentDate(b);
+
+    if (!dateA && !dateB) {
+      return 0;
+    }
+
+    if (!dateA) {
+      return 1;
+    }
+
+    if (!dateB) {
+      return -1;
+    }
+
+    return dateA.getTime() - dateB.getTime();
+  });
 }
 
 export default function PatientDashboard() {
@@ -191,18 +235,70 @@ export default function PatientDashboard() {
     );
   }, [location.state]);
 
+  async function loadAppointments() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        setAppointments([]);
+        setError(
+          'Sua sessão não foi encontrada. Faça login novamente.'
+        );
+        return;
+      }
+
+      const data = await fetchAppointments(user.id);
+
+      setAppointments(data);
+    } catch (loadError) {
+      console.error(
+        'Erro ao carregar consultas:',
+        loadError
+      );
+
+      console.error(
+        'Mensagem do Supabase:',
+        loadError?.message
+      );
+
+      console.error(
+        'Detalhes do Supabase:',
+        loadError?.details
+      );
+
+      console.error(
+        'Código do Supabase:',
+        loadError?.code
+      );
+
+      setAppointments([]);
+
+      setError(
+        loadError?.message ||
+        'Não foi possível carregar suas consultas.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
 
-    async function loadAppointments() {
-      setLoading(true);
-      setError('');
-
+    async function initialLoad() {
       try {
         const {
-          data: {
-            user,
-          },
+          data: { user },
           error: userError,
         } = await supabase.auth.getUser();
 
@@ -221,40 +317,10 @@ export default function PatientDashboard() {
           return;
         }
 
-        /*
-         * IMPORTANTE:
-         * As consultas são filtradas pelo paciente logado.
-         *
-         * A coluna esperada na tabela appointments é:
-         * patient_id
-         *
-         * e deve armazenar o UUID do usuário autenticado.
-         */
-        const {
-          data,
-          error: appointmentsError,
-        } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('patient_id', user.id)
-          .order('date', {
-            ascending: true,
-          })
-          .order('time', {
-            ascending: true,
-          })
-          .limit(50);
-
-        if (appointmentsError) {
-          throw appointmentsError;
-        }
+        const data = await fetchAppointments(user.id);
 
         if (mounted) {
-          setAppointments(
-            Array.isArray(data)
-              ? data
-              : []
-          );
+          setAppointments(data);
         }
       } catch (loadError) {
         console.error(
@@ -262,10 +328,21 @@ export default function PatientDashboard() {
           loadError
         );
 
+        console.error(
+          'Mensagem do Supabase:',
+          loadError?.message
+        );
+
+        console.error(
+          'Código do Supabase:',
+          loadError?.code
+        );
+
         if (mounted) {
           setAppointments([]);
 
           setError(
+            loadError?.message ||
             'Não foi possível carregar suas consultas.'
           );
         }
@@ -276,7 +353,7 @@ export default function PatientDashboard() {
       }
     }
 
-    loadAppointments();
+    initialLoad();
 
     return () => {
       mounted = false;
@@ -288,8 +365,7 @@ export default function PatientDashboard() {
   const upcomingAppointments = useMemo(() => {
     return appointments
       .filter((appointment) => {
-        const status =
-          appointment.status;
+        const status = appointment.status;
 
         const cancelled =
           status === 'cancelled' ||
@@ -300,9 +376,7 @@ export default function PatientDashboard() {
         }
 
         const date =
-          getAppointmentDate(
-            appointment
-          );
+          getAppointmentDate(appointment);
 
         if (!date) {
           return true;
@@ -352,9 +426,7 @@ export default function PatientDashboard() {
         }
 
         const date =
-          getAppointmentDate(
-            appointment
-          );
+          getAppointmentDate(appointment);
 
         if (!date) {
           return false;
@@ -388,69 +460,11 @@ export default function PatientDashboard() {
       });
   }, [appointments]);
 
-  const next = upcomingAppointments[0];
-
   async function reloadAppointments() {
-    setLoading(true);
-    setError('');
-
-    try {
-      const {
-        data: {
-          user,
-        },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        throw userError;
-      }
-
-      if (!user) {
-        setAppointments([]);
-        setError(
-          'Sua sessão não foi encontrada.'
-        );
-        return;
-      }
-
-      const {
-        data,
-        error: appointmentsError,
-      } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('patient_id', user.id)
-        .order('date', {
-          ascending: true,
-        })
-        .order('time', {
-          ascending: true,
-        })
-        .limit(50);
-
-      if (appointmentsError) {
-        throw appointmentsError;
-      }
-
-      setAppointments(
-        Array.isArray(data)
-          ? data
-          : []
-      );
-    } catch (reloadError) {
-      console.error(
-        'Erro ao atualizar consultas:',
-        reloadError
-      );
-
-      setError(
-        'Não foi possível atualizar suas consultas.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    await loadAppointments();
   }
+
+  const next = upcomingAppointments[0];
 
   return (
     <PageShell>
@@ -479,6 +493,7 @@ export default function PatientDashboard() {
               </div>
 
               <div className="flex-1">
+
                 <h3 className="font-heading font-semibold text-lg">
                   Consulta agendada com sucesso!
                 </h3>
@@ -513,20 +528,18 @@ export default function PatientDashboard() {
                   <Info
                     label="Modalidade"
                     value={
-                      confirmed.modality ===
-                      'online'
+                      confirmed.modality === 'online'
                         ? 'Online (videochamada)'
                         : 'Presencial'
                     }
                   />
 
-                  {confirmed.modality ===
-                    'online' && (
+                  {confirmed.modality === 'online' && (
                     <div className="sm:col-span-2">
+
                       <Link
                         to={{
-                          pathname:
-                            '/videochamada',
+                          pathname: '/videochamada',
                           search:
                             `?name=${encodeURIComponent(
                               confirmed.psychologistName ||
@@ -558,6 +571,7 @@ export default function PatientDashboard() {
                         <Video size={16} />
                         Entrar na videochamada
                       </Link>
+
                     </div>
                   )}
 
@@ -569,18 +583,35 @@ export default function PatientDashboard() {
 
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 dark:bg-red-500/5 p-5">
+
             <div className="flex items-center justify-between gap-4">
 
-              <p className="text-sm text-red-700">
-                {error}
-              </p>
+              <div className="min-w-0">
+
+                <p className="text-sm font-medium text-red-700">
+                  Não foi possível carregar suas consultas.
+                </p>
+
+                <p className="text-xs text-red-600 mt-1 break-words">
+                  {error}
+                </p>
+
+              </div>
 
               <button
                 type="button"
                 onClick={reloadAppointments}
-                className="shrink-0 inline-flex items-center gap-2 text-sm font-medium text-red-700 hover:underline"
+                disabled={loading}
+                className="shrink-0 inline-flex items-center gap-2 text-sm font-medium text-red-700 hover:underline disabled:opacity-50"
               >
-                <RefreshCw size={15} />
+                <RefreshCw
+                  size={15}
+                  className={
+                    loading
+                      ? 'animate-spin'
+                      : ''
+                  }
+                />
                 Atualizar
               </button>
 
@@ -604,11 +635,15 @@ export default function PatientDashboard() {
 
                 {loading ? (
                   <div className="mt-4 space-y-3">
+
                     <div className="h-6 w-52 animate-shimmer rounded-lg" />
+
                     <div className="h-4 w-full max-w-md animate-shimmer rounded-lg" />
+
                   </div>
                 ) : next ? (
                   <>
+
                     <h2 className="mt-2 text-xl font-heading font-bold">
                       {getPsychologistName(next)}
                     </h2>
@@ -617,6 +652,7 @@ export default function PatientDashboard() {
 
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={15} />
+
                         {next.date ||
                           next.scheduled_at ||
                           'Data não informada'}
@@ -624,15 +660,17 @@ export default function PatientDashboard() {
 
                       {getAppointmentTime(next) && (
                         <span className="inline-flex items-center gap-1.5">
+
                           <Clock size={15} />
+
                           {getAppointmentTime(next)}
+
                         </span>
                       )}
 
                       <span className="inline-flex items-center gap-1.5">
-                        {getAppointmentModality(
-                          next
-                        ) === 'online' ? (
+
+                        {getAppointmentModality(next) === 'online' ? (
                           <>
                             <Video size={15} />
                             Online
@@ -643,28 +681,22 @@ export default function PatientDashboard() {
                             Presencial
                           </>
                         )}
+
                       </span>
 
                     </div>
 
-                    {getAppointmentModality(
-                      next
-                    ) === 'online' && (
+                    {getAppointmentModality(next) === 'online' && (
                       <Link
                         to="/videochamada"
                         state={{
                           roomId: next.id,
-                          appointmentId:
-                            next.id,
+                          appointmentId: next.id,
                           role: 'patient',
                           psychologistName:
-                            getPsychologistName(
-                              next
-                            ),
+                            getPsychologistName(next),
                           time:
-                            getAppointmentTime(
-                              next
-                            ),
+                            getAppointmentTime(next),
                         }}
                         className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
                       >
@@ -717,6 +749,7 @@ export default function PatientDashboard() {
                         : ''
                     }
                   />
+
                   Atualizar
                 </button>
 
@@ -733,8 +766,7 @@ export default function PatientDashboard() {
                   ))}
 
                 </div>
-              ) : upcomingAppointments.length ===
-                0 ? (
+              ) : upcomingAppointments.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   Nenhuma consulta próxima.
                 </p>
@@ -772,11 +804,9 @@ export default function PatientDashboard() {
                   ))}
 
                 </div>
-              ) : historyAppointments.length ===
-                0 ? (
+              ) : historyAppointments.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  Nenhum histórico de consultas
-                  disponível.
+                  Nenhum histórico de consultas disponível.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -835,11 +865,14 @@ export default function PatientDashboard() {
               to="/diario"
               className="block card-elevated p-5 hover:shadow-glow transition-all group"
             >
+
               <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center">
+
                 <BookHeart
                   size={22}
                   className="text-primary"
                 />
+
               </div>
 
               <h3 className="mt-4 font-heading font-semibold text-sm">
@@ -855,6 +888,7 @@ export default function PatientDashboard() {
                 Abrir diário
                 <ArrowRight size={13} />
               </span>
+
             </Link>
 
             <div className="card-elevated p-5 gradient-brand-soft">
@@ -896,9 +930,7 @@ function AppointmentItem({
   history = false,
 }) {
   const modality =
-    getAppointmentModality(
-      appointment
-    );
+    getAppointmentModality(appointment);
 
   const status =
     appointment.status ||
@@ -910,22 +942,26 @@ function AppointmentItem({
       <div className="min-w-0">
 
         <p className="text-sm font-medium truncate">
-          {getPsychologistName(
-            appointment
-          )}
+          {getPsychologistName(appointment)}
         </p>
 
         <p className="text-xs text-muted-foreground mt-0.5">
+
           {appointment.date ||
+            appointment.scheduled_at ||
             'Data não informada'}
+
           {' · '}
-          {getAppointmentTime(
-            appointment
-          ) || 'Horário não informado'}
+
+          {getAppointmentTime(appointment) ||
+            'Horário não informado'}
+
           {' · '}
+
           {modality === 'online'
             ? 'Online'
             : 'Presencial'}
+
         </p>
 
       </div>
@@ -939,19 +975,13 @@ function AppointmentItem({
             <Link
               to="/videochamada"
               state={{
-                roomId:
-                  appointment.id,
-                appointmentId:
-                  appointment.id,
+                roomId: appointment.id,
+                appointmentId: appointment.id,
                 role: 'patient',
                 psychologistName:
-                  getPsychologistName(
-                    appointment
-                  ),
+                  getPsychologistName(appointment),
                 time:
-                  getAppointmentTime(
-                    appointment
-                  ),
+                  getAppointmentTime(appointment),
               }}
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
             >
@@ -961,9 +991,7 @@ function AppointmentItem({
           )}
 
         <span
-          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(
-            status
-          )}`}
+          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(status)}`}
         >
           {getStatusLabel(status)}
         </span>
@@ -976,6 +1004,7 @@ function AppointmentItem({
 function Info({ label, value }) {
   return (
     <div>
+
       <p className="text-xs text-muted-foreground">
         {label}
       </p>
@@ -983,6 +1012,8 @@ function Info({ label, value }) {
       <p className="font-medium mt-0.5">
         {value || 'Não informado'}
       </p>
+
     </div>
   );
 }
+```
