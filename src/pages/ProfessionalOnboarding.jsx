@@ -177,123 +177,169 @@ export default function ProfessionalOnboarding() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
-  // ============================================================
-  // CARREGAR USUÁRIO
-  // ============================================================
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const loadUser = async () => {
+    const applyUser = (currentUser) => {
+      if (!mounted) return;
+
+      if (currentUser) {
+        setUser(currentUser);
+
+        setData((current) => ({
+          ...current,
+          email:
+            currentUser.email ||
+            current.email,
+          full_name:
+            currentUser.user_metadata?.full_name ||
+            currentUser.user_metadata?.name ||
+            current.full_name,
+        }));
+
+        setError("");
+      } else {
+        setUser(null);
+      }
+    };
+
+    const loadSession = async () => {
       try {
+        console.log(
+          "EntreNós: verificando sessão..."
+        );
+
         const {
           data: sessionData,
           error: sessionError,
         } = await supabase.auth.getSession();
 
+        if (!mounted) return;
+
         if (sessionError) {
           console.error(
-            "Erro ao carregar sessão:",
+            "EntreNós: erro ao recuperar sessão:",
             sessionError
           );
 
-          if (mounted) {
-            setError(
-              "Não foi possível verificar sua sessão. Faça login novamente."
-            );
-          }
+          setAuthLoading(false);
+
+          setError(
+            "Não foi possível verificar sua sessão. Faça login novamente."
+          );
 
           return;
         }
 
-        const user =
-          sessionData?.session?.user;
+        const currentUser =
+          sessionData?.session?.user || null;
 
-        if (!user) {
-          if (mounted) {
-            setError(
-              "Sua sessão expirou. Faça login novamente."
-            );
-          }
-
-          return;
-        }
-
-        if (!mounted) {
-          return;
-        }
-
-        setData((current) => ({
-          ...current,
-
-          email:
-            user.email ||
-            current.email,
-
-          full_name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            current.full_name,
-        }));
-      } catch (err) {
-        console.error(
-          "Erro ao carregar usuário:",
-          err
+        console.log(
+          "EntreNós: sessão recuperada:",
+          currentUser?.id || "nenhum usuário"
         );
 
-        if (mounted) {
-          setError(
-            "Não foi possível carregar sua sessão."
-          );
-        }
-      }
-    };
+        applyUser(currentUser);
 
-    loadUser();
+        setAuthLoading(false);
 
-    const {
-      data: authListener,
-    } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) {
-          return;
-        }
-
-        if (
-          event === "SIGNED_OUT" ||
-          !session?.user
-        ) {
+        if (!currentUser) {
           setError(
             "Sua sessão expirou. Faça login novamente."
           );
         }
+      } catch (err) {
+        console.error(
+          "EntreNós: erro inesperado ao carregar sessão:",
+          err
+        );
+
+        if (!mounted) return;
+
+        setAuthLoading(false);
+
+        setError(
+          "Não foi possível carregar sua sessão. Faça login novamente."
+        );
+      }
+    };
+
+    const {
+      data: authListener,
+    } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+
+        console.log(
+          "EntreNós Auth:",
+          event,
+          session?.user?.id || "sem usuário"
+        );
+
+        if (event === "INITIAL_SESSION") {
+          if (session?.user) {
+            applyUser(session.user);
+          }
+
+          return;
+        }
+
+        if (
+          event === "SIGNED_IN" &&
+          session?.user
+        ) {
+          applyUser(session.user);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (
+          event === "TOKEN_REFRESHED" &&
+          session?.user
+        ) {
+          applyUser(session.user);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (
+          event === "USER_UPDATED" &&
+          session?.user
+        ) {
+          applyUser(session.user);
+          setAuthLoading(false);
+          return;
+        }
+
+        if (event === "SIGNED_OUT") {
+          setUser(null);
+          setAuthLoading(false);
+
+          setError(
+            "Sua sessão expirou. Faça login novamente."
+          );
+
+          return;
+        }
 
         if (session?.user) {
-          setData((current) => ({
-            ...current,
-
-            email:
-              session.user.email ||
-              current.email,
-
-            full_name:
-              session.user.user_metadata?.full_name ||
-              session.user.user_metadata?.name ||
-              current.full_name,
-          }));
+          applyUser(session.user);
+          setAuthLoading(false);
         }
       }
     );
 
+    loadSession();
+
     return () => {
       mounted = false;
+
       authListener?.subscription?.unsubscribe();
     };
   }, []);
-
-  // ============================================================
-  // ATUALIZAR CAMPO
-  // ============================================================
 
   const set = (key, value) => {
     setData((current) => ({
@@ -301,10 +347,6 @@ export default function ProfessionalOnboarding() {
       [key]: value,
     }));
   };
-
-  // ============================================================
-  // VALIDAÇÃO
-  // ============================================================
 
   const validate = () => {
     if (step === 0) {
@@ -337,9 +379,35 @@ export default function ProfessionalOnboarding() {
     return true;
   };
 
-  // ============================================================
-  // UPLOAD
-  // ============================================================
+  const getAuthenticatedUser = async () => {
+    if (user?.id) {
+      return user;
+    }
+
+    const {
+      data: authData,
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error(
+        "EntreNós: erro ao obter usuário:",
+        authError
+      );
+
+      throw new Error(
+        "Sua sessão expirou. Faça login novamente."
+      );
+    }
+
+    if (!authData?.user) {
+      throw new Error(
+        "Sua sessão expirou. Faça login novamente."
+      );
+    }
+
+    return authData.user;
+  };
 
   const upload = async (file, key) => {
     if (!file) {
@@ -369,6 +437,7 @@ export default function ProfessionalOnboarding() {
         setError(
           "Formato de foto não permitido. Envie JPG, PNG ou WEBP."
         );
+
         return;
       }
 
@@ -376,6 +445,7 @@ export default function ProfessionalOnboarding() {
         setError(
           "A foto deve ter no máximo 150 MB."
         );
+
         return;
       }
     }
@@ -385,6 +455,7 @@ export default function ProfessionalOnboarding() {
         setError(
           "Formato de vídeo não permitido. Envie MP4, WEBM ou MOV."
         );
+
         return;
       }
     }
@@ -392,31 +463,8 @@ export default function ProfessionalOnboarding() {
     setUploading(true);
 
     try {
-      // ========================================================
-      // CONFIRMAR SESSÃO ANTES DO UPLOAD
-      // ========================================================
-
-      const {
-        data: sessionData,
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      const user =
-        sessionData?.session?.user;
-
-      if (!user) {
-        throw new Error(
-          "Sua sessão expirou. Faça login novamente."
-        );
-      }
-
-      // ========================================================
-      // NOME DO ARQUIVO
-      // ========================================================
+      const authenticatedUser =
+        await getAuthenticatedUser();
 
       const extension =
         file.name
@@ -430,15 +478,11 @@ export default function ProfessionalOnboarding() {
 
       const folder =
         key === "photo_url"
-          ? `professionals/${user.id}/photos`
-          : `professionals/${user.id}/videos`;
+          ? `professionals/${authenticatedUser.id}/photos`
+          : `professionals/${authenticatedUser.id}/videos`;
 
       const filePath =
         `${folder}/${fileName}`;
-
-      // ========================================================
-      // UPLOAD
-      // ========================================================
 
       const {
         error: uploadError,
@@ -458,10 +502,6 @@ export default function ProfessionalOnboarding() {
         throw uploadError;
       }
 
-      // ========================================================
-      // URL PÚBLICA
-      // ========================================================
-
       const {
         data: publicUrlData,
       } =
@@ -479,10 +519,9 @@ export default function ProfessionalOnboarding() {
       }
 
       set(key, publicUrl);
-
     } catch (err) {
       console.error(
-        "Erro no upload:",
+        "EntreNós: erro no upload:",
         err
       );
 
@@ -490,22 +529,13 @@ export default function ProfessionalOnboarding() {
         err?.message ||
         "Não foi possível enviar o arquivo."
       );
-
     } finally {
       setUploading(false);
     }
   };
 
-  // ============================================================
-  // ENVIA O CADASTRO
-  // ============================================================
-
   const submit = async () => {
     setError("");
-
-    // ==========================================================
-    // VALIDAÇÕES
-    // ==========================================================
 
     if (!data.email?.trim()) {
       setError("Informe seu e-mail.");
@@ -550,6 +580,7 @@ export default function ProfessionalOnboarding() {
       setError(
         "Selecione pelo menos uma modalidade."
       );
+
       setStep(2);
       return;
     }
@@ -558,67 +589,37 @@ export default function ProfessionalOnboarding() {
       setError(
         "Envie uma foto profissional."
       );
+
       setStep(3);
       return;
     }
 
-    if (submitting || uploading) {
+    if (
+      submitting ||
+      uploading
+    ) {
       return;
     }
 
     setSubmitting(true);
 
     try {
-      // ========================================================
-      // PEGA O USUÁRIO AUTENTICADO
-      // ========================================================
+      const authenticatedUser =
+        await getAuthenticatedUser();
 
-      const {
-        data: authData,
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        console.error(
-          "Erro ao obter usuário:",
-          userError
-        );
-
-        throw new Error(
-          "Sua sessão expirou. Faça login novamente."
-        );
-      }
-
-      const user =
-        authData?.user;
-
-      // ========================================================
-      // GARANTE USUÁRIO
-      // ========================================================
-
-      if (!user) {
-        throw new Error(
-          "Sua sessão expirou. Faça login novamente."
-        );
-      }
-
-      if (!user.id) {
+      if (!authenticatedUser?.id) {
         throw new Error(
           "Não foi possível identificar seu usuário."
         );
       }
 
       console.log(
-        "Usuário autenticado:",
-        user.id
+        "EntreNós: usuário autenticado:",
+        authenticatedUser.id
       );
 
-      // ========================================================
-      // DADOS DO PSICÓLOGO
-      // ========================================================
-
       const psychologistData = {
-        user_id: user.id,
+        user_id: authenticatedUser.id,
 
         professional_name:
           data.professional_name?.trim() ||
@@ -751,13 +752,9 @@ export default function ProfessionalOnboarding() {
       };
 
       console.log(
-        "Dados do profissional:",
+        "EntreNós: dados do profissional:",
         psychologistData
       );
-
-      // ========================================================
-      // VERIFICAR SE JÁ EXISTE
-      // ========================================================
 
       const {
         data: existingPsychologist,
@@ -767,22 +764,18 @@ export default function ProfessionalOnboarding() {
         .select("id")
         .eq(
           "user_id",
-          user.id
+          authenticatedUser.id
         )
         .maybeSingle();
 
       if (existingError) {
         console.error(
-          "Erro ao verificar profissional:",
+          "EntreNós: erro ao verificar profissional:",
           existingError
         );
 
         throw existingError;
       }
-
-      // ========================================================
-      // ATUALIZAR CADASTRO EXISTENTE
-      // ========================================================
 
       if (existingPsychologist?.id) {
         const {
@@ -798,12 +791,12 @@ export default function ProfessionalOnboarding() {
           )
           .eq(
             "user_id",
-            user.id
+            authenticatedUser.id
           );
 
         if (updateError) {
           console.error(
-            "Erro ao atualizar profissional:",
+            "EntreNós: erro ao atualizar profissional:",
             updateError
           );
 
@@ -811,15 +804,10 @@ export default function ProfessionalOnboarding() {
         }
 
         console.log(
-          "Cadastro atualizado:",
+          "EntreNós: cadastro atualizado:",
           existingPsychologist.id
         );
-
       } else {
-        // ======================================================
-        // CRIAR NOVO CADASTRO
-        // ======================================================
-
         const {
           data: insertedPsychologist,
           error: insertError,
@@ -833,7 +821,7 @@ export default function ProfessionalOnboarding() {
 
         if (insertError) {
           console.error(
-            "Erro ao inserir profissional:",
+            "EntreNós: erro ao inserir profissional:",
             insertError
           );
 
@@ -841,20 +829,15 @@ export default function ProfessionalOnboarding() {
         }
 
         console.log(
-          "Cadastro criado:",
+          "EntreNós: cadastro criado:",
           insertedPsychologist
         );
       }
 
-      // ========================================================
-      // SUCESSO
-      // ========================================================
-
       setDone(true);
-
     } catch (err) {
       console.error(
-        "Erro ao salvar profissional:",
+        "EntreNós: erro ao salvar profissional:",
         err
       );
 
@@ -864,29 +847,43 @@ export default function ProfessionalOnboarding() {
 
       setError(message);
 
-      // Se a sessão realmente acabou,
-      // permite voltar para o login.
-
       if (
         message
           .toLowerCase()
           .includes("sessão")
       ) {
         setTimeout(() => {
-          navigate("/login", {
-            replace: true,
-          });
+          navigate(
+            "/login",
+            {
+              replace: true,
+            }
+          );
         }, 1500);
       }
-
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ============================================================
-  // TELA DE SUCESSO
-  // ============================================================
+  if (authLoading) {
+    return (
+      <PageShell>
+        <div className="min-h-[60vh] flex items-center justify-center px-4">
+          <div className="text-center">
+            <Loader2
+              size={32}
+              className="animate-spin mx-auto mb-4"
+            />
+
+            <p className="text-sm text-muted-foreground">
+              Verificando sua sessão...
+            </p>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
 
   if (done) {
     return (
@@ -936,16 +933,10 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  // ============================================================
-  // TELA PRINCIPAL
-  // ============================================================
-
   return (
     <PageShell>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
-
-        {/* CABEÇALHO */}
 
         <div className="text-center mb-8">
 
@@ -958,8 +949,6 @@ export default function ProfessionalOnboarding() {
           </p>
 
         </div>
-
-        {/* ERRO */}
 
         {error && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
@@ -975,8 +964,6 @@ export default function ProfessionalOnboarding() {
 
           </div>
         )}
-
-        {/* ETAPAS */}
 
         <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2 gap-1">
 
@@ -1033,8 +1020,6 @@ export default function ProfessionalOnboarding() {
 
         </div>
 
-        {/* CONTEÚDO */}
-
         <div
           className="card-elevated p-6 sm:p-8 animate-fade-in"
           key={step}
@@ -1086,8 +1071,6 @@ export default function ProfessionalOnboarding() {
           )}
 
         </div>
-
-        {/* BOTÕES */}
 
         <div className="mt-6 flex items-center justify-between">
 
@@ -1153,7 +1136,9 @@ export default function ProfessionalOnboarding() {
                       "Envie uma foto profissional."
                     );
                   }
+
                 }
+
               }}
               disabled={
                 !validate() ||
@@ -1176,7 +1161,8 @@ export default function ProfessionalOnboarding() {
               onClick={submit}
               disabled={
                 submitting ||
-                uploading
+                uploading ||
+                !user
               }
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft disabled:opacity-40 transition-all"
             >
@@ -1209,10 +1195,6 @@ export default function ProfessionalOnboarding() {
     </PageShell>
   );
 }
-
-/* ============================================================
-   DADOS PESSOAIS
-============================================================ */
 
 function StepPersonal({ data, set }) {
   return (
@@ -1326,10 +1308,6 @@ function StepPersonal({ data, set }) {
     </div>
   );
 }
-
-/* ============================================================
-   DADOS PROFISSIONAIS
-============================================================ */
 
 function StepProfessional({ data, set }) {
   return (
@@ -1455,10 +1433,6 @@ function StepProfessional({ data, set }) {
     </div>
   );
 }
-
-/* ============================================================
-   ATENDIMENTO
-============================================================ */
 
 function StepService({ data, set }) {
   return (
@@ -1621,10 +1595,6 @@ function StepService({ data, set }) {
   );
 }
 
-/* ============================================================
-   FOTO
-============================================================ */
-
 function StepPhoto({
   data,
   upload,
@@ -1726,10 +1696,6 @@ function StepPhoto({
   );
 }
 
-/* ============================================================
-   VÍDEO
-============================================================ */
-
 function StepVideo({
   data,
   upload,
@@ -1830,10 +1796,6 @@ function StepVideo({
     </div>
   );
 }
-
-/* ============================================================
-   REVISÃO
-============================================================ */
 
 function StepReview({ data }) {
   return (
@@ -2005,10 +1967,6 @@ function StepReview({ data }) {
     </div>
   );
 }
-
-/* ============================================================
-   ITEM DE REVISÃO
-============================================================ */
 
 function ReviewItem({
   label,
