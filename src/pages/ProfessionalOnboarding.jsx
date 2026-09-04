@@ -234,12 +234,16 @@ function makeFileName(file) {
 const originalName = file && file.name ? file.name : "arquivo";
 const parts = originalName.split(".");
 const extension =
-parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "bin";
+parts.length > 1
+? parts[parts.length - 1].toLowerCase()
+: "bin";
 
 const id =
 typeof crypto !== "undefined" && crypto.randomUUID
 ? crypto.randomUUID()
-: String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+: String(Date.now()) +
+"-" +
+Math.random().toString(36).slice(2);
 
 return id + "." + extension;
 }
@@ -254,7 +258,8 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && <span className="text-red-500">*</span>} </span>
+{required && ( <span className="text-red-500">*</span>
+)} </span>
 
 ```
   <input
@@ -280,7 +285,8 @@ required = false,
 }) {
 return ( <label className="block"> <span className="block text-sm font-medium mb-2">
 {label}{" "}
-{required && <span className="text-red-500">*</span>} </span>
+{required && ( <span className="text-red-500">*</span>
+)} </span>
 
 ```
   <select
@@ -350,7 +356,9 @@ onChange([option]);
 }
 
 if (values.includes(option)) {
-  onChange(values.filter((item) => item !== option));
+  onChange(
+    values.filter((item) => item !== option)
+  );
 } else {
   onChange([...values, option]);
 }
@@ -494,18 +502,22 @@ const [data, setData] = useState(DEFAULTS);
 
 const [authLoading, setAuthLoading] = useState(true);
 const [authMode, setAuthMode] = useState("register");
-const [authenticatedUser, setAuthenticatedUser] = useState(null);
+const [authenticatedUser, setAuthenticatedUser] =
+useState(null);
 
 const [authName, setAuthName] = useState("");
 const [authEmail, setAuthEmail] = useState("");
 const [authPassword, setAuthPassword] = useState("");
-const [showPassword, setShowPassword] = useState(false);
-const [authSubmitting, setAuthSubmitting] = useState(false);
+const [showPassword, setShowPassword] =
+useState(false);
+const [authSubmitting, setAuthSubmitting] =
+useState(false);
 
 const [submitting, setSubmitting] = useState(false);
 const [uploading, setUploading] = useState(false);
 const [done, setDone] = useState(false);
-const [confirmationSent, setConfirmationSent] = useState(false);
+const [confirmationSent, setConfirmationSent] =
+useState(false);
 const [error, setError] = useState("");
 
 const [photoFile, setPhotoFile] = useState(null);
@@ -546,7 +558,11 @@ if (
 return "Profissional";
 ```
 
-}, [data.professional_name, data.full_name, authenticatedUser]);
+}, [
+data.professional_name,
+data.full_name,
+authenticatedUser,
+]);
 
 function set(key, value) {
 setData((current) => ({
@@ -561,8 +577,10 @@ let mounted = true;
 ```
 async function loadSession() {
   try {
-    const { data: sessionData, error: sessionError } =
-      await supabase.auth.getSession();
+    const {
+      data: sessionData,
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
     if (sessionError) {
       throw sessionError;
@@ -572,9 +590,10 @@ async function loadSession() {
       return;
     }
 
-    const user = sessionData && sessionData.session
-      ? sessionData.session.user
-      : null;
+    const user =
+      sessionData && sessionData.session
+        ? sessionData.session.user
+        : null;
 
     setAuthenticatedUser(user);
 
@@ -831,20 +850,22 @@ setAuthSubmitting(true);
 
 try {
   if (authMode === "register") {
-    const { data: signUpData, error: signUpError } =
-      await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            full_name: authName.trim(),
-            name: authName.trim(),
-            role: "psychologist",
-            account_type: "professional",
-            user_type: "professional",
-          },
+    const {
+      data: signUpData,
+      error: signUpError,
+    } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          full_name: authName.trim(),
+          name: authName.trim(),
+          role: "psychologist",
+          account_type: "professional",
+          user_type: "professional",
         },
-      });
+      },
+    });
 
     if (signUpError) {
       throw signUpError;
@@ -868,11 +889,13 @@ try {
       );
     }
   } else {
-    const { data: loginData, error: loginError } =
-      await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
+    const {
+      data: loginData,
+      error: loginError,
+    } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
 
     if (loginError) {
       throw loginError;
@@ -915,11 +938,12 @@ if (!authEmail.trim()) {
 }
 
 try {
-  const { error: resendError } =
-    await supabase.auth.resend({
-      type: "signup",
-      email: authEmail.trim().toLowerCase(),
-    });
+  const {
+    error: resendError,
+  } = await supabase.auth.resend({
+    type: "signup",
+    email: authEmail.trim().toLowerCase(),
+  });
 
   if (resendError) {
     throw resendError;
@@ -962,7 +986,11 @@ setVideoPreview("");
 
 }
 
-async function uploadFileToStorage(file, type, userId) {
+async function uploadFileToStorage(
+file,
+type,
+userId
+) {
 const folder =
 type === "photo"
 ? "professionals/" + userId + "/photos"
@@ -972,23 +1000,25 @@ type === "photo"
 const filePath =
   folder + "/" + makeFileName(file);
 
-const { error: uploadError } =
-  await supabase.storage
-    .from("profiles")
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: file.type,
-    });
+const {
+  error: uploadError,
+} = await supabase.storage
+  .from("profiles")
+  .upload(filePath, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type,
+  });
 
 if (uploadError) {
   throw uploadError;
 }
 
-const { data: publicData } =
-  supabase.storage
-    .from("profiles")
-    .getPublicUrl(filePath);
+const {
+  data: publicData,
+} = supabase.storage
+  .from("profiles")
+  .getPublicUrl(filePath);
 
 return publicData.publicUrl;
 ```
@@ -1002,11 +1032,12 @@ let nextData = {
 
 ```
 if (photoFile) {
-  const photoUrl = await uploadFileToStorage(
-    photoFile,
-    "photo",
-    userId
-  );
+  const photoUrl =
+    await uploadFileToStorage(
+      photoFile,
+      "photo",
+      userId
+    );
 
   nextData = {
     ...nextData,
@@ -1015,11 +1046,12 @@ if (photoFile) {
 }
 
 if (videoFile) {
-  const videoUrl = await uploadFileToStorage(
-    videoFile,
-    "video",
-    userId
-  );
+  const videoUrl =
+    await uploadFileToStorage(
+      videoFile,
+      "video",
+      userId
+    );
 
   nextData = {
     ...nextData,
@@ -1049,7 +1081,10 @@ return "Informe seu nome completo.";
     return "Informe sua cidade.";
   }
 
-  if (!data.state.trim() || data.state.trim().length !== 2) {
+  if (
+    !data.state.trim() ||
+    data.state.trim().length !== 2
+  ) {
     return "Informe o estado com 2 letras.";
   }
 }
@@ -1133,7 +1168,8 @@ if (!isAuthenticated) {
 }
 
 for (let index = 0; index < 5; index += 1) {
-  const validationError = validateStep(index);
+  const validationError =
+    validateStep(index);
 
   if (validationError) {
     setStep(index);
@@ -1143,7 +1179,9 @@ for (let index = 0; index < 5; index += 1) {
 }
 
 setSubmitting(true);
-setUploading(Boolean(photoFile || videoFile));
+setUploading(
+  Boolean(photoFile || videoFile)
+);
 
 try {
   const {
@@ -1163,20 +1201,22 @@ try {
     );
   }
 
-  const finalData = await uploadPendingFiles(user.id);
+  const finalData =
+    await uploadPendingFiles(user.id);
 
-  const { error: metadataError } =
-    await supabase.auth.updateUser({
-      data: {
-        full_name: finalData.full_name,
-        name:
-          finalData.professional_name ||
-          finalData.full_name,
-        role: "psychologist",
-        account_type: "professional",
-        user_type: "professional",
-      },
-    });
+  const {
+    error: metadataError,
+  } = await supabase.auth.updateUser({
+    data: {
+      full_name: finalData.full_name,
+      name:
+        finalData.professional_name ||
+        finalData.full_name,
+      role: "psychologist",
+      account_type: "professional",
+      user_type: "professional",
+    },
+  });
 
   if (metadataError) {
     throw metadataError;
@@ -1191,8 +1231,10 @@ try {
     crp_region: finalData.crp_region,
     education: finalData.education,
     institution: finalData.institution,
-    graduation_year: finalData.graduation_year,
-    specializations: finalData.specializations,
+    graduation_year:
+      finalData.graduation_year,
+    specializations:
+      finalData.specializations,
     approaches: finalData.approaches,
     experience: finalData.experience,
     topics: finalData.themes,
@@ -1206,18 +1248,23 @@ try {
     session_price: finalData.price
       ? Number(finalData.price)
       : null,
-    session_duration: finalData.session_duration,
-    available_days: finalData.available_days,
-    available_slots: finalData.available_slots,
+    session_duration:
+      finalData.session_duration,
+    available_days:
+      finalData.available_days,
+    available_slots:
+      finalData.available_slots,
     cancellation_policy:
       finalData.cancellation_policy,
     address: finalData.address,
     bio: finalData.about,
     photo_url: finalData.photo_url,
-    profile_photo_url: finalData.photo_url,
+    profile_photo_url:
+      finalData.photo_url,
     presentation_video_url:
       finalData.video_url,
-    presentation_video_status: "pending",
+    presentation_video_status:
+      "pending",
     verification_status: "pending",
     public_profile: false,
   };
@@ -1236,20 +1283,25 @@ try {
   }
 
   if (existingProfessional) {
-    const { error: updateError } =
-      await supabase
-        .from("psychologists")
-        .update(psychologistData)
-        .eq("id", existingProfessional.id);
+    const {
+      error: updateError,
+    } = await supabase
+      .from("psychologists")
+      .update(psychologistData)
+      .eq(
+        "id",
+        existingProfessional.id
+      );
 
     if (updateError) {
       throw updateError;
     }
   } else {
-    const { error: insertError } =
-      await supabase
-        .from("psychologists")
-        .insert(psychologistData);
+    const {
+      error: insertError,
+    } = await supabase
+      .from("psychologists")
+      .insert(psychologistData);
 
     if (insertError) {
       throw insertError;
@@ -1327,7 +1379,9 @@ return ( <PageShell> <div className="mx-auto max-w-5xl px-4 py-10"> <div classNa
                   }
                   value={authPassword}
                   onChange={(e) =>
-                    setAuthPassword(e.target.value)
+                    setAuthPassword(
+                      e.target.value
+                    )
                   }
                   placeholder="Mínimo de 6 caracteres"
                   className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -1363,8 +1417,7 @@ return ( <PageShell> <div className="mx-auto max-w-5xl px-4 py-10"> <div classNa
                 </p>
 
                 <p className="mt-1 text-muted-foreground">
-                  Verifique seu e-mail e confirme sua
-                  conta antes de entrar.
+                  Verifique seu e-mail e confirme sua conta antes de entrar.
                 </p>
 
                 <button
@@ -1424,8 +1477,7 @@ return ( <PageShell> <div className="mx-auto max-w-5xl px-4 py-10"> <div classNa
               <Lock className="h-5 w-5 shrink-0" />
 
               <span>
-                Seus dados são protegidos e utilizados
-                apenas para o funcionamento da plataforma.
+                Seus dados são protegidos e utilizados apenas para o funcionamento da plataforma.
               </span>
             </div>
           </div>
@@ -1440,8 +1492,7 @@ return ( <PageShell> <div className="mx-auto max-w-5xl px-4 py-10"> <div classNa
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Adicione sua foto e informações
-              profissionais.
+              Adicione sua foto e informações profissionais.
             </p>
           </div>
 
@@ -1474,9 +1525,7 @@ return ( <PageShell> <div className="mx-auto flex min-h-[70vh] max-w-2xl items-c
         </h1>
 
         <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-          Seu perfil profissional foi cadastrado e
-          enviado para análise. Assim que a verificação
-          for concluída, seu perfil poderá ser publicado.
+          Seu perfil profissional foi cadastrado e enviado para análise. Assim que a verificação for concluída, seu perfil poderá ser publicado.
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -1647,7 +1696,9 @@ Olá, {displayName} </p>
               onChange={(value) =>
                 set(
                   "state",
-                  value.toUpperCase().slice(0, 2)
+                  value
+                    .toUpperCase()
+                    .slice(0, 2)
                 )
               }
               placeholder="SP"
@@ -1747,7 +1798,10 @@ Olá, {displayName} </p>
             options={SPEC_OPTS}
             values={data.specializations}
             onChange={(values) =>
-              set("specializations", values)
+              set(
+                "specializations",
+                values
+              )
             }
           />
 
@@ -1853,7 +1907,10 @@ Olá, {displayName} </p>
             options={DAY_OPTS}
             values={data.available_days}
             onChange={(values) =>
-              set("available_days", values)
+              set(
+                "available_days",
+                values
+              )
             }
           />
 
@@ -1862,13 +1919,18 @@ Olá, {displayName} </p>
             options={SLOT_OPTS}
             values={data.available_slots}
             onChange={(values) =>
-              set("available_slots", values)
+              set(
+                "available_slots",
+                values
+              )
             }
           />
 
           <TextArea
             label="Política de cancelamento"
-            value={data.cancellation_policy}
+            value={
+              data.cancellation_policy
+            }
             onChange={(value) =>
               set(
                 "cancellation_policy",
@@ -1908,8 +1970,7 @@ Olá, {displayName} </p>
             </h2>
 
             <p className="mt-1 text-muted-foreground">
-              Uma boa foto ajuda os pacientes a
-              reconhecerem seu perfil.
+              Uma boa foto ajuda os pacientes a reconhecerem seu perfil.
             </p>
           </div>
 
@@ -1934,8 +1995,7 @@ Olá, {displayName} </p>
             </h2>
 
             <p className="mt-1 text-muted-foreground">
-              Grave um vídeo curto apresentando seu
-              trabalho.
+              Grave um vídeo curto apresentando seu trabalho.
             </p>
           </div>
 
@@ -1983,7 +2043,8 @@ Olá, {displayName} </p>
               </p>
 
               <p className="mt-1 font-medium break-all">
-                {data.email || "Não informado"}
+                {data.email ||
+                  "Não informado"}
               </p>
             </div>
 
@@ -2043,7 +2104,8 @@ Olá, {displayName} </p>
           </div>
 
           {data.specializations &&
-            data.specializations.length > 0 && (
+            data.specializations.length >
+              0 && (
               <div>
                 <p className="mb-2 text-sm font-medium">
                   Especializações
@@ -2102,9 +2164,7 @@ Olá, {displayName} </p>
                 </p>
 
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Após o envio, nossa equipe poderá
-                  analisar suas informações antes de
-                  liberar o perfil publicamente.
+                  Após o envio, nossa equipe poderá analisar suas informações antes de liberar o perfil publicamente.
                 </p>
               </div>
             </div>
@@ -2116,7 +2176,9 @@ Olá, {displayName} </p>
         <button
           type="button"
           onClick={previousStep}
-          disabled={step === 0 || submitting}
+          disabled={
+            step === 0 || submitting
+          }
           className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowLeft className="h-5 w-5" />
