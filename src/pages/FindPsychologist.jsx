@@ -36,20 +36,68 @@ const audienceOptions = [
   'Idosos',
 ];
 
+const modalityOptions = [
+  {
+    v: 'online',
+    l: 'Online',
+  },
+  {
+    v: 'in_person',
+    l: 'Presencial',
+  },
+];
+
+const INITIAL_FILTERS = {
+  specialty: '',
+  approach: '',
+  modality: '',
+  city: '',
+  maxPrice: '',
+  audience: '',
+};
+
+function normalizeText(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function toArray(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function arrayIncludesIgnoreCase(array, value) {
+  const target = normalizeText(value);
+
+  if (!target) {
+    return true;
+  }
+
+  return array.some(
+    (item) => normalizeText(item) === target
+  );
+}
+
 export default function FindPsychologist() {
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
 
-  const [filters, setFilters] = useState({
-    specialty: '',
-    approach: '',
-    modality: '',
-    city: '',
-    maxPrice: '',
-    audience: '',
-  });
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
 
   const [showFilters, setShowFilters] = useState(false);
 
@@ -78,31 +126,50 @@ export default function FindPsychologist() {
           topics,
           modalities,
           languages,
+          audience,
           city,
           state,
           session_price,
+          session_duration,
           bio,
           profile_photo_url,
+          photo_url,
           presentation_video_url,
           presentation_video_status,
           public_profile
         `)
         .eq('verification_status', 'approved')
         .eq('public_profile', true)
-        .order('professional_name', { ascending: true })
+        .order('professional_name', {
+          ascending: true,
+        })
         .limit(60);
 
       if (supabaseError) {
-        console.error('Erro ao buscar psicólogos:', supabaseError);
-        setError('Não foi possível carregar os profissionais.');
+        console.error(
+          'Erro ao buscar psicólogos:',
+          supabaseError
+        );
+
+        setError(
+          'Não foi possível carregar os profissionais.'
+        );
+
         setAll([]);
         return;
       }
 
-      setAll(data || []);
+      setAll(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Erro inesperado:', err);
-      setError('Não foi possível carregar os profissionais.');
+      console.error(
+        'Erro inesperado ao buscar psicólogos:',
+        err
+      );
+
+      setError(
+        'Não foi possível carregar os profissionais.'
+      );
+
       setAll([]);
     } finally {
       setLoading(false);
@@ -110,109 +177,144 @@ export default function FindPsychologist() {
   }
 
   const results = useMemo(() => {
-    return all.filter((p) => {
-      const specializations = Array.isArray(p.specializations)
-        ? p.specializations
-        : [];
+    const normalizedQuery = normalizeText(query);
 
-      const approaches = Array.isArray(p.approaches)
-        ? p.approaches
-        : [];
+    return all.filter((psychologist) => {
+      const specializations = toArray(
+        psychologist.specializations
+      );
 
-      const topics = Array.isArray(p.topics)
-        ? p.topics
-        : [];
+      const approaches = toArray(
+        psychologist.approaches
+      );
 
-      const modalities = Array.isArray(p.modalities)
-        ? p.modalities
-        : [];
+      const topics = toArray(
+        psychologist.topics
+      );
 
-      const searchableText = [
-        p.professional_name || '',
-        p.education || '',
-        p.experience || '',
-        p.bio || '',
-        p.city || '',
-        p.state || '',
+      const modalities = toArray(
+        psychologist.modalities
+      );
+
+      const languages = toArray(
+        psychologist.languages
+      );
+
+      const audience = toArray(
+        psychologist.audience
+      );
+
+      const searchableValues = [
+        psychologist.professional_name,
+        psychologist.education,
+        psychologist.experience,
+        psychologist.bio,
+        psychologist.city,
+        psychologist.state,
+        psychologist.crp_number,
+        psychologist.crp_region,
         ...specializations,
         ...approaches,
         ...topics,
-      ]
-        .join(' ')
-        .toLowerCase();
+        ...modalities,
+        ...languages,
+        ...audience,
+      ];
 
-      // Busca por nome, especialidade, abordagem, cidade etc.
-      if (query.trim()) {
-        const q = query.trim().toLowerCase();
+      const searchableText = normalizeText(
+        searchableValues
+          .filter(
+            (value) =>
+              value !== null &&
+              value !== undefined
+          )
+          .join(' ')
+      );
 
-        if (!searchableText.includes(q)) {
-          return false;
-        }
+      if (
+        normalizedQuery &&
+        !searchableText.includes(normalizedQuery)
+      ) {
+        return false;
       }
 
-      // Especialidade
       if (
         filters.specialty &&
-        !specializations.some(
-          (item) =>
-            String(item).toLowerCase() ===
-            filters.specialty.toLowerCase()
+        !arrayIncludesIgnoreCase(
+          specializations,
+          filters.specialty
         )
       ) {
         return false;
       }
 
-      // Abordagem
       if (
         filters.approach &&
-        !approaches.some(
-          (item) =>
-            String(item).toLowerCase() ===
-            filters.approach.toLowerCase()
+        !arrayIncludesIgnoreCase(
+          approaches,
+          filters.approach
         )
       ) {
         return false;
       }
 
-      // Modalidade
-      if (
-        filters.modality &&
-        !modalities.includes(filters.modality)
-      ) {
-        return false;
+      if (filters.modality) {
+        const hasModality = modalities.some(
+          (item) =>
+            normalizeText(item) ===
+            normalizeText(filters.modality)
+        );
+
+        if (!hasModality) {
+          return false;
+        }
       }
 
-      // Público atendido
       if (
         filters.audience &&
-        !topics.some(
-          (item) =>
-            String(item).toLowerCase() ===
-            filters.audience.toLowerCase()
+        !arrayIncludesIgnoreCase(
+          audience,
+          filters.audience
         )
       ) {
         return false;
       }
 
-      // Cidade
-      if (
-        filters.city &&
-        !String(p.city || '')
-          .toLowerCase()
-          .includes(filters.city.toLowerCase())
-      ) {
-        return false;
+      if (filters.city) {
+        const psychologistCity = normalizeText(
+          psychologist.city
+        );
+
+        const selectedCity = normalizeText(
+          filters.city
+        );
+
+        if (
+          !psychologistCity.includes(
+            selectedCity
+          )
+        ) {
+          return false;
+        }
       }
 
-      // Valor máximo
       if (filters.maxPrice) {
-        const price = Number(p.session_price);
+        const price = Number(
+          psychologist.session_price
+        );
 
-        if (!Number.isNaN(price) && price > Number(filters.maxPrice)) {
+        const maxPrice = Number(
+          filters.maxPrice
+        );
+
+        if (
+          !Number.isFinite(price) ||
+          !Number.isFinite(maxPrice)
+        ) {
           return false;
         }
 
-        if (Number.isNaN(price)) {
+        if (price > maxPrice) {
           return false;
         }
       }
@@ -221,7 +323,9 @@ export default function FindPsychologist() {
     });
   }, [all, query, filters]);
 
-  const activeCount = Object.values(filters).filter(Boolean).length;
+  const activeCount = Object.values(filters).filter(
+    Boolean
+  ).length;
 
   function updateFilter(name, value) {
     setFilters((current) => ({
@@ -232,12 +336,7 @@ export default function FindPsychologist() {
 
   function clearFilters() {
     setFilters({
-      specialty: '',
-      approach: '',
-      modality: '',
-      city: '',
-      maxPrice: '',
-      audience: '',
+      ...INITIAL_FILTERS,
     });
   }
 
@@ -245,19 +344,17 @@ export default function FindPsychologist() {
     <PageShell>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">
 
-        {/* Cabeçalho */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <h1 className="text-3xl sm:text-4xl font-heading font-bold">
             Encontre um psicólogo
           </h1>
 
           <p className="mt-3 text-muted-foreground">
-            Profissionais verificados, prontos para conversar com você.
-            Comece no seu ritmo.
+            Profissionais verificados, prontos para conversar
+            com você. Comece no seu ritmo.
           </p>
         </div>
 
-        {/* Barra de busca */}
         <div className="flex gap-3 max-w-3xl mx-auto">
           <div className="relative flex-1">
             <Search
@@ -266,15 +363,21 @@ export default function FindPsychologist() {
             />
 
             <input
+              type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) =>
+                setQuery(event.target.value)
+              }
               placeholder="Nome, especialidade ou cidade..."
               className="w-full pl-11 pr-4 py-3.5 rounded-full glass-strong border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
             />
           </div>
 
           <button
-            onClick={() => setShowFilters((current) => !current)}
+            type="button"
+            onClick={() =>
+              setShowFilters((current) => !current)
+            }
             className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full glass-strong border border-border text-sm font-medium hover:bg-white transition-all relative"
           >
             <SlidersHorizontal size={16} />
@@ -289,7 +392,6 @@ export default function FindPsychologist() {
           </button>
         </div>
 
-        {/* Painel de filtros */}
         {showFilters && (
           <div className="max-w-3xl mx-auto mt-4 glass-strong rounded-2xl p-6 animate-fade-in border border-border">
             <div className="grid sm:grid-cols-2 gap-5">
@@ -298,7 +400,10 @@ export default function FindPsychologist() {
                 <Select
                   value={filters.specialty}
                   onChange={(value) =>
-                    updateFilter('specialty', value)
+                    updateFilter(
+                      'specialty',
+                      value
+                    )
                   }
                   options={specialtyOptions}
                   placeholder="Todas"
@@ -309,7 +414,10 @@ export default function FindPsychologist() {
                 <Select
                   value={filters.approach}
                   onChange={(value) =>
-                    updateFilter('approach', value)
+                    updateFilter(
+                      'approach',
+                      value
+                    )
                   }
                   options={approachOptions}
                   placeholder="Todas"
@@ -320,18 +428,12 @@ export default function FindPsychologist() {
                 <Select
                   value={filters.modality}
                   onChange={(value) =>
-                    updateFilter('modality', value)
+                    updateFilter(
+                      'modality',
+                      value
+                    )
                   }
-                  options={[
-                    {
-                      v: 'online',
-                      l: 'Online',
-                    },
-                    {
-                      v: 'in_person',
-                      l: 'Presencial',
-                    },
-                  ]}
+                  options={modalityOptions}
                   placeholder="Ambas"
                 />
               </Field>
@@ -340,7 +442,10 @@ export default function FindPsychologist() {
                 <Select
                   value={filters.audience}
                   onChange={(value) =>
-                    updateFilter('audience', value)
+                    updateFilter(
+                      'audience',
+                      value
+                    )
                   }
                   options={audienceOptions}
                   placeholder="Todos"
@@ -349,9 +454,13 @@ export default function FindPsychologist() {
 
               <Field label="Cidade">
                 <input
+                  type="text"
                   value={filters.city}
-                  onChange={(e) =>
-                    updateFilter('city', e.target.value)
+                  onChange={(event) =>
+                    updateFilter(
+                      'city',
+                      event.target.value
+                    )
                   }
                   placeholder="Ex: São Paulo"
                   className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -370,17 +479,29 @@ export default function FindPsychologist() {
                   min="0"
                   max="500"
                   step="50"
-                  value={filters.maxPrice || 500}
-                  onChange={(e) =>
-                    updateFilter('maxPrice', e.target.value)
+                  value={
+                    filters.maxPrice || 500
+                  }
+                  onChange={(event) =>
+                    updateFilter(
+                      'maxPrice',
+                      event.target.value
+                    )
                   }
                   className="w-full accent-[hsl(258_70%_56%)]"
                 />
+
+                <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
+                  <span>R$ 0</span>
+                  <span>R$ 250</span>
+                  <span>R$ 500</span>
+                </div>
               </Field>
             </div>
 
             {activeCount > 0 && (
               <button
+                type="button"
                 onClick={clearFilters}
                 className="mt-4 text-xs text-primary font-medium inline-flex items-center gap-1 hover:underline"
               >
@@ -392,7 +513,6 @@ export default function FindPsychologist() {
           </div>
         )}
 
-        {/* Resultado */}
         <div className="mt-8 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {loading
@@ -401,7 +521,6 @@ export default function FindPsychologist() {
           </p>
         </div>
 
-        {/* Erro */}
         {error && !loading && (
           <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
             <p className="text-sm text-red-700">
@@ -409,6 +528,7 @@ export default function FindPsychologist() {
             </p>
 
             <button
+              type="button"
               onClick={loadPsychologists}
               className="mt-3 text-sm font-medium text-red-700 underline"
             >
@@ -417,48 +537,61 @@ export default function FindPsychologist() {
           </div>
         )}
 
-        {/* Loading */}
         {loading && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
+            {[0, 1, 2, 3, 4, 5].map((item) => (
               <div
-                key={i}
+                key={item}
                 className="card-elevated p-5 h-56 animate-shimmer rounded-2xl"
               />
             ))}
           </div>
         )}
 
-        {/* Nenhum resultado */}
-        {!loading && !error && results.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-2xl gradient-brand-soft mx-auto flex items-center justify-center text-primary mb-4">
-              <Search size={28} />
+        {!loading &&
+          !error &&
+          results.length === 0 && (
+            <div className="text-center py-20">
+              <div className="w-16 h-16 rounded-2xl gradient-brand-soft mx-auto flex items-center justify-center text-primary mb-4">
+                <Search size={28} />
+              </div>
+
+              <h3 className="font-heading font-semibold text-lg">
+                Nenhum profissional com esses critérios
+              </h3>
+
+              <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+                Tente ajustar os filtros ou explore nossa
+                triagem para descobrir por onde começar.
+              </p>
+
+              {activeCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-5 px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
+          )}
 
-            <h3 className="font-heading font-semibold text-lg">
-              Nenhum profissional com esses critérios
-            </h3>
-
-            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-              Tente ajustar os filtros ou explore nossa triagem
-              para descobrir por onde começar.
-            </p>
-          </div>
-        )}
-
-        {/* Lista */}
-        {!loading && !error && results.length > 0 && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
-            {results.map((psychologist, index) => (
-              <PsychologistCard
-                key={psychologist.id}
-                psychologist={psychologist}
-                index={index}
-              />
-            ))}
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          results.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-5">
+              {results.map(
+                (psychologist, index) => (
+                  <PsychologistCard
+                    key={psychologist.id}
+                    psychologist={psychologist}
+                    index={index}
+                  />
+                )
+              )}
+            </div>
+          )}
       </div>
     </PageShell>
   );
@@ -485,7 +618,9 @@ function Select({
   return (
     <select
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(event) =>
+        onChange(event.target.value)
+      }
       className="w-full px-3 py-2.5 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
     >
       <option value="">
@@ -497,15 +632,20 @@ function Select({
           typeof option === 'object' &&
           option !== null;
 
-        const value = isObject ? option.v : option;
-        const label = isObject ? option.l : option;
+        const optionValue = isObject
+          ? option.v
+          : option;
+
+        const optionLabel = isObject
+          ? option.l
+          : option;
 
         return (
           <option
-            key={value}
-            value={value}
+            key={optionValue}
+            value={optionValue}
           >
-            {label}
+            {optionLabel}
           </option>
         );
       })}
