@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -13,42 +13,196 @@ import {
   ArrowRight,
   CheckCircle2,
   BookHeart,
+  RefreshCw,
 } from 'lucide-react';
 import PageShell from '@/components/PageShell';
-import { supabase } from '@/api/base44Client';
+import { supabase } from '@/lib/supabase';
 
 const menu = [
-  { label: 'Início', icon: ArrowRight, path: '/painel' },
-  { label: 'Próxima consulta', icon: Clock, path: '/painel' },
-  { label: 'Histórico', icon: History, path: '/painel' },
-  { label: 'Favoritos', icon: Heart, path: '/favoritos' },
-
-  // Meu Diário
-  { label: 'Meu diário', icon: BookHeart, path: '/diario' },
-
-  { label: 'Dados da conta', icon: User, path: '/painel' },
-  { label: 'Privacidade', icon: Shield, path: '/privacidade' },
-  { label: 'Notificações', icon: Bell, path: '/notificacoes' },
+  {
+    label: 'Início',
+    icon: ArrowRight,
+    path: '/painel',
+  },
+  {
+    label: 'Próxima consulta',
+    icon: Clock,
+    path: '/painel',
+  },
+  {
+    label: 'Histórico',
+    icon: History,
+    path: '/painel',
+  },
+  {
+    label: 'Favoritos',
+    icon: Heart,
+    path: '/favoritos',
+  },
+  {
+    label: 'Meu diário',
+    icon: BookHeart,
+    path: '/diario',
+  },
+  {
+    label: 'Dados da conta',
+    icon: User,
+    path: '/painel',
+  },
+  {
+    label: 'Privacidade',
+    icon: Shield,
+    path: '/privacidade',
+  },
+  {
+    label: 'Notificações',
+    icon: Bell,
+    path: '/notificacoes',
+  },
 ];
+
+function getAppointmentDate(appointment) {
+  if (!appointment) {
+    return null;
+  }
+
+  if (appointment.date) {
+    const dateString = String(appointment.date);
+
+    const timeString =
+      appointment.time ||
+      appointment.slot ||
+      '00:00';
+
+    const date = new Date(
+      `${dateString}T${timeString}:00`
+    );
+
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+
+    const fallback = new Date(dateString);
+
+    if (!Number.isNaN(fallback.getTime())) {
+      return fallback;
+    }
+  }
+
+  if (appointment.scheduled_at) {
+    const date = new Date(
+      appointment.scheduled_at
+    );
+
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  if (appointment.starts_at) {
+    const date = new Date(
+      appointment.starts_at
+    );
+
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+
+  return null;
+}
+
+function getPsychologistName(appointment) {
+  return (
+    appointment?.psychologist_name ||
+    appointment?.psychologistName ||
+    appointment?.professional_name ||
+    appointment?.professionalName ||
+    'Psicólogo'
+  );
+}
+
+function getAppointmentTime(appointment) {
+  return (
+    appointment?.time ||
+    appointment?.slot ||
+    ''
+  );
+}
+
+function getAppointmentModality(appointment) {
+  return (
+    appointment?.modality ||
+    'online'
+  );
+}
+
+function getStatusLabel(status) {
+  const labels = {
+    scheduled: 'Agendada',
+    confirmed: 'Confirmada',
+    completed: 'Realizada',
+    cancelled: 'Cancelada',
+    canceled: 'Cancelada',
+    pending: 'Pendente',
+    no_show: 'Não compareceu',
+  };
+
+  return labels[status] || status || 'Agendada';
+}
+
+function getStatusClass(status) {
+  if (
+    status === 'cancelled' ||
+    status === 'canceled'
+  ) {
+    return 'bg-red-50 text-red-600 dark:bg-red-500/10';
+  }
+
+  if (
+    status === 'completed'
+  ) {
+    return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10';
+  }
+
+  if (
+    status === 'pending'
+  ) {
+    return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10';
+  }
+
+  return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10';
+}
 
 export default function PatientDashboard() {
   const location = useLocation();
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [confirmed, setConfirmed] = useState(
     location.state?.confirmed || null
   );
+
+  useEffect(() => {
+    setConfirmed(
+      location.state?.confirmed || null
+    );
+  }, [location.state]);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadAppointments() {
       setLoading(true);
+      setError('');
 
       try {
         const {
-          data: { user },
+          data: {
+            user,
+          },
           error: userError,
         } = await supabase.auth.getUser();
 
@@ -59,29 +213,61 @@ export default function PatientDashboard() {
         if (!user) {
           if (mounted) {
             setAppointments([]);
+            setError(
+              'Sua sessão não foi encontrada. Faça login novamente.'
+            );
           }
+
           return;
         }
 
-        const { data, error } = await supabase
+        /*
+         * IMPORTANTE:
+         * As consultas são filtradas pelo paciente logado.
+         *
+         * A coluna esperada na tabela appointments é:
+         * patient_id
+         *
+         * e deve armazenar o UUID do usuário autenticado.
+         */
+        const {
+          data,
+          error: appointmentsError,
+        } = await supabase
           .from('appointments')
           .select('*')
-          .eq('status', 'scheduled')
-          .order('date', { ascending: true })
-          .limit(10);
+          .eq('patient_id', user.id)
+          .order('date', {
+            ascending: true,
+          })
+          .order('time', {
+            ascending: true,
+          })
+          .limit(50);
 
-        if (error) {
-          throw error;
+        if (appointmentsError) {
+          throw appointmentsError;
         }
 
         if (mounted) {
-          setAppointments(data || []);
+          setAppointments(
+            Array.isArray(data)
+              ? data
+              : []
+          );
         }
-      } catch (error) {
-        console.error('Erro ao carregar consultas:', error);
+      } catch (loadError) {
+        console.error(
+          'Erro ao carregar consultas:',
+          loadError
+        );
 
         if (mounted) {
           setAppointments([]);
+
+          setError(
+            'Não foi possível carregar suas consultas.'
+          );
         }
       } finally {
         if (mounted) {
@@ -97,7 +283,174 @@ export default function PatientDashboard() {
     };
   }, []);
 
-  const next = appointments[0];
+  const now = new Date();
+
+  const upcomingAppointments = useMemo(() => {
+    return appointments
+      .filter((appointment) => {
+        const status =
+          appointment.status;
+
+        const cancelled =
+          status === 'cancelled' ||
+          status === 'canceled';
+
+        if (cancelled) {
+          return false;
+        }
+
+        const date =
+          getAppointmentDate(
+            appointment
+          );
+
+        if (!date) {
+          return true;
+        }
+
+        return date >= now;
+      })
+      .sort((a, b) => {
+        const dateA =
+          getAppointmentDate(a);
+
+        const dateB =
+          getAppointmentDate(b);
+
+        if (!dateA && !dateB) {
+          return 0;
+        }
+
+        if (!dateA) {
+          return 1;
+        }
+
+        if (!dateB) {
+          return -1;
+        }
+
+        return (
+          dateA.getTime() -
+          dateB.getTime()
+        );
+      });
+  }, [appointments]);
+
+  const historyAppointments = useMemo(() => {
+    return appointments
+      .filter((appointment) => {
+        const status =
+          appointment.status;
+
+        if (
+          status === 'completed' ||
+          status === 'cancelled' ||
+          status === 'canceled' ||
+          status === 'no_show'
+        ) {
+          return true;
+        }
+
+        const date =
+          getAppointmentDate(
+            appointment
+          );
+
+        if (!date) {
+          return false;
+        }
+
+        return date < now;
+      })
+      .sort((a, b) => {
+        const dateA =
+          getAppointmentDate(a);
+
+        const dateB =
+          getAppointmentDate(b);
+
+        if (!dateA && !dateB) {
+          return 0;
+        }
+
+        if (!dateA) {
+          return 1;
+        }
+
+        if (!dateB) {
+          return -1;
+        }
+
+        return (
+          dateB.getTime() -
+          dateA.getTime()
+        );
+      });
+  }, [appointments]);
+
+  const next = upcomingAppointments[0];
+
+  async function reloadAppointments() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const {
+        data: {
+          user,
+        },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        setAppointments([]);
+        setError(
+          'Sua sessão não foi encontrada.'
+        );
+        return;
+      }
+
+      const {
+        data,
+        error: appointmentsError,
+      } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('patient_id', user.id)
+        .order('date', {
+          ascending: true,
+        })
+        .order('time', {
+          ascending: true,
+        })
+        .limit(50);
+
+      if (appointmentsError) {
+        throw appointmentsError;
+      }
+
+      setAppointments(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (reloadError) {
+      console.error(
+        'Erro ao atualizar consultas:',
+        reloadError
+      );
+
+      setError(
+        'Não foi possível atualizar suas consultas.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <PageShell>
@@ -109,7 +462,8 @@ export default function PatientDashboard() {
           </h1>
 
           <p className="text-muted-foreground mt-1">
-            Acompanhe suas consultas e cuide do seu bem-estar no seu ritmo.
+            Acompanhe suas consultas e cuide do seu
+            bem-estar no seu ritmo.
           </p>
         </div>
 
@@ -118,7 +472,10 @@ export default function PatientDashboard() {
             <div className="flex items-start gap-4">
 
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={24} className="text-emerald-600" />
+                <CheckCircle2
+                  size={24}
+                  className="text-emerald-600"
+                />
               </div>
 
               <div className="flex-1">
@@ -127,42 +484,74 @@ export default function PatientDashboard() {
                 </h3>
 
                 <p className="text-sm text-muted-foreground mt-1">
-                  Você receberá um lembrete por e-mail antes do horário.
+                  Você receberá um lembrete por
+                  e-mail antes do horário.
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
 
                   <Info
                     label="Profissional"
-                    value={confirmed.psychologistName}
+                    value={
+                      confirmed.psychologistName ||
+                      confirmed.professionalName ||
+                      'Psicólogo'
+                    }
                   />
 
                   <Info
                     label="Data"
-                    value={`${confirmed.day}, ${confirmed.slot}`}
+                    value={[
+                      confirmed.day,
+                      confirmed.slot ||
+                        confirmed.time,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
                   />
 
                   <Info
                     label="Modalidade"
                     value={
-                      confirmed.modality === 'online'
+                      confirmed.modality ===
+                      'online'
                         ? 'Online (videochamada)'
                         : 'Presencial'
                     }
                   />
 
-                  {confirmed.modality === 'online' && (
+                  {confirmed.modality ===
+                    'online' && (
                     <div className="sm:col-span-2">
                       <Link
                         to={{
-                          pathname: '/videochamada',
-                          search: `?name=${encodeURIComponent(
-                            confirmed.psychologistName
-                          )}&time=${confirmed.slot}`,
+                          pathname:
+                            '/videochamada',
+                          search:
+                            `?name=${encodeURIComponent(
+                              confirmed.psychologistName ||
+                              confirmed.professionalName ||
+                              'Psicólogo'
+                            )}&time=${encodeURIComponent(
+                              confirmed.slot ||
+                              confirmed.time ||
+                              ''
+                            )}`,
                         }}
                         state={{
-                          psychologistName: confirmed.psychologistName,
-                          time: confirmed.slot,
+                          roomId:
+                            confirmed.appointmentId ||
+                            confirmed.id ||
+                            null,
+                          role: 'patient',
+                          psychologistName:
+                            confirmed.psychologistName ||
+                            confirmed.professionalName ||
+                            'Psicólogo',
+                          time:
+                            confirmed.slot ||
+                            confirmed.time ||
+                            '',
                         }}
                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white font-semibold text-sm shadow-soft hover:shadow-glow transition-all"
                       >
@@ -178,6 +567,27 @@ export default function PatientDashboard() {
           </div>
         )}
 
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 dark:bg-red-500/5 p-5">
+            <div className="flex items-center justify-between gap-4">
+
+              <p className="text-sm text-red-700">
+                {error}
+              </p>
+
+              <button
+                type="button"
+                onClick={reloadAppointments}
+                className="shrink-0 inline-flex items-center gap-2 text-sm font-medium text-red-700 hover:underline"
+              >
+                <RefreshCw size={15} />
+                Atualizar
+              </button>
+
+            </div>
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-3 gap-6">
 
           <div className="lg:col-span-2 space-y-6">
@@ -186,90 +596,161 @@ export default function PatientDashboard() {
 
               <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full gradient-brand opacity-10 blur-2xl" />
 
-              <div className="flex items-center justify-between">
+              <div className="relative">
 
-                <div>
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  Próxima consulta
+                </span>
 
-                  <span className="text-xs font-semibold text-primary uppercase tracking-wider">
-                    Próxima consulta
-                  </span>
+                {loading ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="h-6 w-52 animate-shimmer rounded-lg" />
+                    <div className="h-4 w-full max-w-md animate-shimmer rounded-lg" />
+                  </div>
+                ) : next ? (
+                  <>
+                    <h2 className="mt-2 text-xl font-heading font-bold">
+                      {getPsychologistName(next)}
+                    </h2>
 
-                  {next ? (
-                    <>
-                      <h2 className="mt-2 text-xl font-heading font-bold">
-                        {next.psychologist_name ||
-                          next.psychologistName ||
-                          'Psicólogo'}
-                      </h2>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
 
-                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar size={15} />
+                        {next.date ||
+                          next.scheduled_at ||
+                          'Data não informada'}
+                      </span>
 
-                        <span className="inline-flex items-center gap-1.5">
-                          <Calendar size={15} />
-                          {next.date}
-                        </span>
-
+                      {getAppointmentTime(next) && (
                         <span className="inline-flex items-center gap-1.5">
                           <Clock size={15} />
-                          {next.time}
+                          {getAppointmentTime(next)}
                         </span>
+                      )}
 
-                        <span className="inline-flex items-center gap-1.5">
-
-                          {next.modality === 'online' ? (
-                            <>
-                              <Video size={15} />
-                              Online
-                            </>
-                          ) : (
-                            <>
-                              <MapPin size={15} />
-                              Presencial
-                            </>
-                          )}
-
-                        </span>
-
-                      </div>
-                    </>
-                  ) : (
-                    <div className="mt-2">
-
-                      <p className="text-muted-foreground">
-                        Você não tem consultas agendadas.
-                      </p>
-
-                      <Link
-                        to="/encontrar"
-                        className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white font-semibold text-sm"
-                      >
-                        Encontrar psicólogo
-                        <ArrowRight size={15} />
-                      </Link>
+                      <span className="inline-flex items-center gap-1.5">
+                        {getAppointmentModality(
+                          next
+                        ) === 'online' ? (
+                          <>
+                            <Video size={15} />
+                            Online
+                          </>
+                        ) : (
+                          <>
+                            <MapPin size={15} />
+                            Presencial
+                          </>
+                        )}
+                      </span>
 
                     </div>
-                  )}
 
-                </div>
+                    {getAppointmentModality(
+                      next
+                    ) === 'online' && (
+                      <Link
+                        to="/videochamada"
+                        state={{
+                          roomId: next.id,
+                          appointmentId:
+                            next.id,
+                          role: 'patient',
+                          psychologistName:
+                            getPsychologistName(
+                              next
+                            ),
+                          time:
+                            getAppointmentTime(
+                              next
+                            ),
+                        }}
+                        className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
+                      >
+                        <Video size={17} />
+                        Entrar na sala
+                      </Link>
+                    )}
+
+                  </>
+                ) : (
+                  <div className="mt-2">
+
+                    <p className="text-muted-foreground">
+                      Você não tem consultas agendadas.
+                    </p>
+
+                    <Link
+                      to="/encontrar"
+                      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white font-semibold text-sm"
+                    >
+                      Encontrar psicólogo
+                      <ArrowRight size={15} />
+                    </Link>
+
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+            <div className="card-elevated p-6">
+
+              <div className="flex items-center justify-between gap-4 mb-4">
+
+                <h3 className="font-heading font-semibold">
+                  Próximas consultas
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={reloadAppointments}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={
+                      loading
+                        ? 'animate-spin'
+                        : ''
+                    }
+                  />
+                  Atualizar
+                </button>
+
               </div>
 
-              {next && next.modality === 'online' && (
-                <Link
-                  to="/videochamada"
-                  state={{
-                    roomId: next.id,
-                    role: 'patient',
-                    psychologistName:
-                      next.psychologist_name ||
-                      next.psychologistName ||
-                      'Psicólogo',
-                    time: next.time,
-                  }}
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
-                >
-                  <Video size={17} />
-                  Entrar na sala
-                </Link>
+              {loading ? (
+                <div className="space-y-3">
+
+                  {[0, 1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="h-16 animate-shimmer rounded-xl"
+                    />
+                  ))}
+
+                </div>
+              ) : upcomingAppointments.length ===
+                0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  Nenhuma consulta próxima.
+                </p>
+              ) : (
+                <div className="space-y-2">
+
+                  {upcomingAppointments
+                    .slice(0, 5)
+                    .map((appointment) => (
+                      <AppointmentItem
+                        key={appointment.id}
+                        appointment={appointment}
+                      />
+                    ))}
+
+                </div>
               )}
 
             </div>
@@ -283,56 +764,32 @@ export default function PatientDashboard() {
               {loading ? (
                 <div className="space-y-3">
 
-                  {[0, 1, 2].map((i) => (
+                  {[0, 1, 2].map((item) => (
                     <div
-                      key={i}
+                      key={item}
                       className="h-16 animate-shimmer rounded-xl"
                     />
                   ))}
 
                 </div>
-              ) : appointments.length === 0 ? (
-
+              ) : historyAppointments.length ===
+                0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  Nenhuma consulta ainda. Quando você agendar, o histórico
-                  aparecerá aqui.
+                  Nenhum histórico de consultas
+                  disponível.
                 </p>
-
               ) : (
-
                 <div className="space-y-2">
 
-                  {appointments.map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center justify-between p-3 rounded-xl hover:bg-muted transition-colors"
-                    >
-
-                      <div>
-
-                        <p className="text-sm font-medium">
-                          {a.psychologist_name ||
-                            a.psychologistName ||
-                            'Psicólogo'}
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          {a.date} · {a.time} ·{' '}
-                          {a.modality === 'online'
-                            ? 'Online'
-                            : 'Presencial'}
-                        </p>
-
-                      </div>
-
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10">
-                        {a.status === 'scheduled'
-                          ? 'Agendada'
-                          : a.status}
-                      </span>
-
-                    </div>
-                  ))}
+                  {historyAppointments
+                    .slice(0, 10)
+                    .map((appointment) => (
+                      <AppointmentItem
+                        key={appointment.id}
+                        appointment={appointment}
+                        history
+                      />
+                    ))}
 
                 </div>
               )}
@@ -351,28 +808,38 @@ export default function PatientDashboard() {
 
               <div className="space-y-1">
 
-                {menu.map((m, i) => (
-                  <Link
-                    key={i}
-                    to={m.path}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
-                  >
-                    <m.icon size={16} className="text-primary" />
-                    {m.label}
-                  </Link>
-                ))}
+                {menu.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={`${item.label}-${item.path}`}
+                      to={item.path}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
+                    >
+                      <Icon
+                        size={16}
+                        className="text-primary"
+                      />
+
+                      {item.label}
+                    </Link>
+                  );
+                })}
 
               </div>
 
             </div>
 
-            {/* Card do Diário */}
             <Link
               to="/diario"
               className="block card-elevated p-5 hover:shadow-glow transition-all group"
             >
               <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <BookHeart size={22} className="text-primary" />
+                <BookHeart
+                  size={22}
+                  className="text-primary"
+                />
               </div>
 
               <h3 className="mt-4 font-heading font-semibold text-sm">
@@ -380,7 +847,8 @@ export default function PatientDashboard() {
               </h3>
 
               <p className="text-xs text-muted-foreground mt-1">
-                Um espaço privado para registrar seus pensamentos e sentimentos.
+                Um espaço privado para registrar seus
+                pensamentos e sentimentos.
               </p>
 
               <span className="mt-3 text-xs font-medium text-primary inline-flex items-center gap-1 group-hover:gap-2 transition-all">
@@ -391,14 +859,18 @@ export default function PatientDashboard() {
 
             <div className="card-elevated p-5 gradient-brand-soft">
 
-              <Shield size={22} className="text-primary" />
+              <Shield
+                size={22}
+                className="text-primary"
+              />
 
               <h3 className="mt-3 font-heading font-semibold text-sm">
                 Sua privacidade
               </h3>
 
               <p className="text-xs text-muted-foreground mt-1">
-                Gerencie seus dados, consentimentos e sessões ativas.
+                Gerencie seus dados, consentimentos e
+                sessões ativas.
               </p>
 
               <Link
@@ -419,6 +891,88 @@ export default function PatientDashboard() {
   );
 }
 
+function AppointmentItem({
+  appointment,
+  history = false,
+}) {
+  const modality =
+    getAppointmentModality(
+      appointment
+    );
+
+  const status =
+    appointment.status ||
+    'scheduled';
+
+  return (
+    <div className="flex items-center justify-between gap-4 p-3 rounded-xl hover:bg-muted transition-colors">
+
+      <div className="min-w-0">
+
+        <p className="text-sm font-medium truncate">
+          {getPsychologistName(
+            appointment
+          )}
+        </p>
+
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {appointment.date ||
+            'Data não informada'}
+          {' · '}
+          {getAppointmentTime(
+            appointment
+          ) || 'Horário não informado'}
+          {' · '}
+          {modality === 'online'
+            ? 'Online'
+            : 'Presencial'}
+        </p>
+
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+
+        {!history &&
+          modality === 'online' &&
+          status !== 'cancelled' &&
+          status !== 'canceled' && (
+            <Link
+              to="/videochamada"
+              state={{
+                roomId:
+                  appointment.id,
+                appointmentId:
+                  appointment.id,
+                role: 'patient',
+                psychologistName:
+                  getPsychologistName(
+                    appointment
+                  ),
+                time:
+                  getAppointmentTime(
+                    appointment
+                  ),
+              }}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
+            >
+              <Video size={13} />
+              Entrar
+            </Link>
+          )}
+
+        <span
+          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(
+            status
+          )}`}
+        >
+          {getStatusLabel(status)}
+        </span>
+
+      </div>
+    </div>
+  );
+}
+
 function Info({ label, value }) {
   return (
     <div>
@@ -427,7 +981,7 @@ function Info({ label, value }) {
       </p>
 
       <p className="font-medium mt-0.5">
-        {value}
+        {value || 'Não informado'}
       </p>
     </div>
   );
