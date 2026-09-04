@@ -32,11 +32,22 @@ export default function ProfessionalSignup() {
 
   const [error, setError] = useState("");
 
-  // Controle do código OTP
+  // OTP
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
 
+  /*
+   * =========================================================
+   * VERIFICA SE JÁ EXISTE UMA SESSÃO
+   * =========================================================
+   *
+   * Se existir:
+   * - profissional -> painel profissional
+   * - paciente -> painel paciente
+   *
+   * Isso evita mandar todo mundo para o mesmo painel.
+   */
   useEffect(() => {
     let mounted = true;
 
@@ -49,9 +60,22 @@ export default function ProfessionalSignup() {
         if (!mounted) return;
 
         if (session?.user) {
-          navigate("/cadastro-profissional", {
-            replace: true,
-          });
+          const user = session.user;
+
+          const role =
+            user.user_metadata?.role ||
+            user.user_metadata?.user_type ||
+            user.user_metadata?.account_type;
+
+          if (role === "professional") {
+            navigate("/painel-profissional", {
+              replace: true,
+            });
+          } else {
+            navigate("/painel-paciente", {
+              replace: true,
+            });
+          }
 
           return;
         }
@@ -74,6 +98,11 @@ export default function ProfessionalSignup() {
     };
   }, [navigate]);
 
+  /*
+   * =========================================================
+   * ATUALIZA FORMULÁRIO
+   * =========================================================
+   */
   const update = (key, value) => {
     setForm((current) => ({
       ...current,
@@ -81,6 +110,11 @@ export default function ProfessionalSignup() {
     }));
   };
 
+  /*
+   * =========================================================
+   * VALIDAÇÃO
+   * =========================================================
+   */
   const validate = () => {
     if (!form.full_name.trim()) {
       return "Informe seu nome completo.";
@@ -112,8 +146,9 @@ export default function ProfessionalSignup() {
   };
 
   /*
-   * CRIA A CONTA PROFISSIONAL
-   * E ENVIA O CÓDIGO OTP
+   * =========================================================
+   * CRIAR CONTA PROFISSIONAL
+   * =========================================================
    */
   const createProfessionalAccount = async (
     event
@@ -141,6 +176,15 @@ export default function ProfessionalSignup() {
       const fullName =
         form.full_name.trim();
 
+      /*
+       * IMPORTANTE:
+       *
+       * Esses dados ficam no user_metadata
+       * do usuário no Supabase.
+       *
+       * O role "professional" é o que diferencia
+       * a conta profissional da conta de paciente.
+       */
       const {
         data,
         error: signUpError,
@@ -153,11 +197,13 @@ export default function ProfessionalSignup() {
             full_name: fullName,
             name: fullName,
 
-            // IMPORTANTE:
-            // identifica essa conta como profissional
-            account_type: "professional",
-            user_type: "professional",
+            // IDENTIDADE DA CONTA
             role: "professional",
+            user_type: "professional",
+            account_type: "professional",
+
+            // Marcador adicional
+            profile_type: "professional",
           },
         },
       });
@@ -167,10 +213,39 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * Caso o Supabase já tenha retornado
-       * uma sessão, não precisamos de OTP.
+       * Caso a confirmação esteja desativada
+       * no Supabase, já teremos uma sessão.
        */
       if (data?.session?.user) {
+        const user = data.session.user;
+
+        /*
+         * Garante novamente os metadados.
+         */
+        const { error: updateError } =
+          await supabase.auth.updateUser({
+            data: {
+              full_name: fullName,
+              name: fullName,
+              role: "professional",
+              user_type: "professional",
+              account_type: "professional",
+              profile_type: "professional",
+            },
+          });
+
+        if (updateError) {
+          console.error(
+            "Erro ao salvar tipo profissional:",
+            updateError
+          );
+        }
+
+        /*
+         * Depois da criação:
+         *
+         * primeiro vai preencher o cadastro profissional.
+         */
         navigate("/cadastro-profissional", {
           replace: true,
         });
@@ -179,8 +254,7 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * Confirmação de e-mail ativada:
-       * mostramos a tela para digitar o código.
+       * Confirmação por código ativada.
        */
       setOtpSent(true);
     } catch (err) {
@@ -204,9 +278,7 @@ export default function ProfessionalSignup() {
       }
 
       if (
-        lowerMessage.includes(
-          "rate limit"
-        ) ||
+        lowerMessage.includes("rate limit") ||
         lowerMessage.includes(
           "too many requests"
         )
@@ -218,6 +290,9 @@ export default function ProfessionalSignup() {
       if (
         lowerMessage.includes(
           "already registered"
+        ) ||
+        lowerMessage.includes(
+          "user already registered"
         )
       ) {
         message =
@@ -231,7 +306,9 @@ export default function ProfessionalSignup() {
   };
 
   /*
-   * VERIFICA O CÓDIGO DE 6 DÍGITOS
+   * =========================================================
+   * VERIFICAR OTP
+   * =========================================================
    */
   const verifyOtp = async (event) => {
     event.preventDefault();
@@ -275,19 +352,15 @@ export default function ProfessionalSignup() {
         );
       }
 
-      /*
-       * Garante que a conta continua identificada
-       * como profissional após a confirmação.
-       */
       const user = data.session.user;
 
-      const currentRole =
-        user.user_metadata?.role;
-
-      if (currentRole !== "professional") {
-        const {
-          error: updateError,
-        } = await supabase.auth.updateUser({
+      /*
+       * =====================================================
+       * GARANTE QUE O USUÁRIO É PROFISSIONAL
+       * =====================================================
+       */
+      const { error: updateError } =
+        await supabase.auth.updateUser({
           data: {
             full_name:
               form.full_name.trim(),
@@ -295,28 +368,29 @@ export default function ProfessionalSignup() {
             name:
               form.full_name.trim(),
 
-            account_type:
-              "professional",
+            role: "professional",
 
-            user_type:
-              "professional",
+            user_type: "professional",
 
-            role:
-              "professional",
+            account_type: "professional",
+
+            profile_type: "professional",
           },
         });
 
-        if (updateError) {
-          console.error(
-            "Erro ao atualizar tipo da conta:",
-            updateError
-          );
-        }
+      if (updateError) {
+        console.error(
+          "Erro ao salvar tipo profissional:",
+          updateError
+        );
       }
 
       /*
-       * Código confirmado.
-       * Agora o usuário vai para o cadastro
+       * =====================================================
+       * CONFIRMAÇÃO CONCLUÍDA
+       * =====================================================
+       *
+       * Agora vai para o preenchimento do cadastro
        * profissional.
        */
       navigate("/cadastro-profissional", {
@@ -336,18 +410,14 @@ export default function ProfessionalSignup() {
         message.toLowerCase();
 
       if (
-        lowerMessage.includes(
-          "expired"
-        )
+        lowerMessage.includes("expired")
       ) {
         message =
           "Esse código expirou. Solicite um novo código.";
       }
 
       if (
-        lowerMessage.includes(
-          "invalid"
-        )
+        lowerMessage.includes("invalid")
       ) {
         message =
           "Código inválido. Confira os 6 números e tente novamente.";
@@ -360,7 +430,9 @@ export default function ProfessionalSignup() {
   };
 
   /*
-   * ENVIA NOVAMENTE O CÓDIGO
+   * =========================================================
+   * REENVIAR OTP
+   * =========================================================
    */
   const resendOtp = async () => {
     if (loading || verifyingOtp) return;
@@ -391,15 +463,34 @@ export default function ProfessionalSignup() {
         err
       );
 
-      setError(
+      let message =
         err?.message ||
-          "Não foi possível reenviar o código."
-      );
+        "Não foi possível reenviar o código.";
+
+      const lowerMessage =
+        message.toLowerCase();
+
+      if (
+        lowerMessage.includes("rate limit") ||
+        lowerMessage.includes(
+          "too many requests"
+        )
+      ) {
+        message =
+          "Limite de envio atingido. Aguarde alguns minutos antes de pedir outro código.";
+      }
+
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
+  /*
+   * =========================================================
+   * CARREGANDO
+   * =========================================================
+   */
   if (checkingSession) {
     return (
       <PageShell>
@@ -420,7 +511,9 @@ export default function ProfessionalSignup() {
   }
 
   /*
-   * TELA DE CONFIRMAÇÃO POR CÓDIGO
+   * =========================================================
+   * TELA DO CÓDIGO OTP
+   * =========================================================
    */
   if (otpSent) {
     return (
@@ -495,9 +588,7 @@ export default function ProfessionalSignup() {
                 ) : (
                   <>
                     Confirmar e continuar
-                    <ArrowRight
-                      size={18}
-                    />
+                    <ArrowRight size={18} />
                   </>
                 )}
               </button>
@@ -535,7 +626,9 @@ export default function ProfessionalSignup() {
   }
 
   /*
-   * FORMULÁRIO DE CADASTRO
+   * =========================================================
+   * FORMULÁRIO
+   * =========================================================
    */
   return (
     <PageShell>
@@ -573,9 +666,7 @@ export default function ProfessionalSignup() {
         )}
 
         <form
-          onSubmit={
-            createProfessionalAccount
-          }
+          onSubmit={createProfessionalAccount}
           className="card-elevated p-6 sm:p-8 space-y-5"
         >
           <div>
@@ -649,8 +740,7 @@ export default function ProfessionalSignup() {
                 type="button"
                 onClick={() =>
                   setShowPassword(
-                    (current) =>
-                      !current
+                    (current) => !current
                   )
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -677,9 +767,7 @@ export default function ProfessionalSignup() {
                     ? "text"
                     : "password"
                 }
-                value={
-                  form.confirm_password
-                }
+                value={form.confirm_password}
                 onChange={(e) =>
                   update(
                     "confirm_password",
@@ -696,8 +784,7 @@ export default function ProfessionalSignup() {
                 type="button"
                 onClick={() =>
                   setShowConfirmPassword(
-                    (current) =>
-                      !current
+                    (current) => !current
                   )
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
