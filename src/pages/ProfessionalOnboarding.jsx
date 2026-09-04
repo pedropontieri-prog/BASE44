@@ -1,2330 +1,2505 @@
-```jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Camera,
-  Check,
-  Eye,
-  EyeOff,
-  Loader2,
-  LogIn,
-  Lock,
-  LogOut,
-  ShieldCheck,
-  User,
-  UserPlus,
-  Video,
-  X,
+ArrowLeft,
+ArrowRight,
+Calendar,
+Camera,
+Check,
+Eye,
+EyeOff,
+Loader2,
+LogIn,
+Lock,
+LogOut,
+ShieldCheck,
+User,
+UserPlus,
+Video,
+X,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
-  { key: "personal", label: "Pessoal", icon: User },
-  { key: "professional", label: "Profissional", icon: ShieldCheck },
-  { key: "service", label: "Atendimento", icon: Calendar },
-  { key: "photo", label: "Foto", icon: Camera },
-  { key: "video", label: "Vídeo", icon: Video },
-  { key: "review", label: "Revisão", icon: Check },
+{ key: "personal", label: "Pessoal", icon: User },
+{ key: "professional", label: "Profissional", icon: ShieldCheck },
+{ key: "service", label: "Atendimento", icon: Calendar },
+{ key: "photo", label: "Foto", icon: Camera },
+{ key: "video", label: "Vídeo", icon: Video },
+{ key: "review", label: "Revisão", icon: Check },
 ];
 
 const SPEC_OPTS = [
-  "Ansiedade",
-  "Depressão",
-  "Relacionamentos",
-  "Autoestima",
-  "Luto",
-  "Trauma",
-  "TDAH",
-  "Terapia de casal",
-  "Adolescentes",
-  "Estresse",
-  "Fobias",
-  "Pânico",
-  "Autoconhecimento",
-  "Burnout",
-  "Comportamento alimentar",
+"Ansiedade",
+"Depressão",
+"Relacionamentos",
+"Autoestima",
+"Luto",
+"Trauma",
+"TDAH",
+"Terapia de casal",
+"Adolescentes",
+"Estresse",
+"Fobias",
+"Pânico",
+"Autoconhecimento",
+"Burnout",
+"Comportamento alimentar",
 ];
 
 const APPROACH_OPTS = [
-  "TCC",
-  "Psicanálise",
-  "Humanista",
-  "Jungiana",
-  "Sistêmica",
-  "Gestalt",
-  "ACT",
-  "Mindfulness",
-  "Integração",
+"TCC",
+"Psicanálise",
+"Humanista",
+"Jungiana",
+"Sistêmica",
+"Gestalt",
+"ACT",
+"Mindfulness",
+"Integração",
 ];
 
 const THEME_OPTS = [
-  "Ansiedade",
-  "Depressão",
-  "Relacionamentos",
-  "Luto",
-  "Trauma",
-  "TDAH",
-  "Estresse",
-  "Autoestima",
-  "Sexualidade",
-  "Carreira",
-  "Família",
-  "Adicções",
+"Ansiedade",
+"Depressão",
+"Relacionamentos",
+"Luto",
+"Trauma",
+"TDAH",
+"Estresse",
+"Autoestima",
+"Sexualidade",
+"Carreira",
+"Família",
+"Adicções",
 ];
 
 const AUDIENCE_OPTS = [
-  "Adultos",
-  "Adolescentes",
-  "Crianças",
-  "Casais",
-  "Idosos",
+"Adultos",
+"Adolescentes",
+"Crianças",
+"Casais",
+"Idosos",
 ];
 
 const LANG_OPTS = [
-  "Português",
-  "Inglês",
-  "Espanhol",
-  "Libras",
-  "Francês",
+"Português",
+"Inglês",
+"Espanhol",
+"Libras",
+"Francês",
 ];
 
 const DAY_OPTS = [
-  "Seg",
-  "Ter",
-  "Qua",
-  "Qui",
-  "Sex",
-  "Sáb",
-  "Dom",
+"Seg",
+"Ter",
+"Qua",
+"Qui",
+"Sex",
+"Sáb",
+"Dom",
 ];
 
 const SLOT_OPTS = [
-  "07:00",
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-  "21:00",
+"07:00",
+"08:00",
+"09:00",
+"10:00",
+"11:00",
+"12:00",
+"14:00",
+"15:00",
+"16:00",
+"17:00",
+"18:00",
+"19:00",
+"20:00",
+"21:00",
 ];
 
-const REGION_OPTS = Array.from({ length: 24 }, (_, i) => {
-  const value = String(i + 1).padStart(2, "0");
+const REGION_OPTS = Array.from({ length: 24 }, function (_, i) {
+const value = String(i + 1).padStart(2, "0");
 
-  return {
-    value,
-    label: `CRP ${value}`,
-  };
+return {
+value: value,
+label: "CRP " + value,
+};
 });
 
 const DEFAULTS = {
-  full_name: "",
-  professional_name: "",
-  email: "",
-  phone: "",
-  city: "",
-  state: "",
-  gender: "",
-  crp_number: "",
-  crp_region: "",
-  education: "Psicologia",
-  institution: "",
-  graduation_year: "",
-  specializations: [],
-  approaches: [],
-  specialties: [],
-  themes: [],
-  modalities: ["online"],
-  languages: ["Português"],
-  audience: ["Adultos"],
-  experience: "",
-  price: "",
-  session_duration: 50,
-  available_days: [],
-  available_slots: [],
-  cancellation_policy: "",
-  address: "",
-  about: "",
-  photo_url: "",
-  video_url: "",
+full_name: "",
+professional_name: "",
+email: "",
+phone: "",
+city: "",
+state: "",
+gender: "",
+crp_number: "",
+crp_region: "",
+education: "Psicologia",
+institution: "",
+graduation_year: "",
+specializations: [],
+approaches: [],
+specialties: [],
+themes: [],
+modalities: ["online"],
+languages: ["Português"],
+audience: ["Adultos"],
+experience: "",
+price: "",
+session_duration: 50,
+available_days: [],
+available_slots: [],
+cancellation_policy: "",
+address: "",
+about: "",
+photo_url: "",
+video_url: "",
 };
 
 function getFriendlyError(error) {
-  const message = String(error?.message || "").toLowerCase();
+const message = String(error && error.message ? error.message : "").toLowerCase();
 
-  if (message.includes("invalid login credentials")) {
-    return "E-mail ou senha incorretos.";
-  }
+if (message.includes("invalid login credentials")) {
+return "E-mail ou senha incorretos.";
+}
 
-  if (message.includes("email not confirmed")) {
-    return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.";
-  }
+if (message.includes("email not confirmed")) {
+return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.";
+}
 
-  if (message.includes("user already registered")) {
-    return "Este e-mail já possui uma conta. Use a opção Entrar.";
-  }
+if (message.includes("user already registered")) {
+return "Este e-mail já possui uma conta. Use a opção Entrar.";
+}
 
-  if (message.includes("password")) {
-    return "A senha deve ter pelo menos 6 caracteres.";
-  }
+if (message.includes("password")) {
+return "A senha deve ter pelo menos 6 caracteres.";
+}
 
-  if (message.includes("duplicate")) {
-    return "Este cadastro já existe.";
-  }
+if (message.includes("duplicate")) {
+return "Este cadastro já existe.";
+}
 
-  if (
-    message.includes("row-level security") ||
-    message.includes("permission")
-  ) {
-    return "O Supabase bloqueou o cadastro por causa das permissões.";
-  }
+if (
+message.includes("row-level security") ||
+message.includes("permission")
+) {
+return "O Supabase bloqueou o cadastro por causa das permissões.";
+}
 
-  if (
-    message.includes("bucket") ||
-    message.includes("storage") ||
-    message.includes("object")
-  ) {
-    return "Não foi possível enviar o arquivo. Verifique o Storage do Supabase.";
-  }
+if (
+message.includes("bucket") ||
+message.includes("storage") ||
+message.includes("object")
+) {
+return "Não foi possível enviar o arquivo. Verifique o Storage do Supabase.";
+}
 
-  return error?.message || "Não foi possível concluir a operação.";
+return (error && error.message) || "Não foi possível concluir a operação.";
 }
 
 function makeFileName(file) {
-  const extension =
-    file.name?.split(".").pop()?.toLowerCase() || "file";
+const extension =
+(file.name && file.name.split(".").pop()
+? file.name.split(".").pop().toLowerCase()
+: "file");
 
-  const id =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const id =
+typeof crypto !== "undefined" && crypto.randomUUID
+? crypto.randomUUID()
+: String(Date.now()) +
+"-" +
+Math.random().toString(36).slice(2);
 
-  return `${id}.${extension}`;
+return id + "." + extension;
 }
 
 function Input({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder = "",
-  required = false,
+label,
+value,
+onChange,
+type = "text",
+placeholder = "",
+required = false,
 }) {
-  return (
-    <label className="block">
-      <span className="block text-sm font-medium mb-2">
-        {label}{" "}
-        {required && <span className="text-red-500">*</span>}
-      </span>
+return ( <label className="block"> <span className="block text-sm font-medium mb-2">
+{label}{" "}
+{required && <span className="text-red-500">*</span>} </span>
 
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
-      />
-    </label>
-  );
+```
+  <input
+    type={type}
+    value={value || ""}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder={placeholder}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:ring-2 focus:ring-primary/30 focus:border-primary"
+  />
+</label>
+```
+
+);
 }
 
 function Select({
-  label,
-  value,
-  onChange,
-  options,
-  required = false,
+label,
+value,
+onChange,
+options,
+required = false,
 }) {
-  return (
-    <label className="block">
-      <span className="block text-sm font-medium mb-2">
-        {label}{" "}
-        {required && <span className="text-red-500">*</span>}
-      </span>
+return ( <label className="block"> <span className="block text-sm font-medium mb-2">
+{label}{" "}
+{required && <span className="text-red-500">*</span>} </span>
 
-      <select
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+```
+  <select
+    value={value || ""}
+    onChange={(e) => onChange(e.target.value)}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+  >
+    <option value="">Selecione...</option>
+
+    {options.map((option) => (
+      <option
+        key={option.value || option}
+        value={option.value || option}
       >
-        <option value="">Selecione...</option>
+        {option.label || option}
+      </option>
+    ))}
+  </select>
+</label>
+```
 
-        {options.map((option) => (
-          <option
-            key={option.value ?? option}
-            value={option.value ?? option}
-          >
-            {option.label ?? option}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+);
 }
 
 function TextArea({
-  label,
-  value,
-  onChange,
-  placeholder = "",
-  rows = 5,
+label,
+value,
+onChange,
+placeholder = "",
+rows = 5,
 }) {
-  return (
-    <label className="block">
-      <span className="block text-sm font-medium mb-2">
-        {label}
-      </span>
+return ( <label className="block"> <span className="block text-sm font-medium mb-2">
+{label} </span>
 
-      <textarea
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
-      />
-    </label>
-  );
+```
+  <textarea
+    value={value || ""}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder={placeholder}
+    rows={rows}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none resize-y focus:ring-2 focus:ring-primary/30 focus:border-primary"
+  />
+</label>
+```
+
+);
 }
 
 function Chips({
-  label,
-  options,
-  values = [],
-  onChange,
-  multiple = true,
+label,
+options,
+values = [],
+onChange,
+multiple = true,
 }) {
-  const toggle = (option) => {
-    if (!multiple) {
-      onChange(values.includes(option) ? [] : [option]);
-      return;
-    }
+const toggle = (option) => {
+if (!multiple) {
+onChange(values.includes(option) ? [] : [option]);
+return;
+}
 
-    onChange(
-      values.includes(option)
-        ? values.filter((item) => item !== option)
-        : [...values, option]
-    );
-  };
+```
+onChange(
+  values.includes(option)
+    ? values.filter((item) => item !== option)
+    : [...values, option]
+);
+```
 
-  return (
-    <div>
-      <p className="text-sm font-medium mb-2">{label}</p>
+};
 
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => {
-          const active = values.includes(option);
+return ( <div> <p className="text-sm font-medium mb-2">{label}</p>
 
-          return (
-            <button
-              type="button"
-              key={option}
-              onClick={() => toggle(option)}
-              className={`rounded-full border px-3 py-2 text-sm transition ${
-                active
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border hover:border-primary"
-              }`}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+```
+  <div className="flex flex-wrap gap-2">
+    {options.map((option) => {
+      const active = values.includes(option);
+
+      return (
+        <button
+          type="button"
+          key={option}
+          onClick={() => toggle(option)}
+          className={
+            "rounded-full border px-3 py-2 text-sm transition " +
+            (active
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background border-border hover:border-primary")
+          }
+        >
+          {option}
+        </button>
+      );
+    })}
+  </div>
+</div>
+```
+
+);
 }
 
 function MediaUploadCard({
-  type,
-  file,
-  preview,
-  uploading,
-  onChange,
-  onRemove,
+type,
+file,
+preview,
+uploading,
+onChange,
+onRemove,
 }) {
-  const isPhoto = type === "photo";
+const isPhoto = type === "photo";
 
-  return (
-    <div className="space-y-5">
-      <label
-        className={`block border-2 border-dashed border-border rounded-3xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition ${
-          uploading ? "opacity-60 pointer-events-none" : ""
-        }`}
-      >
-        {isPhoto ? (
-          <Camera
-            size={44}
-            className="mx-auto text-primary mb-4"
-          />
-        ) : (
-          <Video
-            size={44}
-            className="mx-auto text-primary mb-4"
-          />
-        )}
+return ( <div className="space-y-5">
+<label
+className={
+"block border-2 border-dashed border-border rounded-3xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition " +
+(uploading ? "opacity-60 pointer-events-none" : "")
+}
+>
+{isPhoto ? ( <Camera
+         size={44}
+         className="mx-auto text-primary mb-4"
+       />
+) : ( <Video
+         size={44}
+         className="mx-auto text-primary mb-4"
+       />
+)}
 
-        <p className="font-semibold text-lg">
-          {uploading
-            ? `Enviando ${isPhoto ? "foto" : "vídeo"}...`
-            : file
-            ? "Trocar arquivo"
-            : `Adicionar ${isPhoto ? "foto de perfil" : "vídeo de apresentação"}`}
-        </p>
+```
+    <p className="font-semibold text-lg">
+      {uploading
+        ? "Enviando " +
+          (isPhoto ? "foto" : "vídeo") +
+          "..."
+        : file
+        ? "Trocar arquivo"
+        : "Adicionar " +
+          (isPhoto
+            ? "foto de perfil"
+            : "vídeo de apresentação")}
+    </p>
 
-        <p className="text-sm text-muted-foreground mt-2">
-          {isPhoto
-            ? "JPG, PNG ou WEBP • máximo 10 MB"
-            : "MP4, WEBM ou MOV • máximo 200 MB"}
-        </p>
+    <p className="text-sm text-muted-foreground mt-2">
+      {isPhoto
+        ? "JPG, PNG ou WEBP • máximo 10 MB"
+        : "MP4, WEBM ou MOV • máximo 200 MB"}
+    </p>
 
-        <input
-          type="file"
-          accept={
-            isPhoto
-              ? "image/jpeg,image/png,image/webp"
-              : "video/mp4,video/webm,video/quicktime"
-          }
-          className="hidden"
-          disabled={uploading}
-          onChange={(e) => onChange(e.target.files?.[0] || null)}
+    <input
+      type="file"
+      accept={
+        isPhoto
+          ? "image/jpeg,image/png,image/webp"
+          : "video/mp4,video/webm,video/quicktime"
+      }
+      className="hidden"
+      disabled={uploading}
+      onChange={(e) =>
+        onChange(e.target.files ? e.target.files[0] : null)
+      }
+    />
+  </label>
+
+  {preview && (
+    <div className="rounded-3xl border border-border bg-background p-5">
+      {isPhoto ? (
+        <img
+          src={preview}
+          alt="Pré-visualização da foto profissional"
+          className="w-48 h-48 object-cover rounded-3xl mx-auto"
         />
-      </label>
-
-      {preview && (
-        <div className="rounded-3xl border border-border bg-background p-5">
-          {isPhoto ? (
-            <img
-              src={preview}
-              alt="Pré-visualização da foto profissional"
-              className="w-48 h-48 object-cover rounded-3xl mx-auto"
-            />
-          ) : (
-            <video
-              src={preview}
-              controls
-              playsInline
-              className="w-full max-h-[420px] rounded-3xl mx-auto"
-            />
-          )}
-
-          <button
-            type="button"
-            onClick={onRemove}
-            className="mt-5 mx-auto flex items-center gap-2 text-sm text-red-600 hover:underline"
-          >
-            <X size={16} />
-            Remover {isPhoto ? "foto" : "vídeo"}
-          </button>
-        </div>
+      ) : (
+        <video
+          src={preview}
+          controls
+          playsInline
+          className="w-full max-h-[420px] rounded-3xl mx-auto"
+        />
       )}
+
+      <button
+        type="button"
+        onClick={onRemove}
+        className="mt-5 mx-auto flex items-center gap-2 text-sm text-red-600 hover:underline"
+      >
+        <X size={16} />
+        Remover {isPhoto ? "foto" : "vídeo"}
+      </button>
     </div>
-  );
+  )}
+</div>
+```
+
+);
 }
 
 export default function ProfessionalOnboarding() {
-  const navigate = useNavigate();
+const navigate = useNavigate();
 
-  const [step, setStep] = useState(0);
-  const [data, setData] = useState(DEFAULTS);
+const [step, setStep] = useState(0);
+const [data, setData] = useState(DEFAULTS);
 
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("register");
-  const [authenticatedUser, setAuthenticatedUser] = useState(null);
+const [authLoading, setAuthLoading] = useState(true);
+const [authMode, setAuthMode] = useState("register");
+const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
-  const [authName, setAuthName] = useState("");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+const [authName, setAuthName] = useState("");
+const [authEmail, setAuthEmail] = useState("");
+const [authPassword, setAuthPassword] = useState("");
+const [showPassword, setShowPassword] = useState(false);
 
-  const [authSubmitting, setAuthSubmitting] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [confirmationSent, setConfirmationSent] = useState(false);
-  const [error, setError] = useState("");
+const [authSubmitting, setAuthSubmitting] = useState(false);
+const [submitting, setSubmitting] = useState(false);
+const [uploading, setUploading] = useState(false);
+const [done, setDone] = useState(false);
+const [confirmationSent, setConfirmationSent] = useState(false);
+const [error, setError] = useState("");
 
-  const [photoFile, setPhotoFile] = useState(null);
-  const [videoFile, setVideoFile] = useState(null);
+const [photoFile, setPhotoFile] = useState(null);
+const [videoFile, setVideoFile] = useState(null);
 
-  const [photoPreview, setPhotoPreview] = useState("");
-  const [videoPreview, setVideoPreview] = useState("");
+const [photoPreview, setPhotoPreview] = useState("");
+const [videoPreview, setVideoPreview] = useState("");
 
-  const isAuthenticated = Boolean(authenticatedUser?.id);
+const isAuthenticated = Boolean(
+authenticatedUser && authenticatedUser.id
+);
 
-  const displayName = useMemo(
-    () =>
-      data.professional_name ||
-      data.full_name ||
-      authenticatedUser?.user_metadata?.full_name ||
-      authenticatedUser?.user_metadata?.name ||
-      "Profissional",
-    [
-      data.professional_name,
-      data.full_name,
-      authenticatedUser,
-    ]
-  );
+const displayName = useMemo(
+() =>
+data.professional_name ||
+data.full_name ||
+(authenticatedUser &&
+authenticatedUser.user_metadata &&
+authenticatedUser.user_metadata.full_name) ||
+(authenticatedUser &&
+authenticatedUser.user_metadata &&
+authenticatedUser.user_metadata.name) ||
+"Profissional",
+[
+data.professional_name,
+data.full_name,
+authenticatedUser,
+]
+);
 
-  const set = (key, value) => {
-    setData((current) => ({
-      ...current,
-      [key]: value,
-    }));
-  };
+const set = (key, value) => {
+setData((current) => ({
+...current,
+[key]: value,
+}));
+};
 
-  useEffect(() => {
-    let mounted = true;
+useEffect(() => {
+let mounted = true;
 
-    const loadSession = async () => {
-      try {
-        setAuthLoading(true);
-
-        const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (sessionError) {
-          setAuthenticatedUser(null);
-          return;
-        }
-
-        const user = sessionData?.session?.user || null;
-
-        setAuthenticatedUser(user);
-
-        if (user) {
-          setData((current) => ({
-            ...current,
-            email:
-              current.email ||
-              user.email ||
-              "",
-            full_name:
-              current.full_name ||
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              "",
-          }));
-        }
-      } catch (err) {
-        console.error(err);
-
-        if (mounted) {
-          setAuthenticatedUser(null);
-        }
-      } finally {
-        if (mounted) {
-          setAuthLoading(false);
-        }
-      }
-    };
-
-    loadSession();
+```
+const loadSession = async () => {
+  try {
+    setAuthLoading(true);
 
     const {
-      data: listener,
-    } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
+      data: sessionData,
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-        const user = session?.user || null;
-
-        if (user) {
-          setAuthenticatedUser(user);
-
-          setData((current) => ({
-            ...current,
-            email:
-              current.email ||
-              user.email ||
-              "",
-            full_name:
-              current.full_name ||
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              "",
-          }));
-        }
-
-        if (event === "SIGNED_OUT") {
-          setAuthenticatedUser(null);
-        }
-
-        setAuthLoading(false);
-      }
-    );
-
-    return () => {
-      mounted = false;
-      listener?.subscription?.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (photoPreview?.startsWith("blob:")) {
-        URL.revokeObjectURL(photoPreview);
-      }
-
-      if (videoPreview?.startsWith("blob:")) {
-        URL.revokeObjectURL(videoPreview);
-      }
-    };
-  }, [photoPreview, videoPreview]);
-
-  const validatePhoto = (file) => {
-    if (!file) {
-      return "Selecione uma foto.";
-    }
-
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      return "Formato de foto não permitido. Envie JPG, PNG ou WEBP.";
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      return "A foto deve ter no máximo 10 MB.";
-    }
-
-    return "";
-  };
-
-  const validateVideo = (file) => {
-    if (!file) {
-      return "Selecione um vídeo.";
-    }
-
-    const allowedTypes = [
-      "video/mp4",
-      "video/webm",
-      "video/quicktime",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      return "Formato de vídeo não permitido. Envie MP4, WEBM ou MOV.";
-    }
-
-    if (file.size > 200 * 1024 * 1024) {
-      return "O vídeo deve ter no máximo 200 MB.";
-    }
-
-    return "";
-  };
-
-  const handlePhotoSelect = (file) => {
-    setError("");
-
-    if (!file) return;
-
-    const validation = validatePhoto(file);
-
-    if (validation) {
-      setError(validation);
+    if (!mounted) {
       return;
     }
 
-    if (photoPreview?.startsWith("blob:")) {
-      URL.revokeObjectURL(photoPreview);
-    }
-
-    const preview = URL.createObjectURL(file);
-
-    setPhotoFile(file);
-    setPhotoPreview(preview);
-  };
-
-  const handleVideoSelect = (file) => {
-    setError("");
-
-    if (!file) return;
-
-    const validation = validateVideo(file);
-
-    if (validation) {
-      setError(validation);
+    if (sessionError) {
+      setAuthenticatedUser(null);
       return;
     }
 
-    if (videoPreview?.startsWith("blob:")) {
-      URL.revokeObjectURL(videoPreview);
+    const user =
+      sessionData &&
+      sessionData.session &&
+      sessionData.session.user
+        ? sessionData.session.user
+        : null;
+
+    setAuthenticatedUser(user);
+
+    if (user) {
+      setData((current) => ({
+        ...current,
+        email:
+          current.email ||
+          user.email ||
+          "",
+        full_name:
+          current.full_name ||
+          (user.user_metadata &&
+            user.user_metadata.full_name) ||
+          (user.user_metadata &&
+            user.user_metadata.name) ||
+          "",
+      }));
     }
+  } catch (err) {
+    console.error(err);
 
-    const preview = URL.createObjectURL(file);
-
-    setVideoFile(file);
-    setVideoPreview(preview);
-  };
-
-  const removePhoto = () => {
-    if (photoPreview?.startsWith("blob:")) {
-      URL.revokeObjectURL(photoPreview);
+    if (mounted) {
+      setAuthenticatedUser(null);
     }
-
-    setPhotoFile(null);
-    setPhotoPreview("");
-    set("photo_url", "");
-    setError("");
-  };
-
-  const removeVideo = () => {
-    if (videoPreview?.startsWith("blob:")) {
-      URL.revokeObjectURL(videoPreview);
+  } finally {
+    if (mounted) {
+      setAuthLoading(false);
     }
+  }
+};
 
-    setVideoFile(null);
-    setVideoPreview("");
-    set("video_url", "");
-    setError("");
-  };
+loadSession();
 
-  const authenticateProfessional = async () => {
-    setError("");
-
-    if (!authEmail.trim()) {
-      setError("Informe seu e-mail profissional.");
+const {
+  data: listener,
+} = supabase.auth.onAuthStateChange(
+  (event, session) => {
+    if (!mounted) {
       return;
     }
 
-    if (!authPassword) {
-      setError("Informe sua senha.");
-      return;
-    }
+    const user =
+      session && session.user
+        ? session.user
+        : null;
 
-    if (authPassword.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-
-    if (
-      authMode === "register" &&
-      !authName.trim()
-    ) {
-      setError("Informe seu nome completo.");
-      return;
-    }
-
-    setAuthSubmitting(true);
-
-    try {
-      if (authMode === "register") {
-        const {
-          data: signUpData,
-          error: signUpError,
-        } = await supabase.auth.signUp({
-          email: authEmail.trim().toLowerCase(),
-          password: authPassword,
-          options: {
-            data: {
-              full_name: authName.trim(),
-              name: authName.trim(),
-              role: "psychologist",
-              account_type: "professional",
-              user_type: "professional",
-            },
-          },
-        });
-
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        const user = signUpData?.user || null;
-
-        setData((current) => ({
-          ...current,
-          full_name:
-            current.full_name ||
-            authName.trim(),
-          email:
-            current.email ||
-            authEmail.trim().toLowerCase(),
-        }));
-
-        if (signUpData?.session?.user) {
-          setAuthenticatedUser(signUpData.session.user);
-          setConfirmationSent(false);
-          setStep(0);
-          return;
-        }
-
-        if (user) {
-          setConfirmationSent(true);
-          setError(
-            "Conta criada. Confirme seu e-mail e depois entre para continuar o cadastro profissional."
-          );
-          return;
-        }
-
-        throw new Error(
-          "A conta foi criada, mas não foi possível iniciar a sessão."
-        );
-      }
-
-      const {
-        data: loginData,
-        error: loginError,
-      } = await supabase.auth.signInWithPassword({
-        email: authEmail.trim().toLowerCase(),
-        password: authPassword,
-      });
-
-      if (loginError) {
-        throw loginError;
-      }
-
-      if (!loginData?.user) {
-        throw new Error(
-          "Não foi possível iniciar a sessão."
-        );
-      }
-
-      setAuthenticatedUser(loginData.user);
+    if (user) {
+      setAuthenticatedUser(user);
 
       setData((current) => ({
         ...current,
         email:
           current.email ||
-          loginData.user.email ||
+          user.email ||
           "",
         full_name:
           current.full_name ||
-          loginData.user.user_metadata?.full_name ||
-          loginData.user.user_metadata?.name ||
+          (user.user_metadata &&
+            user.user_metadata.full_name) ||
+          (user.user_metadata &&
+            user.user_metadata.name) ||
           "",
       }));
-
-      setStep(0);
-      setConfirmationSent(false);
-      setError("");
-    } catch (err) {
-      console.error(
-        "EntreNós: erro na autenticação:",
-        err
-      );
-
-      setError(getFriendlyError(err));
-    } finally {
-      setAuthSubmitting(false);
-    }
-  };
-
-  const resendConfirmation = async () => {
-    if (!authEmail.trim()) {
-      setError("Informe seu e-mail.");
-      return;
     }
 
-    setAuthSubmitting(true);
-    setError("");
-
-    try {
-      const {
-        error: resendError,
-      } = await supabase.auth.resend({
-        type: "signup",
-        email: authEmail.trim().toLowerCase(),
-      });
-
-      if (resendError) {
-        throw resendError;
-      }
-
-      setError(
-        "E-mail de confirmação reenviado. Verifique sua caixa de entrada."
-      );
-    } catch (err) {
-      setError(getFriendlyError(err));
-    } finally {
-      setAuthSubmitting(false);
-    }
-  };
-
-  const logoutProfessional = async () => {
-    await supabase.auth.signOut();
-
-    setAuthenticatedUser(null);
-    setConfirmationSent(false);
-    setStep(0);
-    setData(DEFAULTS);
-
-    setPhotoFile(null);
-    setVideoFile(null);
-
-    setPhotoPreview("");
-    setVideoPreview("");
-
-    setError("");
-  };
-
-  const uploadFileToStorage = async (
-    file,
-    type,
-    userId
-  ) => {
-    if (!file) {
-      return "";
+    if (event === "SIGNED_OUT") {
+      setAuthenticatedUser(null);
     }
 
-    const isPhoto = type === "photo";
+    setAuthLoading(false);
+  }
+);
 
-    const folder = isPhoto
-      ? `professionals/${userId}/photos`
-      : `professionals/${userId}/videos`;
+return () => {
+  mounted = false;
 
-    const filePath =
-      `${folder}/${makeFileName(file)}`;
+  if (
+    listener &&
+    listener.subscription
+  ) {
+    listener.subscription.unsubscribe();
+  }
+};
+```
 
+}, []);
+
+useEffect(() => {
+return () => {
+if (
+photoPreview &&
+photoPreview.startsWith("blob:")
+) {
+URL.revokeObjectURL(photoPreview);
+}
+
+```
+  if (
+    videoPreview &&
+    videoPreview.startsWith("blob:")
+  ) {
+    URL.revokeObjectURL(videoPreview);
+  }
+};
+```
+
+}, [photoPreview, videoPreview]);
+
+const validatePhoto = (file) => {
+if (!file) {
+return "Selecione uma foto.";
+}
+
+```
+const allowedTypes = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
+
+if (!allowedTypes.includes(file.type)) {
+  return "Formato de foto não permitido. Envie JPG, PNG ou WEBP.";
+}
+
+if (file.size > 10 * 1024 * 1024) {
+  return "A foto deve ter no máximo 10 MB.";
+}
+
+return "";
+```
+
+};
+
+const validateVideo = (file) => {
+if (!file) {
+return "Selecione um vídeo.";
+}
+
+```
+const allowedTypes = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+];
+
+if (!allowedTypes.includes(file.type)) {
+  return "Formato de vídeo não permitido. Envie MP4, WEBM ou MOV.";
+}
+
+if (file.size > 200 * 1024 * 1024) {
+  return "O vídeo deve ter no máximo 200 MB.";
+}
+
+return "";
+```
+
+};
+
+const handlePhotoSelect = (file) => {
+setError("");
+
+```
+if (!file) {
+  return;
+}
+
+const validation = validatePhoto(file);
+
+if (validation) {
+  setError(validation);
+  return;
+}
+
+if (
+  photoPreview &&
+  photoPreview.startsWith("blob:")
+) {
+  URL.revokeObjectURL(photoPreview);
+}
+
+const preview = URL.createObjectURL(file);
+
+setPhotoFile(file);
+setPhotoPreview(preview);
+```
+
+};
+
+const handleVideoSelect = (file) => {
+setError("");
+
+```
+if (!file) {
+  return;
+}
+
+const validation = validateVideo(file);
+
+if (validation) {
+  setError(validation);
+  return;
+}
+
+if (
+  videoPreview &&
+  videoPreview.startsWith("blob:")
+) {
+  URL.revokeObjectURL(videoPreview);
+}
+
+const preview = URL.createObjectURL(file);
+
+setVideoFile(file);
+setVideoPreview(preview);
+```
+
+};
+
+const removePhoto = () => {
+if (
+photoPreview &&
+photoPreview.startsWith("blob:")
+) {
+URL.revokeObjectURL(photoPreview);
+}
+
+```
+setPhotoFile(null);
+setPhotoPreview("");
+set("photo_url", "");
+setError("");
+```
+
+};
+
+const removeVideo = () => {
+if (
+videoPreview &&
+videoPreview.startsWith("blob:")
+) {
+URL.revokeObjectURL(videoPreview);
+}
+
+```
+setVideoFile(null);
+setVideoPreview("");
+set("video_url", "");
+setError("");
+```
+
+};
+
+const authenticateProfessional = async () => {
+setError("");
+
+```
+if (!authEmail.trim()) {
+  setError("Informe seu e-mail profissional.");
+  return;
+}
+
+if (!authPassword) {
+  setError("Informe sua senha.");
+  return;
+}
+
+if (authPassword.length < 6) {
+  setError("A senha deve ter pelo menos 6 caracteres.");
+  return;
+}
+
+if (
+  authMode === "register" &&
+  !authName.trim()
+) {
+  setError("Informe seu nome completo.");
+  return;
+}
+
+setAuthSubmitting(true);
+
+try {
+  if (authMode === "register") {
     const {
-      error: uploadError,
-    } = await supabase.storage
-      .from("profiles")
-      .upload(
-        filePath,
-        file,
-        {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        }
-      );
-
-    if (uploadError) {
-      throw uploadError;
-    }
-
-    const {
-      data: publicUrlData,
-    } = supabase.storage
-      .from("profiles")
-      .getPublicUrl(filePath);
-
-    if (!publicUrlData?.publicUrl) {
-      throw new Error(
-        "Não foi possível obter a URL do arquivo."
-      );
-    }
-
-    return publicUrlData.publicUrl;
-  };
-
-  const uploadPendingFiles = async (userId) => {
-    let photoUrl = data.photo_url;
-    let videoUrl = data.video_url;
-
-    if (photoFile) {
-      photoUrl = await uploadFileToStorage(
-        photoFile,
-        "photo",
-        userId
-      );
-
-      set("photo_url", photoUrl);
-    }
-
-    if (videoFile) {
-      videoUrl = await uploadFileToStorage(
-        videoFile,
-        "video",
-        userId
-      );
-
-      set("video_url", videoUrl);
-    }
-
-    return {
-      photoUrl,
-      videoUrl,
-    };
-  };
-
-  const validateStep = () => {
-    if (step === 0) {
-      if (!data.full_name.trim()) {
-        return "Informe seu nome completo.";
-      }
-
-      if (!data.email.trim()) {
-        return "Informe seu e-mail.";
-      }
-
-      if (!data.city.trim()) {
-        return "Informe sua cidade.";
-      }
-
-      if (data.state.trim().length !== 2) {
-        return "Informe o estado com 2 letras.";
-      }
-    }
-
-    if (step === 1) {
-      if (!data.crp_number.trim()) {
-        return "Informe seu número do CRP.";
-      }
-
-      if (!data.crp_region) {
-        return "Selecione a região do CRP.";
-      }
-    }
-
-    if (step === 2) {
-      if (!data.modalities.length) {
-        return "Selecione pelo menos uma modalidade.";
-      }
-    }
-
-    if (step === 3) {
-      if (!data.photo_url && !photoFile) {
-        return "Adicione uma foto profissional.";
-      }
-    }
-
-    if (step === 4) {
-      if (!data.video_url && !videoFile) {
-        return "Adicione um vídeo de apresentação.";
-      }
-    }
-
-    return "";
-  };
-
-  const nextStep = async () => {
-    const validationError = validateStep();
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setError("");
-
-    setStep((current) =>
-      Math.min(
-        current + 1,
-        STEPS.length - 1
-      )
-    );
-  };
-
-  const previousStep = () => {
-    setError("");
-
-    setStep((current) =>
-      Math.max(current - 1, 0)
-    );
-  };
-
-  const submit = async () => {
-    if (submitting || uploading) {
-      return;
-    }
-
-    setError("");
-
-    if (!isAuthenticated) {
-      setError(
-        "Entre na sua conta profissional para continuar."
-      );
-      return;
-    }
-
-    for (let index = 0; index <= 4; index += 1) {
-      let validation = "";
-
-      if (index === 0) {
-        if (!data.full_name.trim()) {
-          validation =
-            "Informe seu nome completo.";
-        } else if (!data.email.trim()) {
-          validation =
-            "Informe seu e-mail.";
-        } else if (!data.city.trim()) {
-          validation =
-            "Informe sua cidade.";
-        } else if (
-          data.state.trim().length !== 2
-        ) {
-          validation =
-            "Informe o estado com 2 letras.";
-        }
-      }
-
-      if (index === 1) {
-        if (!data.crp_number.trim()) {
-          validation =
-            "Informe seu número do CRP.";
-        } else if (!data.crp_region) {
-          validation =
-            "Selecione a região do CRP.";
-        }
-      }
-
-      if (
-        index === 2 &&
-        !data.modalities.length
-      ) {
-        validation =
-          "Selecione pelo menos uma modalidade.";
-      }
-
-      if (
-        index === 3 &&
-        !data.photo_url &&
-        !photoFile
-      ) {
-        validation =
-          "A foto profissional é obrigatória.";
-      }
-
-      if (
-        index === 4 &&
-        !data.video_url &&
-        !videoFile
-      ) {
-        validation =
-          "O vídeo de apresentação é obrigatório.";
-      }
-
-      if (validation) {
-        setStep(index);
-        setError(validation);
-        return;
-      }
-    }
-
-    setSubmitting(true);
-
-    try {
-      const {
-        data: userData,
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        throw userError;
-      }
-
-      const user = userData?.user;
-
-      if (!user?.id) {
-        throw new Error(
-          "Sua sessão não está disponível. Entre novamente."
-        );
-      }
-
-      setUploading(true);
-
-      const {
-        photoUrl,
-        videoUrl,
-      } = await uploadPendingFiles(user.id);
-
-      setUploading(false);
-
-      const {
-        error: metadataError,
-      } = await supabase.auth.updateUser({
+      data: signUpData,
+      error: signUpError,
+    } = await supabase.auth.signUp({
+      email: authEmail.trim().toLowerCase(),
+      password: authPassword,
+      options: {
         data: {
-          ...user.user_metadata,
-          full_name: data.full_name.trim(),
-          name: data.full_name.trim(),
+          full_name: authName.trim(),
+          name: authName.trim(),
           role: "psychologist",
           account_type: "professional",
           user_type: "professional",
         },
-      });
+      },
+    });
 
-      if (metadataError) {
-        throw metadataError;
-      }
-
-      const psychologistData = {
-        user_id: user.id,
-
-        professional_name:
-          data.professional_name.trim() ||
-          data.full_name.trim(),
-
-        crp_number:
-          data.crp_number.trim(),
-
-        crp_region:
-          data.crp_region,
-
-        education:
-          data.education.trim() || null,
-
-        institution:
-          data.institution.trim() || null,
-
-        graduation_year:
-          data.graduation_year
-            ? Number(data.graduation_year)
-            : null,
-
-        specializations:
-          Array.isArray(data.specializations)
-            ? data.specializations
-            : [],
-
-        approaches:
-          Array.isArray(data.approaches)
-            ? data.approaches
-            : [],
-
-        experience:
-          data.experience.trim() || null,
-
-        topics:
-          Array.isArray(data.themes)
-            ? data.themes
-            : [],
-
-        modalities:
-          Array.isArray(data.modalities)
-            ? data.modalities
-            : [],
-
-        languages:
-          Array.isArray(data.languages)
-            ? data.languages
-            : [],
-
-        audience:
-          Array.isArray(data.audience)
-            ? data.audience
-            : [],
-
-        city:
-          data.city.trim(),
-
-        state:
-          data.state
-            .trim()
-            .toUpperCase(),
-
-        phone:
-          data.phone.trim() || null,
-
-        gender:
-          data.gender.trim() || null,
-
-        session_price:
-          Number(data.price) || 0,
-
-        session_duration:
-          Number(data.session_duration) || 50,
-
-        available_days:
-          Array.isArray(data.available_days)
-            ? data.available_days
-            : [],
-
-        available_slots:
-          Array.isArray(data.available_slots)
-            ? data.available_slots
-            : [],
-
-        cancellation_policy:
-          data.cancellation_policy.trim() ||
-          null,
-
-        address:
-          data.address.trim() || null,
-
-        bio:
-          data.about.trim() || null,
-
-        photo_url:
-          photoUrl || data.photo_url,
-
-        profile_photo_url:
-          photoUrl || data.photo_url,
-
-        presentation_video_url:
-          videoUrl || data.video_url,
-
-        presentation_video_status:
-          "pending",
-
-        verification_status:
-          "pending",
-
-        public_profile:
-          false,
-      };
-
-      const {
-        data: existing,
-        error: existingError,
-      } = await supabase
-        .from("psychologists")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (existingError) {
-        throw existingError;
-      }
-
-      if (existing?.id) {
-        const {
-          error: updateError,
-        } = await supabase
-          .from("psychologists")
-          .update(psychologistData)
-          .eq("id", existing.id)
-          .eq("user_id", user.id);
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
-        const {
-          error: insertError,
-        } = await supabase
-          .from("psychologists")
-          .insert(psychologistData);
-
-        if (insertError) {
-          throw insertError;
-        }
-      }
-
-      setDone(true);
-      setError("");
-    } catch (err) {
-      console.error(
-        "EntreNós: erro ao salvar cadastro profissional:",
-        err
-      );
-
-      setError(getFriendlyError(err));
-    } finally {
-      setUploading(false);
-      setSubmitting(false);
+    if (signUpError) {
+      throw signUpError;
     }
+
+    const user =
+      signUpData && signUpData.user
+        ? signUpData.user
+        : null;
+
+    setData((current) => ({
+      ...current,
+      full_name:
+        current.full_name ||
+        authName.trim(),
+      email:
+        current.email ||
+        authEmail.trim().toLowerCase(),
+    }));
+
+    if (
+      signUpData &&
+      signUpData.session &&
+      signUpData.session.user
+    ) {
+      setAuthenticatedUser(
+        signUpData.session.user
+      );
+      setConfirmationSent(false);
+      setStep(0);
+      return;
+    }
+
+    if (user) {
+      setConfirmationSent(true);
+      setError(
+        "Conta criada. Confirme seu e-mail e depois entre para continuar o cadastro profissional."
+      );
+      return;
+    }
+
+    throw new Error(
+      "A conta foi criada, mas não foi possível iniciar a sessão."
+    );
+  }
+
+  const {
+    data: loginData,
+    error: loginError,
+  } = await supabase.auth.signInWithPassword({
+    email: authEmail.trim().toLowerCase(),
+    password: authPassword,
+  });
+
+  if (loginError) {
+    throw loginError;
+  }
+
+  if (
+    !loginData ||
+    !loginData.user
+  ) {
+    throw new Error(
+      "Não foi possível iniciar a sessão."
+    );
+  }
+
+  setAuthenticatedUser(loginData.user);
+
+  setData((current) => ({
+    ...current,
+    email:
+      current.email ||
+      loginData.user.email ||
+      "",
+    full_name:
+      current.full_name ||
+      (loginData.user.user_metadata &&
+        loginData.user.user_metadata.full_name) ||
+      (loginData.user.user_metadata &&
+        loginData.user.user_metadata.name) ||
+      "",
+  }));
+
+  setStep(0);
+  setConfirmationSent(false);
+  setError("");
+} catch (err) {
+  console.error(
+    "EntreNós: erro na autenticação:",
+    err
+  );
+
+  setError(getFriendlyError(err));
+} finally {
+  setAuthSubmitting(false);
+}
+```
+
+};
+
+const resendConfirmation = async () => {
+if (!authEmail.trim()) {
+setError("Informe seu e-mail.");
+return;
+}
+
+```
+setAuthSubmitting(true);
+setError("");
+
+try {
+  const {
+    error: resendError,
+  } = await supabase.auth.resend({
+    type: "signup",
+    email: authEmail.trim().toLowerCase(),
+  });
+
+  if (resendError) {
+    throw resendError;
+  }
+
+  setError(
+    "E-mail de confirmação reenviado. Verifique sua caixa de entrada."
+  );
+} catch (err) {
+  setError(getFriendlyError(err));
+} finally {
+  setAuthSubmitting(false);
+}
+```
+
+};
+
+const logoutProfessional = async () => {
+await supabase.auth.signOut();
+
+```
+setAuthenticatedUser(null);
+setConfirmationSent(false);
+setStep(0);
+setData(DEFAULTS);
+
+setPhotoFile(null);
+setVideoFile(null);
+
+setPhotoPreview("");
+setVideoPreview("");
+
+setError("");
+```
+
+};
+
+const uploadFileToStorage = async (
+file,
+type,
+userId
+) => {
+if (!file) {
+return "";
+}
+
+```
+const isPhoto = type === "photo";
+
+const folder = isPhoto
+  ? "professionals/" + userId + "/photos"
+  : "professionals/" + userId + "/videos";
+
+const filePath =
+  folder + "/" + makeFileName(file);
+
+const {
+  error: uploadError,
+} = await supabase.storage
+  .from("profiles")
+  .upload(
+    filePath,
+    file,
+    {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type,
+    }
+  );
+
+if (uploadError) {
+  throw uploadError;
+}
+
+const {
+  data: publicUrlData,
+} = supabase.storage
+  .from("profiles")
+  .getPublicUrl(filePath);
+
+if (
+  !publicUrlData ||
+  !publicUrlData.publicUrl
+) {
+  throw new Error(
+    "Não foi possível obter a URL do arquivo."
+  );
+}
+
+return publicUrlData.publicUrl;
+```
+
+};
+
+const uploadPendingFiles = async (userId) => {
+let photoUrl = data.photo_url;
+let videoUrl = data.video_url;
+
+```
+if (photoFile) {
+  photoUrl = await uploadFileToStorage(
+    photoFile,
+    "photo",
+    userId
+  );
+
+  set("photo_url", photoUrl);
+}
+
+if (videoFile) {
+  videoUrl = await uploadFileToStorage(
+    videoFile,
+    "video",
+    userId
+  );
+
+  set("video_url", videoUrl);
+}
+
+return {
+  photoUrl,
+  videoUrl,
+};
+```
+
+};
+
+const validateStep = () => {
+if (step === 0) {
+if (!data.full_name.trim()) {
+return "Informe seu nome completo.";
+}
+
+```
+  if (!data.email.trim()) {
+    return "Informe seu e-mail.";
+  }
+
+  if (!data.city.trim()) {
+    return "Informe sua cidade.";
+  }
+
+  if (data.state.trim().length !== 2) {
+    return "Informe o estado com 2 letras.";
+  }
+}
+
+if (step === 1) {
+  if (!data.crp_number.trim()) {
+    return "Informe seu número do CRP.";
+  }
+
+  if (!data.crp_region) {
+    return "Selecione a região do CRP.";
+  }
+}
+
+if (step === 2) {
+  if (!data.modalities.length) {
+    return "Selecione pelo menos uma modalidade.";
+  }
+}
+
+if (step === 3) {
+  if (!data.photo_url && !photoFile) {
+    return "Adicione uma foto profissional.";
+  }
+}
+
+if (step === 4) {
+  if (!data.video_url && !videoFile) {
+    return "Adicione um vídeo de apresentação.";
+  }
+}
+
+return "";
+```
+
+};
+
+const nextStep = async () => {
+const validationError = validateStep();
+
+```
+if (validationError) {
+  setError(validationError);
+  return;
+}
+
+setError("");
+
+setStep((current) =>
+  Math.min(
+    current + 1,
+    STEPS.length - 1
+  )
+);
+```
+
+};
+
+const previousStep = () => {
+setError("");
+
+```
+setStep((current) =>
+  Math.max(current - 1, 0)
+);
+```
+
+};
+
+const submit = async () => {
+if (submitting || uploading) {
+return;
+}
+
+```
+setError("");
+
+if (!isAuthenticated) {
+  setError(
+    "Entre na sua conta profissional para continuar."
+  );
+  return;
+}
+
+for (
+  let index = 0;
+  index <= 4;
+  index += 1
+) {
+  let validation = "";
+
+  if (index === 0) {
+    if (!data.full_name.trim()) {
+      validation =
+        "Informe seu nome completo.";
+    } else if (!data.email.trim()) {
+      validation =
+        "Informe seu e-mail.";
+    } else if (!data.city.trim()) {
+      validation =
+        "Informe sua cidade.";
+    } else if (
+      data.state.trim().length !== 2
+    ) {
+      validation =
+        "Informe o estado com 2 letras.";
+    }
+  }
+
+  if (index === 1) {
+    if (!data.crp_number.trim()) {
+      validation =
+        "Informe seu número do CRP.";
+    } else if (!data.crp_region) {
+      validation =
+        "Selecione a região do CRP.";
+    }
+  }
+
+  if (
+    index === 2 &&
+    !data.modalities.length
+  ) {
+    validation =
+      "Selecione pelo menos uma modalidade.";
+  }
+
+  if (
+    index === 3 &&
+    !data.photo_url &&
+    !photoFile
+  ) {
+    validation =
+      "A foto profissional é obrigatória.";
+  }
+
+  if (
+    index === 4 &&
+    !data.video_url &&
+    !videoFile
+  ) {
+    validation =
+      "O vídeo de apresentação é obrigatório.";
+  }
+
+  if (validation) {
+    setStep(index);
+    setError(validation);
+    return;
+  }
+}
+
+setSubmitting(true);
+
+try {
+  const {
+    data: userData,
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw userError;
+  }
+
+  const user =
+    userData && userData.user
+      ? userData.user
+      : null;
+
+  if (!user || !user.id) {
+    throw new Error(
+      "Sua sessão não está disponível. Entre novamente."
+    );
+  }
+
+  setUploading(true);
+
+  const {
+    photoUrl,
+    videoUrl,
+  } = await uploadPendingFiles(user.id);
+
+  setUploading(false);
+
+  const {
+    error: metadataError,
+  } = await supabase.auth.updateUser({
+    data: {
+      ...(user.user_metadata || {}),
+      full_name: data.full_name.trim(),
+      name: data.full_name.trim(),
+      role: "psychologist",
+      account_type: "professional",
+      user_type: "professional",
+    },
+  });
+
+  if (metadataError) {
+    throw metadataError;
+  }
+
+  const psychologistData = {
+    user_id: user.id,
+
+    professional_name:
+      data.professional_name.trim() ||
+      data.full_name.trim(),
+
+    crp_number:
+      data.crp_number.trim(),
+
+    crp_region:
+      data.crp_region,
+
+    education:
+      data.education.trim() || null,
+
+    institution:
+      data.institution.trim() || null,
+
+    graduation_year:
+      data.graduation_year
+        ? Number(data.graduation_year)
+        : null,
+
+    specializations:
+      Array.isArray(data.specializations)
+        ? data.specializations
+        : [],
+
+    approaches:
+      Array.isArray(data.approaches)
+        ? data.approaches
+        : [],
+
+    experience:
+      data.experience.trim() || null,
+
+    topics:
+      Array.isArray(data.themes)
+        ? data.themes
+        : [],
+
+    modalities:
+      Array.isArray(data.modalities)
+        ? data.modalities
+        : [],
+
+    languages:
+      Array.isArray(data.languages)
+        ? data.languages
+        : [],
+
+    audience:
+      Array.isArray(data.audience)
+        ? data.audience
+        : [],
+
+    city:
+      data.city.trim(),
+
+    state:
+      data.state.trim().toUpperCase(),
+
+    phone:
+      data.phone.trim() || null,
+
+    gender:
+      data.gender.trim() || null,
+
+    session_price:
+      Number(data.price) || 0,
+
+    session_duration:
+      Number(data.session_duration) || 50,
+
+    available_days:
+      Array.isArray(data.available_days)
+        ? data.available_days
+        : [],
+
+    available_slots:
+      Array.isArray(data.available_slots)
+        ? data.available_slots
+        : [],
+
+    cancellation_policy:
+      data.cancellation_policy.trim() || null,
+
+    address:
+      data.address.trim() || null,
+
+    bio:
+      data.about.trim() || null,
+
+    photo_url:
+      photoUrl || data.photo_url,
+
+    profile_photo_url:
+      photoUrl || data.photo_url,
+
+    presentation_video_url:
+      videoUrl || data.video_url,
+
+    presentation_video_status:
+      "pending",
+
+    verification_status:
+      "pending",
+
+    public_profile:
+      false,
   };
 
-  if (authLoading) {
-    return (
-      <PageShell>
-        <div className="min-h-[65vh] flex items-center justify-center px-4">
-          <div className="text-center">
-            <Loader2
-              size={34}
-              className="animate-spin mx-auto mb-4 text-primary"
-            />
+  const {
+    data: existing,
+    error: existingError,
+  } = await supabase
+    .from("psychologists")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-            <p className="text-sm text-muted-foreground">
-              Verificando sua conta...
-            </p>
-          </div>
-        </div>
-      </PageShell>
-    );
+  if (existingError) {
+    throw existingError;
   }
 
-  if (!isAuthenticated) {
-    return (
-      <PageShell>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-3xl gradient-brand mx-auto flex items-center justify-center text-white mb-5 shadow-soft">
-              {authMode === "register" ? (
-                <UserPlus size={30} />
-              ) : (
-                <LogIn size={30} />
-              )}
-            </div>
+  if (existing && existing.id) {
+    const {
+      error: updateError,
+    } = await supabase
+      .from("psychologists")
+      .update(psychologistData)
+      .eq("id", existing.id)
+      .eq("user_id", user.id);
 
-            <h1 className="text-3xl font-heading font-bold">
-              Área do profissional
-            </h1>
+    if (updateError) {
+      throw updateError;
+    }
+  } else {
+    const {
+      error: insertError,
+    } = await supabase
+      .from("psychologists")
+      .insert(psychologistData);
 
-            <p className="text-muted-foreground mt-2">
-              {authMode === "register"
-                ? "Crie sua conta profissional e já prepare seu perfil."
-                : "Entre na sua conta para continuar seu cadastro."}
-            </p>
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  setDone(true);
+  setError("");
+} catch (err) {
+  console.error(
+    "EntreNós: erro ao salvar cadastro profissional:",
+    err
+  );
+
+  setError(getFriendlyError(err));
+} finally {
+  setUploading(false);
+  setSubmitting(false);
+}
+```
+
+};
+
+if (authLoading) {
+return ( <PageShell> <div className="min-h-[65vh] flex items-center justify-center px-4"> <div className="text-center"> <Loader2
+           size={34}
+           className="animate-spin mx-auto mb-4 text-primary"
+         />
+
+```
+        <p className="text-sm text-muted-foreground">
+          Verificando sua conta...
+        </p>
+      </div>
+    </div>
+  </PageShell>
+);
+```
+
+}
+
+if (!isAuthenticated) {
+return ( <PageShell> <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10"> <div className="text-center mb-8"> <div className="w-16 h-16 rounded-3xl gradient-brand mx-auto flex items-center justify-center text-white mb-5 shadow-soft">
+{authMode === "register" ? ( <UserPlus size={30} />
+) : ( <LogIn size={30} />
+)} </div>
+
+```
+        <h1 className="text-3xl font-heading font-bold">
+          Área do profissional
+        </h1>
+
+        <p className="text-muted-foreground mt-2">
+          {authMode === "register"
+            ? "Crie sua conta profissional e já prepare seu perfil."
+            : "Entre na sua conta para continuar seu cadastro."}
+        </p>
+      </div>
+
+      <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm">
+        {authMode === "register" && (
+          <div className="mb-6">
+            <Input
+              label="Nome completo"
+              value={authName}
+              onChange={setAuthName}
+              placeholder="Seu nome completo"
+              required
+            />
           </div>
+        )}
 
-          <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 shadow-sm">
-            {authMode === "register" && (
-              <div className="mb-6">
-                <Input
-                  label="Nome completo"
-                  value={authName}
-                  onChange={setAuthName}
-                  placeholder="Seu nome completo"
-                  required
-                />
-              </div>
-            )}
+        <div className="space-y-5">
+          <Input
+            label="E-mail"
+            value={authEmail}
+            onChange={setAuthEmail}
+            type="email"
+            placeholder="profissional@email.com"
+            required
+          />
 
-            <div className="space-y-5">
-              <Input
-                label="E-mail"
-                value={authEmail}
-                onChange={setAuthEmail}
-                type="email"
-                placeholder="profissional@email.com"
-                required
+          <label className="block">
+            <span className="block text-sm font-medium mb-2">
+              Senha{" "}
+              <span className="text-red-500">*</span>
+            </span>
+
+            <div className="relative">
+              <input
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
+                value={authPassword}
+                onChange={(e) =>
+                  setAuthPassword(
+                    e.target.value
+                  )
+                }
+                placeholder="Mínimo de 6 caracteres"
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
 
-              <label className="block">
-                <span className="block text-sm font-medium mb-2">
-                  Senha <span className="text-red-500">*</span>
-                </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setShowPassword(
+                    (value) => !value
+                  )
+                }
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-label={
+                  showPassword
+                    ? "Ocultar senha"
+                    : "Mostrar senha"
+                }
+              >
+                {showPassword ? (
+                  <EyeOff size={20} />
+                ) : (
+                  <Eye size={20} />
+                )}
+              </button>
+            </div>
+          </label>
+        </div>
 
-                <div className="relative">
-                  <input
-                    type={
-                      showPassword
-                        ? "text"
-                        : "password"
-                    }
-                    value={authPassword}
-                    onChange={(e) =>
-                      setAuthPassword(e.target.value)
-                    }
-                    placeholder="Mínimo de 6 caracteres"
-                    className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                  />
+        {authMode === "register" && (
+          <div className="mt-8 space-y-5">
+            <div>
+              <h2 className="text-xl font-heading font-bold">
+                Seu perfil profissional
+              </h2>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowPassword(
-                        (value) => !value
-                      )
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    aria-label={
-                      showPassword
-                        ? "Ocultar senha"
-                        : "Mostrar senha"
-                    }
-                  >
-                    {showPassword ? (
-                      <EyeOff size={20} />
-                    ) : (
-                      <Eye size={20} />
-                    )}
-                  </button>
-                </div>
-              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Você poderá adicionar sua foto e seu
+                vídeo de apresentação depois de entrar
+                na conta.
+              </p>
             </div>
 
-            {authMode === "register" && (
-              <div className="mt-8 space-y-5">
-                <div>
-                  <h2 className="text-xl font-heading font-bold">
-                    Seu perfil profissional
-                  </h2>
-
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Você poderá adicionar sua foto e seu
-                    vídeo de apresentação depois de entrar
-                    na conta.
-                  </p>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-5">
-                  <div className="rounded-2xl border border-border bg-background p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                        <Camera size={20} />
-                      </div>
-
-                      <div>
-                        <p className="font-semibold">
-                          Foto de perfil
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          JPG, PNG ou WEBP
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground">
-                      Sua foto ficará vinculada ao perfil
-                      profissional.
-                    </p>
+            <div className="grid md:grid-cols-2 gap-5">
+              <div className="rounded-2xl border border-border bg-background p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Camera size={20} />
                   </div>
 
-                  <div className="rounded-2xl border border-border bg-background p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                        <Video size={20} />
-                      </div>
+                  <div>
+                    <p className="font-semibold">
+                      Foto de perfil
+                    </p>
 
-                      <div>
-                        <p className="font-semibold">
-                          Vídeo de apresentação
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          MP4, WEBM ou MOV
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground">
-                      Apresente seu trabalho de forma
-                      breve e acolhedora.
+                    <p className="text-xs text-muted-foreground">
+                      JPG, PNG ou WEBP
                     </p>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {confirmationSent && (
-              <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-                <p className="font-medium">
-                  Conta criada!
+                <p className="text-sm text-muted-foreground">
+                  Sua foto ficará vinculada ao perfil
+                  profissional.
                 </p>
+              </div>
 
-                <p className="text-sm text-muted-foreground mt-1">
-                  Confirme seu e-mail antes de entrar.
-                  Depois volte aqui e use a opção
-                  "Já tenho uma conta profissional" para
-                  continuar o cadastro, incluindo foto e
-                  vídeo.
+              <div className="rounded-2xl border border-border bg-background p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Video size={20} />
+                  </div>
+
+                  <div>
+                    <p className="font-semibold">
+                      Vídeo de apresentação
+                    </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      MP4, WEBM ou MOV
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Apresente seu trabalho de forma
+                  breve e acolhedora.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={resendConfirmation}
-                  disabled={authSubmitting}
-                  className="mt-3 text-sm font-medium text-primary hover:underline"
-                >
-                  Reenviar confirmação
-                </button>
               </div>
-            )}
+            </div>
+          </div>
+        )}
 
-            {error && (
-              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm">
-                {error}
-              </div>
-            )}
+        {confirmationSent && (
+          <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <p className="font-medium">
+              Conta criada!
+            </p>
+
+            <p className="text-sm text-muted-foreground mt-1">
+              Confirme seu e-mail antes de entrar.
+              Depois volte aqui e use a opção
+              "Já tenho uma conta profissional" para
+              continuar o cadastro, incluindo foto e
+              vídeo.
+            </p>
 
             <button
               type="button"
-              onClick={authenticateProfessional}
+              onClick={resendConfirmation}
               disabled={authSubmitting}
-              className="mt-6 w-full rounded-xl bg-primary text-primary-foreground py-3.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+              className="mt-3 text-sm font-medium text-primary hover:underline"
             >
-              {authSubmitting ? (
-                <Loader2
-                  size={20}
-                  className="animate-spin"
-                />
-              ) : authMode === "register" ? (
-                <UserPlus size={20} />
-              ) : (
-                <LogIn size={20} />
-              )}
-
-              {authMode === "register"
-                ? "Criar conta"
-                : "Entrar"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode((mode) =>
-                  mode === "register"
-                    ? "login"
-                    : "register"
-                );
-
-                setError("");
-                setConfirmationSent(false);
-              }}
-              className="mt-4 w-full text-sm text-muted-foreground hover:text-foreground"
-            >
-              {authMode === "register"
-                ? "Já tenho uma conta profissional"
-                : "Ainda não tenho uma conta profissional"}
+              Reenviar confirmação
             </button>
           </div>
+        )}
 
-          <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <Lock size={14} />
-            Seus dados são enviados por uma conexão segura.
+        {error && (
+          <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm">
+            {error}
           </div>
-        </div>
-      </PageShell>
-    );
-  }
+        )}
 
-  if (done) {
-    return (
-      <PageShell>
-        <div className="max-w-2xl mx-auto px-4 py-16">
-          <div className="rounded-3xl border border-border bg-card p-8 sm:p-12 text-center shadow-sm">
-            <div className="w-20 h-20 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center mb-6">
-              <Check size={42} />
-            </div>
+        <button
+          type="button"
+          onClick={authenticateProfessional}
+          disabled={authSubmitting}
+          className="mt-6 w-full rounded-xl bg-primary text-primary-foreground py-3.5 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {authSubmitting ? (
+            <Loader2
+              size={20}
+              className="animate-spin"
+            />
+          ) : authMode === "register" ? (
+            <UserPlus size={20} />
+          ) : (
+            <LogIn size={20} />
+          )}
 
-            <h1 className="text-3xl font-heading font-bold">
-              Cadastro enviado!
-            </h1>
+          {authMode === "register"
+            ? "Criar conta"
+            : "Entrar"}
+        </button>
 
-            <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
-              Seu perfil profissional foi salvo com sua
-              foto e vídeo e ficará aguardando a
-              verificação antes de ser publicado.
-            </p>
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMode((mode) =>
+              mode === "register"
+                ? "login"
+                : "register"
+            );
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold"
-              >
-                Voltar
-              </button>
+            setError("");
+            setConfirmationSent(false);
+          }}
+          className="mt-4 w-full text-sm text-muted-foreground hover:text-foreground"
+        >
+          {authMode === "register"
+            ? "Já tenho uma conta profissional"
+            : "Ainda não tenho uma conta profissional"}
+        </button>
+      </div>
 
-              <button
-                type="button"
-                onClick={logoutProfessional}
-                className="rounded-xl border border-border px-6 py-3 font-semibold flex items-center justify-center gap-2"
-              >
-                <LogOut size={18} />
-                Sair
-              </button>
-            </div>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
+      <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+        <Lock size={14} />
+        Seus dados são enviados por uma conexão segura.
+      </div>
+    </div>
+  </PageShell>
+);
+```
 
-  const CurrentIcon = STEPS[step].icon;
+}
 
-  return (
-    <PageShell>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <div className="flex items-center justify-between gap-4 mb-8">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Olá, {displayName}
-            </p>
+if (done) {
+return ( <PageShell> <div className="max-w-2xl mx-auto px-4 py-16"> <div className="rounded-3xl border border-border bg-card p-8 sm:p-12 text-center shadow-sm"> <div className="w-20 h-20 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center mb-6"> <Check size={42} /> </div>
 
-            <h1 className="text-3xl font-heading font-bold mt-1">
-              Complete seu perfil profissional
-            </h1>
-          </div>
+```
+        <h1 className="text-3xl font-heading font-bold">
+          Cadastro enviado!
+        </h1>
+
+        <p className="text-muted-foreground mt-3 max-w-lg mx-auto">
+          Seu perfil profissional foi salvo com sua
+          foto e vídeo e ficará aguardando a
+          verificação antes de ser publicado.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold"
+          >
+            Voltar
+          </button>
 
           <button
             type="button"
             onClick={logoutProfessional}
-            className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm"
+            className="rounded-xl border border-border px-6 py-3 font-semibold flex items-center justify-center gap-2"
           >
-            <LogOut size={17} />
+            <LogOut size={18} />
             Sair
           </button>
         </div>
+      </div>
+    </div>
+  </PageShell>
+);
+```
 
-        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm mb-6">
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {STEPS.map((item, index) => {
-              const Icon = item.icon;
-              const active = index === step;
-              const completed = index < step;
+}
 
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    if (index <= step) {
-                      setError("");
-                      setStep(index);
-                    }
-                  }}
-                  disabled={index > step}
-                  className={`rounded-2xl p-3 text-center transition ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : completed
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted/40 text-muted-foreground"
-                  } disabled:cursor-not-allowed`}
-                >
-                  <Icon
-                    size={19}
-                    className="mx-auto mb-1"
-                  />
+const CurrentIcon = STEPS[step].icon;
 
-                  <span className="text-xs font-medium">
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
+return ( <PageShell> <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12"> <div className="flex items-center justify-between gap-4 mb-8"> <div> <p className="text-sm text-muted-foreground">
+Olá, {displayName} </p>
+
+```
+        <h1 className="text-3xl font-heading font-bold mt-1">
+          Complete seu perfil profissional
+        </h1>
+      </div>
+
+      <button
+        type="button"
+        onClick={logoutProfessional}
+        className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm"
+      >
+        <LogOut size={17} />
+        Sair
+      </button>
+    </div>
+
+    <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        {STEPS.map((item, index) => {
+          const Icon = item.icon;
+          const active = index === step;
+          const completed = index < step;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                if (index <= step) {
+                  setError("");
+                  setStep(index);
+                }
+              }}
+              disabled={index > step}
+              className={
+                "rounded-2xl p-3 text-center transition " +
+                (active
+                  ? "bg-primary text-primary-foreground"
+                  : completed
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted/40 text-muted-foreground") +
+                " disabled:cursor-not-allowed"
+              }
+            >
+              <Icon
+                size={19}
+                className="mx-auto mb-1"
+              />
+
+              <span className="text-xs font-medium">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="h-2 rounded-full bg-muted mt-5 overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all"
+          style={{
+            width:
+              (((step + 1) /
+                STEPS.length) *
+                100) +
+              "%",
+          }}
+        />
+      </div>
+    </div>
+
+    {error && (
+      <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm flex items-start gap-3">
+        <X
+          size={18}
+          className="mt-0.5 shrink-0"
+        />
+
+        <span>{error}</span>
+      </div>
+    )}
+
+    <div className="rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm">
+      {step === 0 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Dados pessoais
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Informações básicas para seu perfil.
+            </p>
           </div>
 
-          <div className="h-2 rounded-full bg-muted mt-5 overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{
-                width: `${
-                  ((step + 1) /
-                    STEPS.length) *
-                  100
-                }%`,
-              }}
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Input
+              label="Nome completo"
+              value={data.full_name}
+              onChange={(v) =>
+                set("full_name", v)
+              }
+              required
+            />
+
+            <Input
+              label="Nome profissional"
+              value={data.professional_name}
+              onChange={(v) =>
+                set(
+                  "professional_name",
+                  v
+                )
+              }
+              placeholder="Como deseja aparecer no perfil"
+            />
+
+            <Input
+              label="E-mail"
+              value={data.email}
+              onChange={(v) =>
+                set("email", v)
+              }
+              type="email"
+              required
+            />
+
+            <Input
+              label="Telefone"
+              value={data.phone}
+              onChange={(v) =>
+                set("phone", v)
+              }
+              placeholder="(00) 00000-0000"
+            />
+
+            <Input
+              label="Cidade"
+              value={data.city}
+              onChange={(v) =>
+                set("city", v)
+              }
+              required
+            />
+
+            <Input
+              label="Estado"
+              value={data.state}
+              onChange={(v) =>
+                set(
+                  "state",
+                  v
+                    .toUpperCase()
+                    .slice(0, 2)
+                )
+              }
+              placeholder="SP"
+              required
+            />
+
+            <Input
+              label="Gênero"
+              value={data.gender}
+              onChange={(v) =>
+                set("gender", v)
+              }
+            />
+
+            <Input
+              label="Endereço"
+              value={data.address}
+              onChange={(v) =>
+                set("address", v)
+              }
             />
           </div>
         </div>
+      )}
 
-        {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 text-red-700 p-4 text-sm flex items-start gap-3">
-            <X
-              size={18}
-              className="mt-0.5 shrink-0"
+      {step === 1 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Dados profissionais
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Informe sua formação e registro profissional.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Input
+              label="Número do CRP"
+              value={data.crp_number}
+              onChange={(v) =>
+                set(
+                  "crp_number",
+                  v
+                )
+              }
+              required
             />
 
-            <span>{error}</span>
-          </div>
-        )}
-
-        <div className="rounded-3xl border border-border bg-card p-5 sm:p-8 shadow-sm">
-          {step === 0 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Dados pessoais
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Informações básicas para seu perfil.
-                </p>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-5">
-                <Input
-                  label="Nome completo"
-                  value={data.full_name}
-                  onChange={(v) =>
-                    set("full_name", v)
-                  }
-                  required
-                />
-
-                <Input
-                  label="Nome profissional"
-                  value={data.professional_name}
-                  onChange={(v) =>
-                    set("professional_name", v)
-                  }
-                  placeholder="Como deseja aparecer no perfil"
-                />
-
-                <Input
-                  label="E-mail"
-                  value={data.email}
-                  onChange={(v) =>
-                    set("email", v)
-                  }
-                  type="email"
-                  required
-                />
-
-                <Input
-                  label="Telefone"
-                  value={data.phone}
-                  onChange={(v) =>
-                    set("phone", v)
-                  }
-                  placeholder="(00) 00000-0000"
-                />
-
-                <Input
-                  label="Cidade"
-                  value={data.city}
-                  onChange={(v) =>
-                    set("city", v)
-                  }
-                  required
-                />
-
-                <Input
-                  label="Estado"
-                  value={data.state}
-                  onChange={(v) =>
-                    set(
-                      "state",
-                      v
-                        .toUpperCase()
-                        .slice(0, 2)
-                    )
-                  }
-                  placeholder="SP"
-                  required
-                />
-
-                <Input
-                  label="Gênero"
-                  value={data.gender}
-                  onChange={(v) =>
-                    set("gender", v)
-                  }
-                />
-
-                <Input
-                  label="Endereço"
-                  value={data.address}
-                  onChange={(v) =>
-                    set("address", v)
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Dados profissionais
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Informe sua formação e registro profissional.
-                </p>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-5">
-                <Input
-                  label="Número do CRP"
-                  value={data.crp_number}
-                  onChange={(v) =>
-                    set("crp_number", v)
-                  }
-                  required
-                />
-
-                <Select
-                  label="Região do CRP"
-                  value={data.crp_region}
-                  onChange={(v) =>
-                    set("crp_region", v)
-                  }
-                  options={REGION_OPTS}
-                  required
-                />
-
-                <Input
-                  label="Formação"
-                  value={data.education}
-                  onChange={(v) =>
-                    set("education", v)
-                  }
-                />
-
-                <Input
-                  label="Instituição"
-                  value={data.institution}
-                  onChange={(v) =>
-                    set("institution", v)
-                  }
-                />
-
-                <Input
-                  label="Ano de formação"
-                  value={data.graduation_year}
-                  onChange={(v) =>
-                    set(
-                      "graduation_year",
-                      v
-                        .replace(/\D/g, "")
-                        .slice(0, 4)
-                    )
-                  }
-                />
-
-                <Input
-                  label="Experiência"
-                  value={data.experience}
-                  onChange={(v) =>
-                    set("experience", v)
-                  }
-                  placeholder="Ex.: 5 anos"
-                />
-              </div>
-
-              <Chips
-                label="Especializações"
-                options={SPEC_OPTS}
-                values={data.specializations}
-                onChange={(v) =>
-                  set(
-                    "specializations",
-                    v
-                  )
-                }
-              />
-
-              <Chips
-                label="Abordagens terapêuticas"
-                options={APPROACH_OPTS}
-                values={data.approaches}
-                onChange={(v) =>
-                  set("approaches", v)
-                }
-              />
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Atendimento
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Defina como e quando você atende.
-                </p>
-              </div>
-
-              <Chips
-                label="Modalidades"
-                options={[
-                  "online",
-                  "presencial",
-                ]}
-                values={data.modalities}
-                onChange={(v) =>
-                  set("modalities", v)
-                }
-              />
-
-              <Chips
-                label="Idiomas"
-                options={LANG_OPTS}
-                values={data.languages}
-                onChange={(v) =>
-                  set("languages", v)
-                }
-              />
-
-              <Chips
-                label="Público"
-                options={AUDIENCE_OPTS}
-                values={data.audience}
-                onChange={(v) =>
-                  set("audience", v)
-                }
-              />
-
-              <Chips
-                label="Temas"
-                options={THEME_OPTS}
-                values={data.themes}
-                onChange={(v) =>
-                  set("themes", v)
-                }
-              />
-
-              <div className="grid sm:grid-cols-2 gap-5">
-                <Input
-                  label="Valor da sessão (R$)"
-                  value={data.price}
-                  onChange={(v) =>
-                    set(
-                      "price",
-                      v
-                        .replace(",", ".")
-                        .replace(
-                          /[^0-9.]/g,
-                          ""
-                        )
-                    )
-                  }
-                />
-
-                <Select
-                  label="Duração da sessão"
-                  value={String(
-                    data.session_duration
-                  )}
-                  onChange={(v) =>
-                    set(
-                      "session_duration",
-                      Number(v)
-                    )
-                  }
-                  options={[
-                    "30",
-                    "40",
-                    "50",
-                    "60",
-                    "90",
-                  ].map((value) => ({
-                    value,
-                    label: `${value} minutos`,
-                  }))}
-                />
-              </div>
-
-              <Chips
-                label="Dias disponíveis"
-                options={DAY_OPTS}
-                values={data.available_days}
-                onChange={(v) =>
-                  set(
-                    "available_days",
-                    v
-                  )
-                }
-              />
-
-              <Chips
-                label="Horários disponíveis"
-                options={SLOT_OPTS}
-                values={data.available_slots}
-                onChange={(v) =>
-                  set(
-                    "available_slots",
-                    v
-                  )
-                }
-              />
-
-              <TextArea
-                label="Política de cancelamento"
-                value={
-                  data.cancellation_policy
-                }
-                onChange={(v) =>
-                  set(
-                    "cancellation_policy",
-                    v
-                  )
-                }
-                placeholder="Explique sua política de cancelamento e reagendamento."
-                rows={4}
-              />
-
-              <TextArea
-                label="Sobre você"
-                value={data.about}
-                onChange={(v) =>
-                  set("about", v)
-                }
-                placeholder="Conte um pouco sobre sua experiência e seu trabalho."
-                rows={6}
-              />
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Foto profissional
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Adicione uma foto nítida para representar
-                  seu perfil profissional.
-                </p>
-              </div>
-
-              <MediaUploadCard
-                type="photo"
-                file={photoFile}
-                preview={
-                  photoPreview ||
-                  data.photo_url
-                }
-                uploading={uploading}
-                onChange={
-                  handlePhotoSelect
-                }
-                onRemove={removePhoto}
-              />
-
-              <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-                A foto será enviada para o Storage do
-                Supabase e vinculada ao seu perfil
-                profissional.
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Vídeo de apresentação
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Apresente seu trabalho de forma breve
-                  e acolhedora.
-                </p>
-              </div>
-
-              <MediaUploadCard
-                type="video"
-                file={videoFile}
-                preview={
-                  videoPreview ||
-                  data.video_url
-                }
-                uploading={uploading}
-                onChange={
-                  handleVideoSelect
-                }
-                onRemove={removeVideo}
-              />
-
-              <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
-                O vídeo será enviado para o Storage do
-                Supabase e sua URL será salva no perfil.
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-heading font-bold">
-                  Revisão
-                </h2>
-
-                <p className="text-muted-foreground mt-1">
-                  Confira seus dados antes de enviar.
-                </p>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                {[
-                  [
-                    "Nome",
-                    data.full_name,
-                  ],
-                  [
-                    "Nome profissional",
-                    data.professional_name ||
-                      data.full_name,
-                  ],
-                  [
-                    "E-mail",
-                    data.email,
-                  ],
-                  [
-                    "Cidade",
-                    `${data.city} - ${data.state}`,
-                  ],
-                  [
-                    "CRP",
-                    `${data.crp_number} / ${data.crp_region}`,
-                  ],
-                  [
-                    "Modalidades",
-                    data.modalities.join(
-                      ", "
-                    ),
-                  ],
-                  [
-                    "Especializações",
-                    data.specializations.join(
-                      ", "
-                    ) ||
-                      "Não informado",
-                  ],
-                  [
-                    "Abordagens",
-                    data.approaches.join(
-                      ", "
-                    ) ||
-                      "Não informado",
-                  ],
-                  [
-                    "Público",
-                    data.audience.join(
-                      ", "
-                    ),
-                  ],
-                  [
-                    "Idiomas",
-                    data.languages.join(
-                      ", "
-                    ),
-                  ],
-                  [
-                    "Valor",
-                    data.price
-                      ? `R$ ${data.price}`
-                      : "Não informado",
-                  ],
-                  [
-                    "Duração",
-                    `${data.session_duration} minutos`,
-                  ],
-                ].map(
-                  ([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-2xl bg-muted/40 p-4"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {label}
-                      </p>
-
-                      <p className="font-medium mt-1 break-words">
-                        {value ||
-                          "Não informado"}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-5">
-                {data.photo_url ||
-                photoPreview ? (
-                  <div className="rounded-2xl border border-border p-4">
-                    <p className="font-semibold mb-3">
-                      Foto
-                    </p>
-
-                    <img
-                      src={
-                        photoPreview ||
-                        data.photo_url
-                      }
-                      alt="Foto profissional"
-                      className="w-full h-64 object-cover rounded-2xl"
-                    />
-                  </div>
-                ) : null}
-
-                {data.video_url ||
-                videoPreview ? (
-                  <div className="rounded-2xl border border-border p-4">
-                    <p className="font-semibold mb-3">
-                      Vídeo
-                    </p>
-
-                    <video
-                      src={
-                        videoPreview ||
-                        data.video_url
-                      }
-                      controls
-                      className="w-full h-64 object-cover rounded-2xl"
-                    />
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                <p className="font-semibold">
-                  Pronto para enviar?
-                </p>
-
-                <p className="text-sm text-muted-foreground mt-1">
-                  Seu cadastro será salvo com status de
-                  verificação pendente e o perfil público
-                  permanecerá desativado até a aprovação.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-6 border-t border-border">
-            <button
-              type="button"
-              onClick={previousStep}
-              disabled={
-                step === 0 ||
-                submitting ||
-                uploading
+            <Select
+              label="Região do CRP"
+              value={data.crp_region}
+              onChange={(v) =>
+                set(
+                  "crp_region",
+                  v
+                )
               }
-              className="rounded-xl border border-border px-5 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
-            >
-              <ArrowLeft size={18} />
-              Voltar
-            </button>
+              options={REGION_OPTS}
+              required
+            />
 
-            {step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={nextStep}
-                disabled={
-                  submitting ||
-                  uploading
-                }
-                className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                Continuar
-                <ArrowRight size={18} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={submit}
-                disabled={
-                  submitting ||
-                  uploading
-                }
-                className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {submitting ||
-                uploading ? (
-                  <>
-                    <Loader2
-                      size={18}
-                      className="animate-spin"
-                    />
+            <Input
+              label="Formação"
+              value={data.education}
+              onChange={(v) =>
+                set(
+                  "education",
+                  v
+                )
+              }
+            />
 
-                    {uploading
-                      ? "Enviando arquivos..."
-                      : "Salvando..."}
-                  </>
-                ) : (
-                  <>
-                    <Check size={18} />
-                    Enviar cadastro
-                  </>
-                )}
-              </button>
+            <Input
+              label="Instituição"
+              value={data.institution}
+              onChange={(v) =>
+                set(
+                  "institution",
+                  v
+                )
+              }
+            />
+
+            <Input
+              label="Ano de formação"
+              value={data.graduation_year}
+              onChange={(v) =>
+                set(
+                  "graduation_year",
+                  v
+                    .replace(/\D/g, "")
+                    .slice(0, 4)
+                )
+              }
+            />
+
+            <Input
+              label="Experiência"
+              value={data.experience}
+              onChange={(v) =>
+                set(
+                  "experience",
+                  v
+                )
+              }
+              placeholder="Ex.: 5 anos"
+            />
+          </div>
+
+          <Chips
+            label="Especializações"
+            options={SPEC_OPTS}
+            values={data.specializations}
+            onChange={(v) =>
+              set(
+                "specializations",
+                v
+              )
+            }
+          />
+
+          <Chips
+            label="Abordagens terapêuticas"
+            options={APPROACH_OPTS}
+            values={data.approaches}
+            onChange={(v) =>
+              set(
+                "approaches",
+                v
+              )
+            }
+          />
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Atendimento
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Defina como e quando você atende.
+            </p>
+          </div>
+
+          <Chips
+            label="Modalidades"
+            options={[
+              "online",
+              "presencial",
+            ]}
+            values={data.modalities}
+            onChange={(v) =>
+              set(
+                "modalities",
+                v
+              )
+            }
+          />
+
+          <Chips
+            label="Idiomas"
+            options={LANG_OPTS}
+            values={data.languages}
+            onChange={(v) =>
+              set(
+                "languages",
+                v
+              )
+            }
+          />
+
+          <Chips
+            label="Público"
+            options={AUDIENCE_OPTS}
+            values={data.audience}
+            onChange={(v) =>
+              set(
+                "audience",
+                v
+              )
+            }
+          />
+
+          <Chips
+            label="Temas"
+            options={THEME_OPTS}
+            values={data.themes}
+            onChange={(v) =>
+              set(
+                "themes",
+                v
+              )
+            }
+          />
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Input
+              label="Valor da sessão (R$)"
+              value={data.price}
+              onChange={(v) =>
+                set(
+                  "price",
+                  v
+                    .replace(",", ".")
+                    .replace(
+                      /[^0-9.]/g,
+                      ""
+                    )
+                )
+              }
+            />
+
+            <Select
+              label="Duração da sessão"
+              value={String(
+                data.session_duration
+              )}
+              onChange={(v) =>
+                set(
+                  "session_duration",
+                  Number(v)
+                )
+              }
+              options={[
+                "30",
+                "40",
+                "50",
+                "60",
+                "90",
+              ].map((value) => ({
+                value: value,
+                label:
+                  value +
+                  " minutos",
+              }))}
+            />
+          </div>
+
+          <Chips
+            label="Dias disponíveis"
+            options={DAY_OPTS}
+            values={data.available_days}
+            onChange={(v) =>
+              set(
+                "available_days",
+                v
+              )
+            }
+          />
+
+          <Chips
+            label="Horários disponíveis"
+            options={SLOT_OPTS}
+            values={data.available_slots}
+            onChange={(v) =>
+              set(
+                "available_slots",
+                v
+              )
+            }
+          />
+
+          <TextArea
+            label="Política de cancelamento"
+            value={
+              data.cancellation_policy
+            }
+            onChange={(v) =>
+              set(
+                "cancellation_policy",
+                v
+              )
+            }
+            placeholder="Explique sua política de cancelamento e reagendamento."
+            rows={4}
+          />
+
+          <TextArea
+            label="Sobre você"
+            value={data.about}
+            onChange={(v) =>
+              set(
+                "about",
+                v
+              )
+            }
+            placeholder="Conte um pouco sobre sua experiência e seu trabalho."
+            rows={6}
+          />
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Foto profissional
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Adicione uma foto nítida para representar
+              seu perfil profissional.
+            </p>
+          </div>
+
+          <MediaUploadCard
+            type="photo"
+            file={photoFile}
+            preview={
+              photoPreview ||
+              data.photo_url
+            }
+            uploading={uploading}
+            onChange={
+              handlePhotoSelect
+            }
+            onRemove={removePhoto}
+          />
+
+          <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
+            A foto será enviada para o Storage do
+            Supabase e vinculada ao seu perfil
+            profissional.
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Vídeo de apresentação
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Apresente seu trabalho de forma breve
+              e acolhedora.
+            </p>
+          </div>
+
+          <MediaUploadCard
+            type="video"
+            file={videoFile}
+            preview={
+              videoPreview ||
+              data.video_url
+            }
+            uploading={uploading}
+            onChange={
+              handleVideoSelect
+            }
+            onRemove={removeVideo}
+          />
+
+          <div className="rounded-2xl bg-primary/5 border border-primary/10 p-4 text-sm text-muted-foreground">
+            O vídeo será enviado para o Storage do
+            Supabase e sua URL será salva no perfil.
+          </div>
+        </div>
+      )}
+
+      {step === 5 && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">
+              Revisão
+            </h2>
+
+            <p className="text-muted-foreground mt-1">
+              Confira seus dados antes de enviar.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            {[
+              [
+                "Nome",
+                data.full_name,
+              ],
+              [
+                "Nome profissional",
+                data.professional_name ||
+                  data.full_name,
+              ],
+              [
+                "E-mail",
+                data.email,
+              ],
+              [
+                "Cidade",
+                data.city +
+                  " - " +
+                  data.state,
+              ],
+              [
+                "CRP",
+                data.crp_number +
+                  " / " +
+                  data.crp_region,
+              ],
+              [
+                "Modalidades",
+                data.modalities.join(
+                  ", "
+                ),
+              ],
+              [
+                "Especializações",
+                data.specializations.join(
+                  ", "
+                ) ||
+                  "Não informado",
+              ],
+              [
+                "Abordagens",
+                data.approaches.join(
+                  ", "
+                ) ||
+                  "Não informado",
+              ],
+              [
+                "Público",
+                data.audience.join(
+                  ", "
+                ),
+              ],
+              [
+                "Idiomas",
+                data.languages.join(
+                  ", "
+                ),
+              ],
+              [
+                "Valor",
+                data.price
+                  ? "R$ " +
+                    data.price
+                  : "Não informado",
+              ],
+              [
+                "Duração",
+                data.session_duration +
+                  " minutos",
+              ],
+            ].map(
+              ([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-2xl bg-muted/40 p-4"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    {label}
+                  </p>
+
+                  <p className="font-medium mt-1 break-words">
+                    {value ||
+                      "Não informado"}
+                  </p>
+                </div>
+              )
             )}
           </div>
+
+          <div className="grid md:grid-cols-2 gap-5">
+            {data.photo_url ||
+            photoPreview ? (
+              <div className="rounded-2xl border border-border p-4">
+                <p className="font-semibold mb-3">
+                  Foto
+                </p>
+
+                <img
+                  src={
+                    photoPreview ||
+                    data.photo_url
+                  }
+                  alt="Foto profissional"
+                  className="w-full h-64 object-cover rounded-2xl"
+                />
+              </div>
+            ) : null}
+
+            {data.video_url ||
+            videoPreview ? (
+              <div className="rounded-2xl border border-border p-4">
+                <p className="font-semibold mb-3">
+                  Vídeo
+                </p>
+
+                <video
+                  src={
+                    videoPreview ||
+                    data.video_url
+                  }
+                  controls
+                  className="w-full h-64 object-cover rounded-2xl"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+            <p className="font-semibold">
+              Pronto para enviar?
+            </p>
+
+            <p className="text-sm text-muted-foreground mt-1">
+              Seu cadastro será salvo com status de
+              verificação pendente e o perfil público
+              permanecerá desativado até a aprovação.
+            </p>
+          </div>
         </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between gap-3 mt-8 pt-6 border-t border-border">
+        <button
+          type="button"
+          onClick={previousStep}
+          disabled={
+            step === 0 ||
+            submitting ||
+            uploading
+          }
+          className="rounded-xl border border-border px-5 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+        >
+          <ArrowLeft size={18} />
+          Voltar
+        </button>
+
+        {step < STEPS.length - 1 ? (
+          <button
+            type="button"
+            onClick={nextStep}
+            disabled={
+              submitting ||
+              uploading
+            }
+            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            Continuar
+            <ArrowRight size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={submit}
+            disabled={
+              submitting ||
+              uploading
+            }
+            className="rounded-xl bg-primary text-primary-foreground px-6 py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {submitting ||
+            uploading ? (
+              <>
+                <Loader2
+                  size={18}
+                  className="animate-spin"
+                />
+
+                {uploading
+                  ? "Enviando arquivos..."
+                  : "Salvando..."}
+              </>
+            ) : (
+              <>
+                <Check size={18} />
+                Enviar cadastro
+              </>
+            )}
+          </button>
+        )}
       </div>
-    </PageShell>
-  );
-}
+    </div>
+  </div>
+</PageShell>
 ```
+
+);
+}
