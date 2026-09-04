@@ -426,7 +426,7 @@ function MediaUploadCard({
           {isPhoto ? (
             <img
               src={preview}
-              alt="Pré-visualização"
+              alt="Pré-visualização da foto"
               className="h-72 w-full object-cover"
             />
           ) : (
@@ -735,6 +735,7 @@ export default function ProfessionalOnboarding() {
 
     if (validationError) {
       setError(validationError);
+      event.target.value = "";
       return;
     }
 
@@ -758,6 +759,7 @@ export default function ProfessionalOnboarding() {
 
     if (validationError) {
       setError(validationError);
+      event.target.value = "";
       return;
     }
 
@@ -1278,8 +1280,8 @@ export default function ProfessionalOnboarding() {
   if (!isAuthenticated) {
     return (
       <PageShell>
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <div className="mx-auto max-w-xl">
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <div className="mx-auto max-w-3xl">
             <div className="mb-8 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 {authMode === "register" ? (
@@ -1297,18 +1299,24 @@ export default function ProfessionalOnboarding() {
 
               <p className="mt-2 text-muted-foreground">
                 {authMode === "register"
-                  ? "Crie sua conta para começar seu perfil profissional."
-                  : "Acesse sua conta e continue seu cadastro."}
+                  ? "Crie sua conta e já envie sua foto e vídeo de apresentação."
+                  : "Acesse sua conta e continue seu cadastro profissional."}
               </p>
             </div>
 
             <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {authMode === "register" && (
                   <Input
                     label="Nome completo"
                     value={authName}
-                    onChange={setAuthName}
+                    onChange={(value) => {
+                      setAuthName(value);
+                      set(
+                        "full_name",
+                        value
+                      );
+                    }}
                     placeholder="Digite seu nome completo"
                     required
                   />
@@ -1317,7 +1325,10 @@ export default function ProfessionalOnboarding() {
                 <Input
                   label="E-mail"
                   value={authEmail}
-                  onChange={setAuthEmail}
+                  onChange={(value) => {
+                    setAuthEmail(value);
+                    set("email", value);
+                  }}
                   type="email"
                   placeholder="seu@email.com"
                   required
@@ -1367,6 +1378,28 @@ export default function ProfessionalOnboarding() {
                     </button>
                   </div>
                 </div>
+
+                {authMode === "register" && (
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <MediaUploadCard
+                      type="photo"
+                      file={photoFile}
+                      preview={photoPreview}
+                      uploading={authSubmitting}
+                      onChange={handlePhotoChange}
+                      onRemove={removePhoto}
+                    />
+
+                    <MediaUploadCard
+                      type="video"
+                      file={videoFile}
+                      preview={videoPreview}
+                      uploading={authSubmitting}
+                      onChange={handleVideoChange}
+                      onRemove={removeVideo}
+                    />
+                  </div>
+                )}
 
                 {confirmationSent && (
                   <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
@@ -1441,29 +1474,19 @@ export default function ProfessionalOnboarding() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <Camera className="mb-3 h-6 w-6 text-primary" />
+            <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5">
+              <div className="flex gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
 
-                <h2 className="font-semibold">
-                  Perfil profissional
-                </h2>
+                <div>
+                  <p className="font-medium">
+                    Seu perfil profissional será verificado
+                  </p>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Adicione sua foto e informações profissionais.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <Video className="mb-3 h-6 w-6 text-primary" />
-
-                <h2 className="font-semibold">
-                  Vídeo de apresentação
-                </h2>
-
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Apresente seu trabalho aos pacientes.
-                </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Depois de criar a conta, você continuará preenchendo CRP, atendimento, disponibilidade e demais informações profissionais.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -2090,28 +2113,36 @@ export default function ProfessionalOnboarding() {
                   </div>
                 )}
 
-              {photoPreview && (
+              {(photoPreview ||
+                data.photo_url) && (
                 <div>
                   <p className="mb-2 text-sm font-medium">
                     Foto
                   </p>
 
                   <img
-                    src={photoPreview}
+                    src={
+                      photoPreview ||
+                      data.photo_url
+                    }
                     alt="Foto de perfil"
                     className="h-48 w-48 rounded-2xl object-cover"
                   />
                 </div>
               )}
 
-              {videoPreview && (
+              {(videoPreview ||
+                data.video_url) && (
                 <div>
                   <p className="mb-2 text-sm font-medium">
                     Vídeo
                   </p>
 
                   <video
-                    src={videoPreview}
+                    src={
+                      videoPreview ||
+                      data.video_url
+                    }
                     controls
                     className="max-h-80 w-full rounded-2xl"
                   />
@@ -2163,25 +2194,4 @@ export default function ProfessionalOnboarding() {
               <button
                 type="button"
                 onClick={submit}
-                disabled={submitting}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-5 w-5" />
-                    Enviar cadastro
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </PageShell>
-  );
-}
+                disabled={
