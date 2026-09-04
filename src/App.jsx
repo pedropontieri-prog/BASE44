@@ -1,3 +1,4 @@
+```jsx
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
@@ -130,29 +131,25 @@ function AuthenticatedApp() {
     authError,
   } = useAuth();
 
-  // Enquanto o AuthContext verifica a sessão,
-  // não renderizamos as rotas.
+  // Aguarda a verificação da sessão
+  // antes de renderizar as páginas.
   if (
-    isLoadingPublicSettings ||
-    isLoadingAuth
+    isLoadingAuth ||
+    isLoadingPublicSettings
   ) {
     return <LoadingScreen />;
   }
 
-  // Usuário não cadastrado no sistema
+  // Usuário não cadastrado
   if (
-    authError?.type ===
-    "user_not_registered"
+    authError?.type === "user_not_registered"
   ) {
     return <UserNotRegisteredError />;
   }
 
   return (
     <Routes>
-
-      {/* ================================================== */}
-      {/* AUTENTICAÇÃO */}
-      {/* ================================================== */}
+      {/* ==================== AUTENTICAÇÃO ==================== */}
 
       <Route
         path="/login"
@@ -174,9 +171,7 @@ function AuthenticatedApp() {
         element={<ResetPassword />}
       />
 
-      {/* ================================================== */}
-      {/* PÁGINAS PÚBLICAS */}
-      {/* ================================================== */}
+      {/* ==================== PÁGINAS PÚBLICAS ==================== */}
 
       <Route
         path="/"
@@ -208,21 +203,16 @@ function AuthenticatedApp() {
         element={<Privacy />}
       />
 
-      {/* ================================================== */}
-      {/* ROTAS PROTEGIDAS */}
-      {/* ================================================== */}
+      {/* ==================== ROTAS PROTEGIDAS ==================== */}
 
-      {ProtectedRoutes()}
+      <ProtectedRoutes />
 
-      {/* ================================================== */}
-      {/* 404 */}
-      {/* ================================================== */}
+      {/* ==================== 404 ==================== */}
 
       <Route
         path="*"
         element={<PageNotFound />}
       />
-
     </Routes>
   );
 }
@@ -236,11 +226,9 @@ function App() {
         client={queryClientInstance}
       >
         <Router>
-
           <ScrollToTop />
 
           <AuthenticatedApp />
-
         </Router>
 
         <Toaster />
@@ -250,3 +238,4 @@ function App() {
 }
 
 export default App;
+```
