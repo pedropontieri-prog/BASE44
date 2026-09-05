@@ -6,14 +6,19 @@ import {
   Calendar,
   Camera,
   Check,
+  CheckCircle2,
   Eye,
   EyeOff,
   ExternalLink,
+  FileCheck2,
   Loader2,
   LogIn,
   Lock,
   LogOut,
+  Mail,
+  MapPin,
   ShieldCheck,
+  Sparkles,
   User,
   UserPlus,
   Video,
@@ -24,13 +29,143 @@ import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
-  { title: "Pessoal", icon: User },
-  { title: "Registro profissional", icon: ShieldCheck },
-  { title: "Atuação", icon: User },
-  { title: "Atendimento", icon: Calendar },
-  { title: "Foto e vídeo", icon: Camera },
-  { title: "Revisão", icon: Check },
+  {
+    title: "Pessoal",
+    description: "Seus dados básicos",
+    icon: User,
+  },
+  {
+    title: "Registro profissional",
+    description: "Sua identificação profissional",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Atuação",
+    description: "Sua área de atuação",
+    icon: Sparkles,
+  },
+  {
+    title: "Atendimento",
+    description: "Como você atende",
+    icon: Calendar,
+  },
+  {
+    title: "Foto e vídeo",
+    description: "Apresente seu perfil",
+    icon: Camera,
+  },
+  {
+    title: "Revisão",
+    description: "Confira seus dados",
+    icon: Check,
+  },
 ];
+
+const inputClass =
+  "w-full h-12 rounded-xl border border-border/70 bg-background px-4 text-sm outline-none transition-all placeholder:text-muted-foreground/60 hover:border-border focus:border-primary focus:ring-4 focus:ring-primary/10";
+
+const selectClass =
+  "w-full h-12 rounded-xl border border-border/70 bg-background px-4 text-sm outline-none transition-all hover:border-border focus:border-primary focus:ring-4 focus:ring-primary/10";
+
+const textareaClass =
+  "w-full rounded-xl border border-border/70 bg-background px-4 py-3.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 hover:border-border focus:border-primary focus:ring-4 focus:ring-primary/10 resize-none";
+
+function SectionTitle({ eyebrow, title, description }) {
+  return (
+    <div className="mb-7">
+      {eyebrow && (
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-2">
+          {eyebrow}
+        </p>
+      )}
+
+      <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+        {title}
+      </h2>
+
+      {description && (
+        <p className="text-sm text-muted-foreground mt-2 max-w-2xl leading-6">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, required = false, hint, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold mb-2">
+        {label}
+        {required && <span className="text-primary ml-1">*</span>}
+      </label>
+
+      {children}
+
+      {hint && (
+        <p className="text-xs text-muted-foreground mt-2">{hint}</p>
+      )}
+    </div>
+  );
+}
+
+function SelectionCard({
+  checked,
+  onChange,
+  children,
+  description,
+}) {
+  return (
+    <label
+      className={`
+        group relative flex items-start gap-3 rounded-2xl border p-4
+        cursor-pointer transition-all duration-200
+        ${
+          checked
+            ? "border-primary bg-primary/[0.06] shadow-sm ring-2 ring-primary/10"
+            : "border-border/70 bg-background hover:border-primary/40 hover:bg-muted/20"
+        }
+      `}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="sr-only"
+      />
+
+      <div
+        className={`
+          mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center
+          shrink-0 transition-all duration-200
+          ${
+            checked
+              ? "bg-primary border-primary text-primary-foreground"
+              : "border-border group-hover:border-primary/50"
+          }
+        `}
+      >
+        {checked && <Check className="w-3.5 h-3.5" />}
+      </div>
+
+      <div className="min-w-0">
+        <p
+          className={`text-sm ${
+            checked ? "font-semibold" : "font-medium"
+          }`}
+        >
+          {children}
+        </p>
+
+        {description && (
+          <p className="text-xs text-muted-foreground mt-1 leading-5">
+            {description}
+          </p>
+        )}
+      </div>
+    </label>
+  );
+}
 
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
@@ -38,10 +173,13 @@ export default function ProfessionalOnboarding() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -59,21 +197,28 @@ export default function ProfessionalOnboarding() {
     cpf: "",
     phone: "",
     birthDate: "",
+
     crp: "",
     crpState: "",
     crpStatus: "",
+
     approach: "",
     audience: [],
     modalities: [],
+
     online: false,
     ePsi: false,
     presencial: false,
+
     address: "",
     city: "",
     state: "",
+
     sessionDuration: "",
     sessionPrice: "",
+
     presentation: "",
+
     privacyAccepted: false,
     confidentialityAccepted: false,
   });
@@ -100,8 +245,12 @@ export default function ProfessionalOnboarding() {
             email: current.email || user.email || "",
           }));
         }
+      } catch {
+        // A sessão não impede o preenchimento manual do cadastro.
       } finally {
-        if (mounted) setCheckingSession(false);
+        if (mounted) {
+          setCheckingSession(false);
+        }
       }
     }
 
@@ -114,8 +263,13 @@ export default function ProfessionalOnboarding() {
 
   useEffect(() => {
     return () => {
-      if (photoPreview) URL.revokeObjectURL(photoPreview);
-      if (videoPreview) URL.revokeObjectURL(videoPreview);
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
     };
   }, [photoPreview, videoPreview]);
 
@@ -124,6 +278,7 @@ export default function ProfessionalOnboarding() {
       ...current,
       [field]: value,
     }));
+
     setError("");
     setSuccess("");
   };
@@ -142,6 +297,7 @@ export default function ProfessionalOnboarding() {
     });
 
     setError("");
+    setSuccess("");
   };
 
   const formatCpf = (value) => {
@@ -156,19 +312,31 @@ export default function ProfessionalOnboarding() {
   const formatPhone = (value) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
 
-    if (digits.length <= 2) return digits;
+    if (digits.length <= 2) {
+      return digits;
+    }
+
     if (digits.length <= 7) {
       return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
     }
 
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(
+      7
+    )}`;
   };
 
   const validateFile = (file, type) => {
-    if (!file) return false;
+    if (!file) {
+      return false;
+    }
 
     if (type === "photo") {
-      const allowed = ["image/jpeg", "image/png", "image/webp"];
+      const allowed = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+      ];
+
       const maxSize = 5 * 1024 * 1024;
 
       if (!allowed.includes(file.type)) {
@@ -183,7 +351,12 @@ export default function ProfessionalOnboarding() {
     }
 
     if (type === "video") {
-      const allowed = ["video/mp4", "video/webm", "video/quicktime"];
+      const allowed = [
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+      ];
+
       const maxSize = 100 * 1024 * 1024;
 
       if (!allowed.includes(file.type)) {
@@ -203,9 +376,13 @@ export default function ProfessionalOnboarding() {
   const handlePhotoChange = (event) => {
     const file = event.target.files?.[0];
 
-    if (!file || !validateFile(file, "photo")) return;
+    if (!file || !validateFile(file, "photo")) {
+      return;
+    }
 
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
 
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
@@ -215,9 +392,13 @@ export default function ProfessionalOnboarding() {
   const handleVideoChange = (event) => {
     const file = event.target.files?.[0];
 
-    if (!file || !validateFile(file, "video")) return;
+    if (!file || !validateFile(file, "video")) {
+      return;
+    }
 
-    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    if (videoPreview) {
+      URL.revokeObjectURL(videoPreview);
+    }
 
     setVideoFile(file);
     setVideoPreview(URL.createObjectURL(file));
@@ -225,13 +406,19 @@ export default function ProfessionalOnboarding() {
   };
 
   const removePhoto = () => {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
     setPhotoFile(null);
     setPhotoPreview("");
   };
 
   const removeVideo = () => {
-    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    if (videoPreview) {
+      URL.revokeObjectURL(videoPreview);
+    }
+
     setVideoFile(null);
     setVideoPreview("");
   };
@@ -239,8 +426,13 @@ export default function ProfessionalOnboarding() {
   const validation = useMemo(() => {
     const errors = [];
 
-    if (!form.name.trim()) errors.push("Informe seu nome.");
-    if (!form.email.trim()) errors.push("Informe seu e-mail.");
+    if (!form.name.trim()) {
+      errors.push("Informe seu nome.");
+    }
+
+    if (!form.email.trim()) {
+      errors.push("Informe seu e-mail.");
+    }
 
     if (form.password.length < 6) {
       errors.push("A senha deve ter pelo menos 6 caracteres.");
@@ -250,16 +442,24 @@ export default function ProfessionalOnboarding() {
       errors.push("As senhas não coincidem.");
     }
 
-    if (!form.crp.trim()) errors.push("Informe seu CRP.");
-    if (!form.crpState.trim()) errors.push("Informe o estado do CRP.");
-    if (!form.approach.trim()) errors.push("Informe sua abordagem.");
+    if (!form.crp.trim()) {
+      errors.push("Informe seu CRP.");
+    }
+
+    if (!form.crpState.trim()) {
+      errors.push("Informe o estado do CRP.");
+    }
+
+    if (!form.approach.trim()) {
+      errors.push("Informe sua abordagem.");
+    }
 
     if (!form.audience.length) {
       errors.push("Selecione pelo menos um público.");
     }
 
     if (!form.modalities.length) {
-      errors.push("Selecione pelo menos uma modalidade.");
+      errors.push("Selecione pelo menos um tema de atuação.");
     }
 
     if (!form.online && !form.presencial) {
@@ -267,7 +467,9 @@ export default function ProfessionalOnboarding() {
     }
 
     if (form.online && !form.ePsi) {
-      errors.push("Informe se possui autorização e-Psi para atendimento online.");
+      errors.push(
+        "Informe se possui autorização e-Psi para atendimento online."
+      );
     }
 
     if (!form.presentation.trim()) {
@@ -279,7 +481,9 @@ export default function ProfessionalOnboarding() {
     }
 
     if (!form.confidentialityAccepted) {
-      errors.push("Confirme o compromisso com sigilo profissional.");
+      errors.push(
+        "Confirme o compromisso com sigilo profissional."
+      );
     }
 
     return errors;
@@ -337,22 +541,26 @@ export default function ProfessionalOnboarding() {
         return false;
       }
 
+      if (!form.modalities.length) {
+        setError("Selecione pelo menos um tema de atuação.");
+        return false;
+      }
+
       return true;
     }
 
     if (currentStep === 3) {
-      if (!form.modalities.length) {
-        setError("Selecione pelo menos uma modalidade.");
-        return false;
-      }
-
       if (!form.online && !form.presencial) {
-        setError("Selecione pelo menos uma forma de atendimento.");
+        setError(
+          "Selecione pelo menos uma forma de atendimento."
+        );
         return false;
       }
 
       if (form.online && !form.ePsi) {
-        setError("Informe se possui autorização e-Psi para atendimento online.");
+        setError(
+          "Informe se possui autorização e-Psi para atendimento online."
+        );
         return false;
       }
 
@@ -375,7 +583,9 @@ export default function ProfessionalOnboarding() {
       }
 
       if (!form.confidentialityAccepted) {
-        setError("Confirme o compromisso com sigilo profissional.");
+        setError(
+          "Confirme o compromisso com sigilo profissional."
+        );
         return false;
       }
 
@@ -386,19 +596,36 @@ export default function ProfessionalOnboarding() {
   };
 
   const nextStep = () => {
-    if (!validateStep(step)) return;
+    if (!validateStep(step)) {
+      return;
+    }
 
-    setStep((current) => Math.min(current + 1, STEPS.length - 1));
+    setStep((current) =>
+      Math.min(current + 1, STEPS.length - 1)
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const previousStep = () => {
     setError("");
     setSuccess("");
+
     setStep((current) => Math.max(current - 1, 0));
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const uploadFile = async (bucket, file, path) => {
-    if (!file) return null;
+    if (!file) {
+      return null;
+    }
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
@@ -411,7 +638,9 @@ export default function ProfessionalOnboarding() {
       throw uploadError;
     }
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    const { data } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(path);
 
     return data?.publicUrl || null;
   };
@@ -443,32 +672,45 @@ export default function ProfessionalOnboarding() {
       cpf: form.cpf.replace(/\D/g, "") || null,
       phone: form.phone.replace(/\D/g, "") || null,
       birth_date: form.birthDate || null,
+
       crp: form.crp.trim(),
       crp_state: form.crpState.trim().toUpperCase(),
       crp_status: form.crpStatus || null,
+
       approach: form.approach.trim(),
       audience: form.audience,
       modalities: form.modalities,
+
       online: form.online,
       epsi: form.ePsi,
       presencial: form.presencial,
+
       address: form.address.trim() || null,
       city: form.city.trim() || null,
       state: form.state.trim().toUpperCase() || null,
+
       session_duration: form.sessionDuration || null,
       session_price: form.sessionPrice || null,
+
       presentation: form.presentation.trim(),
+
       photo_url: photoUrl,
       video_url: videoUrl,
+
       role: "professional",
+
       privacy_accepted: form.privacyAccepted,
-      confidentiality_accepted: form.confidentialityAccepted,
+      confidentiality_accepted:
+        form.confidentialityAccepted,
+
       registration_verified: false,
     };
 
     const { error: profileError } = await supabase
       .from("profiles")
-      .upsert(profilePayload, { onConflict: "id" });
+      .upsert(profilePayload, {
+        onConflict: "id",
+      });
 
     if (profileError) {
       throw profileError;
@@ -481,7 +723,9 @@ export default function ProfessionalOnboarding() {
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(5)) return;
+    if (!validateStep(5)) {
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -490,12 +734,17 @@ export default function ProfessionalOnboarding() {
     try {
       const email = form.email.trim().toLowerCase();
 
-      const { data: existingSession } = await supabase.auth.getSession();
+      const { data: existingSession } =
+        await supabase.auth.getSession();
 
-      let user = existingSession?.session?.user || null;
+      let user =
+        existingSession?.session?.user || null;
 
       if (!user) {
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const {
+          data,
+          error: signUpError,
+        } = await supabase.auth.signUp({
           email,
           password: form.password,
           options: {
@@ -507,29 +756,41 @@ export default function ProfessionalOnboarding() {
           },
         });
 
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          throw signUpError;
+        }
 
         user = data?.user || null;
       }
 
       if (!user) {
-        throw new Error("Não foi possível criar a conta.");
+        throw new Error(
+          "Não foi possível criar a conta."
+        );
       }
 
       await saveProfile(user.id);
 
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false,
-        },
-      });
+      const { error: otpError } =
+        await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+          },
+        });
 
-      if (otpError) throw otpError;
+      if (otpError) {
+        throw otpError;
+      }
 
       setOtpSent(true);
-      setSuccess("Cadastro enviado. Digite o código de 6 dígitos enviado para seu e-mail.");
+
+      setSuccess(
+        "Cadastro enviado. Digite o código de 6 dígitos enviado para seu e-mail."
+      );
     } catch (submitError) {
+      console.error("Erro no cadastro:", submitError);
+
       setError(
         submitError?.message ||
           "Não foi possível enviar o cadastro. Tente novamente."
@@ -554,18 +815,25 @@ export default function ProfessionalOnboarding() {
     try {
       const email = form.email.trim().toLowerCase();
 
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      const {
+        data,
+        error: verifyError,
+      } = await supabase.auth.verifyOtp({
         email,
         token: code,
         type: "email",
       });
 
-      if (verifyError) throw verifyError;
+      if (verifyError) {
+        throw verifyError;
+      }
 
       const user = data?.user;
 
       if (!user) {
-        throw new Error("Não foi possível confirmar seu e-mail.");
+        throw new Error(
+          "Não foi possível confirmar seu e-mail."
+        );
       }
 
       await supabase.auth.updateUser({
@@ -576,19 +844,21 @@ export default function ProfessionalOnboarding() {
         },
       });
 
-      try {
-        await supabase
-          .from("profiles")
-          .update({
-            role: "professional",
-            registration_verified: true,
-          })
-          .eq("id", user.id);
-      } catch {
-      }
+      await supabase
+        .from("profiles")
+        .update({
+          role: "professional",
+          registration_verified: true,
+        })
+        .eq("id", user.id);
 
       navigate("/painel-profissional");
     } catch (verifyError) {
+      console.error(
+        "Erro na verificação:",
+        verifyError
+      );
+
       setError(
         verifyError?.message ||
           "Código inválido ou expirado. Solicite um novo código."
@@ -606,18 +876,30 @@ export default function ProfessionalOnboarding() {
     try {
       const email = form.email.trim().toLowerCase();
 
-      const { error: resendError } = await supabase.auth.signInWithOtp({
+      const {
+        error: resendError,
+      } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: false,
         },
       });
 
-      if (resendError) throw resendError;
+      if (resendError) {
+        throw resendError;
+      }
 
       setOtp("");
-      setSuccess("Um novo código foi enviado para seu e-mail.");
+
+      setSuccess(
+        "Um novo código foi enviado para seu e-mail."
+      );
     } catch (resendError) {
+      console.error(
+        "Erro ao reenviar código:",
+        resendError
+      );
+
       setError(
         resendError?.message ||
           "Não foi possível reenviar o código."
@@ -631,11 +913,22 @@ export default function ProfessionalOnboarding() {
     navigate("/login");
   };
 
+  const progress =
+    ((step + 1) / STEPS.length) * 100;
+
   if (checkingSession) {
     return (
       <PageShell>
         <div className="min-h-[70vh] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin" />
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Preparando seu cadastro...
+            </p>
+          </div>
         </div>
       </PageShell>
     );
@@ -645,1068 +938,1584 @@ export default function ProfessionalOnboarding() {
 
   return (
     <PageShell>
-      <div className="min-h-screen bg-background py-8 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70 transition-opacity"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Voltar
-            </button>
-
-            <button
-              type="button"
-              onClick={goToLogin}
-              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70 transition-opacity"
-            >
-              <LogIn className="w-4 h-4" />
-              Já tenho uma conta
-            </button>
+      <div className="min-h-screen bg-background">
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-primary/[0.05] blur-3xl" />
+            <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-primary/[0.04] blur-3xl" />
           </div>
 
-          <div className="mb-10">
-            <div className="flex items-center justify-between gap-2">
-              {STEPS.map((item, index) => {
-                const Icon = item.icon;
-                const active = index === step;
-                const completed = index < step;
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+            {/* HEADER */}
+            <div className="flex items-center justify-between mb-8 sm:mb-10">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="
+                  inline-flex items-center gap-2
+                  text-sm font-medium text-muted-foreground
+                  hover:text-foreground transition-colors
+                "
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Voltar
+              </button>
 
-                return (
-                  <React.Fragment key={item.title}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (index <= step) {
-                          setError("");
-                          setStep(index);
-                        }
-                      }}
-                      className="flex flex-col items-center gap-2 min-w-0"
-                    >
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
-                          active || completed
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background border-border text-muted-foreground"
-                        }`}
-                      >
-                        {completed ? (
-                          <Check className="w-5 h-5" />
-                        ) : (
-                          <Icon className="w-5 h-5" />
-                        )}
-                      </div>
-
-                      <span
-                        className={`text-xs text-center hidden sm:block ${
-                          active
-                            ? "font-semibold text-foreground"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {item.title}
-                      </span>
-                    </button>
-
-                    {index < STEPS.length - 1 && (
-                      <div
-                        className={`h-px flex-1 ${
-                          index < step
-                            ? "bg-primary"
-                            : "bg-border"
-                        }`}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="
+                  inline-flex items-center gap-2
+                  rounded-xl border border-border/70
+                  bg-card/70 px-4 py-2.5
+                  text-sm font-semibold
+                  hover:bg-muted/40 transition-all
+                "
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  Já tenho uma conta
+                </span>
+                <span className="sm:hidden">
+                  Entrar
+                </span>
+              </button>
             </div>
-          </div>
 
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6 sm:p-8 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <StepIcon className="w-5 h-5" />
+            {/* INTRO */}
+            <div className="text-center mb-8 sm:mb-10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1.5 text-xs font-semibold text-primary mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                Cadastro profissional
+              </div>
+
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                Crie seu perfil profissional
+              </h1>
+
+              <p className="text-sm sm:text-base text-muted-foreground mt-3 max-w-xl mx-auto leading-6">
+                Preencha seus dados para começar a apresentar
+                seu trabalho e conectar-se com novos pacientes.
+              </p>
+            </div>
+
+            {/* PROGRESS */}
+            <div className="mb-8">
+              <div className="rounded-2xl border border-border/60 bg-card/80 backdrop-blur-sm p-4 sm:p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Seu progresso
+                    </p>
+
+                    <p className="text-sm font-semibold mt-1">
+                      {STEPS[step].title}
+                    </p>
+                  </div>
+
+                  <div className="text-sm font-bold text-primary">
+                    {Math.round(progress)}%
+                  </div>
                 </div>
 
-                <div>
-                  <h1 className="text-2xl font-bold">
-                    {STEPS[step].title}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                    style={{
+                      width: `${progress}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="hidden md:flex items-center mt-5">
+                  {STEPS.map((item, index) => {
+                    const Icon = item.icon;
+                    const active = index === step;
+                    const completed = index < step;
+
+                    return (
+                      <React.Fragment key={item.title}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (index <= step) {
+                              setError("");
+                              setStep(index);
+                            }
+                          }}
+                          className="group flex items-center gap-2 text-left shrink-0"
+                        >
+                          <div
+                            className={`
+                              w-9 h-9 rounded-full
+                              flex items-center justify-center
+                              border transition-all duration-300
+                              ${
+                                active || completed
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : "bg-background border-border text-muted-foreground group-hover:border-primary/50"
+                              }
+                            `}
+                          >
+                            {completed ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Icon className="w-4 h-4" />
+                            )}
+                          </div>
+
+                          <div className="hidden lg:block">
+                            <p
+                              className={`text-xs ${
+                                active
+                                  ? "font-bold text-foreground"
+                                  : "font-medium text-muted-foreground"
+                              }`}
+                            >
+                              {item.title}
+                            </p>
+                          </div>
+                        </button>
+
+                        {index < STEPS.length - 1 && (
+                          <div
+                            className={`
+                              h-px flex-1 mx-3
+                              transition-colors duration-500
+                              ${
+                                index < step
+                                  ? "bg-primary"
+                                  : "bg-border"
+                              }
+                            `}
+                          />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                <div className="md:hidden mt-4">
+                  <p className="text-xs text-muted-foreground">
                     Etapa {step + 1} de {STEPS.length}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 sm:p-8">
-              {error && (
-                <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
+            {/* MAIN CARD */}
+            <div className="bg-card border border-border/60 rounded-3xl shadow-xl shadow-black/[0.04] overflow-hidden">
+              {/* CARD HEADER */}
+              <div className="p-6 sm:p-9 border-b border-border/60 bg-gradient-to-b from-muted/30 to-transparent">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center ring-1 ring-primary/10 shrink-0">
+                    <StepIcon className="w-5 h-5" />
+                  </div>
 
-              {success && (
-                <div className="mb-6 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-                  {success}
-                </div>
-              )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                      Etapa {step + 1} de {STEPS.length}
+                    </p>
 
-              {step === 0 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Vamos começar
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                      {STEPS[step].title}
                     </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Informe seus dados básicos para criar sua conta profissional.
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {STEPS[step].description}
                     </p>
                   </div>
-
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-2">
-                        Nome completo
-                      </label>
-                      <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => updateForm("name", e.target.value)}
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="Seu nome completo"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        E-mail
-                      </label>
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => updateForm("email", e.target.value)}
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="voce@email.com"
-                        autoComplete="email"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Telefone
-                      </label>
-                      <input
-                        type="tel"
-                        value={form.phone}
-                        onChange={(e) =>
-                          updateForm("phone", formatPhone(e.target.value))
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="(00) 00000-0000"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        CPF
-                      </label>
-                      <input
-                        type="text"
-                        value={form.cpf}
-                        onChange={(e) =>
-                          updateForm("cpf", formatCpf(e.target.value))
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="000.000.000-00"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Data de nascimento
-                      </label>
-                      <input
-                        type="date"
-                        value={form.birthDate}
-                        onChange={(e) =>
-                          updateForm("birthDate", e.target.value)
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Senha
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={form.password}
-                          onChange={(e) =>
-                            updateForm("password", e.target.value)
-                          }
-                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="Mínimo de 6 caracteres"
-                          autoComplete="new-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((value) => !value)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Confirmar senha
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={form.confirmPassword}
-                          onChange={(e) =>
-                            updateForm("confirmPassword", e.target.value)
-                          }
-                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="Repita sua senha"
-                          autoComplete="new-password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowConfirmPassword((value) => !value)
-                          }
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border p-4">
-                    <div className="flex items-start gap-3">
-                      <UserPlus className="w-5 h-5 mt-0.5 text-primary" />
-                      <div>
-                        <p className="font-medium">
-                          Seu cadastro será como profissional
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Depois da confirmação do e-mail, você será direcionado ao painel profissional.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              )}
+              </div>
 
-              {step === 1 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Registro profissional
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Informe os dados relacionados ao seu registro profissional.
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        CRP
-                      </label>
-                      <input
-                        type="text"
-                        value={form.crp}
-                        onChange={(e) => updateForm("crp", e.target.value)}
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="Ex.: 06/000000"
-                      />
-                    </div>
+              {/* CONTENT */}
+              <div className="p-6 sm:p-9">
+                {error && (
+                  <div className="mb-6 rounded-2xl border border-destructive/20 bg-destructive/[0.06] px-4 py-4 text-sm text-destructive flex items-start gap-3">
+                    <X className="w-5 h-5 shrink-0 mt-0.5" />
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Estado do CRP
-                      </label>
-                      <select
-                        value={form.crpState}
-                        onChange={(e) =>
-                          updateForm("crpState", e.target.value)
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="">Selecione</option>
-                        <option value="AC">AC</option>
-                        <option value="AL">AL</option>
-                        <option value="AP">AP</option>
-                        <option value="AM">AM</option>
-                        <option value="BA">BA</option>
-                        <option value="CE">CE</option>
-                        <option value="DF">DF</option>
-                        <option value="ES">ES</option>
-                        <option value="GO">GO</option>
-                        <option value="MA">MA</option>
-                        <option value="MT">MT</option>
-                        <option value="MS">MS</option>
-                        <option value="MG">MG</option>
-                        <option value="PA">PA</option>
-                        <option value="PB">PB</option>
-                        <option value="PR">PR</option>
-                        <option value="PE">PE</option>
-                        <option value="PI">PI</option>
-                        <option value="RJ">RJ</option>
-                        <option value="RN">RN</option>
-                        <option value="RS">RS</option>
-                        <option value="RO">RO</option>
-                        <option value="RR">RR</option>
-                        <option value="SC">SC</option>
-                        <option value="SP">SP</option>
-                        <option value="SE">SE</option>
-                        <option value="TO">TO</option>
-                      </select>
-                    </div>
+                      <p className="font-semibold">
+                        Não foi possível continuar
+                      </p>
 
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Situação do registro
-                      </label>
-                      <select
-                        value={form.crpStatus}
-                        onChange={(e) =>
-                          updateForm("crpStatus", e.target.value)
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="">Selecione</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="regular">Regular</option>
-                        <option value="outro">Outro</option>
-                      </select>
+                      <p className="mt-1 opacity-90">
+                        {error}
+                      </p>
                     </div>
                   </div>
+                )}
 
-                  <div className="rounded-xl border border-border bg-muted/30 p-4">
-                    <div className="flex gap-3">
-                      <ShieldCheck className="w-5 h-5 text-primary mt-0.5" />
-                      <div>
-                        <p className="font-medium">Verificação profissional</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Os dados informados poderão ser utilizados para a verificação do seu cadastro profissional.
-                        </p>
-                      </div>
-                    </div>
+                {success && (
+                  <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/[0.06] px-4 py-4 text-sm flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+
+                    <p>{success}</p>
                   </div>
-                </div>
-              )}
+                )}
 
-              {step === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Sua atuação
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Conte um pouco sobre sua abordagem e o público que atende.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Abordagem
-                    </label>
-                    <input
-                      type="text"
-                      value={form.approach}
-                      onChange={(e) =>
-                        updateForm("approach", e.target.value)
-                      }
-                      className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                      placeholder="Ex.: TCC, Psicanálise, Humanista..."
+                {/* STEP 0 */}
+                {step === 0 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Começando"
+                      title="Vamos começar"
+                      description="Informe seus dados básicos para criar sua conta profissional."
                     />
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Público atendido
-                    </label>
-
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {[
-                        "Adultos",
-                        "Adolescentes",
-                        "Crianças",
-                        "Casais",
-                        "Famílias",
-                        "Idosos",
-                      ].map((item) => (
-                        <label
-                          key={item}
-                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={form.audience.includes(item)}
-                            onChange={() =>
-                              toggleArrayValue("audience", item)
-                            }
-                            className="w-4 h-4"
-                          />
-                          <span className="text-sm">{item}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Temas de atuação
-                    </label>
-
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {[
-                        "Ansiedade",
-                        "Depressão",
-                        "Relacionamentos",
-                        "Autoestima",
-                        "Luto",
-                        "Estresse",
-                        "Traumas",
-                        "Carreira",
-                        "Autoconhecimento",
-                      ].map((item) => (
-                        <label
-                          key={item}
-                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={form.modalities.includes(item)}
-                            onChange={() =>
-                              toggleArrayValue("modalities", item)
-                            }
-                            className="w-4 h-4"
-                          />
-                          <span className="text-sm">{item}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Atendimento
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Defina como você atende seus pacientes.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Modalidade de atendimento
-                    </label>
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <label className="border border-border rounded-xl p-4 cursor-pointer hover:bg-muted/40">
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={form.online}
-                            onChange={(e) =>
-                              updateForm("online", e.target.checked)
-                            }
-                            className="w-4 h-4 mt-1"
-                          />
-                          <div>
-                            <p className="font-medium">Online</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Atendimento por videochamada.
-                            </p>
-                          </div>
-                        </div>
-                      </label>
-
-                      <label className="border border-border rounded-xl p-4 cursor-pointer hover:bg-muted/40">
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={form.presencial}
-                            onChange={(e) =>
-                              updateForm("presencial", e.target.checked)
-                            }
-                            className="w-4 h-4 mt-1"
-                          />
-                          <div>
-                            <p className="font-medium">Presencial</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Atendimento em consultório.
-                            </p>
-                          </div>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  {form.online && (
-                    <label className="flex items-start gap-3 border border-border rounded-xl p-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.ePsi}
-                        onChange={(e) =>
-                          updateForm("ePsi", e.target.checked)
-                        }
-                        className="w-4 h-4 mt-1"
-                      />
-                      <div>
-                        <p className="font-medium">
-                          Possuo autorização e-Psi
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Confirmo que estou regularizado para atendimento psicológico online.
-                        </p>
-                      </div>
-                    </label>
-                  )}
-
-                  {form.presencial && (
                     <div className="grid md:grid-cols-2 gap-5">
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium mb-2">
-                          Endereço
-                        </label>
-                        <input
-                          type="text"
-                          value={form.address}
-                          onChange={(e) =>
-                            updateForm("address", e.target.value)
-                          }
-                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="Endereço do consultório"
-                        />
+                        <Field
+                          label="Nome completo"
+                          required
+                        >
+                          <input
+                            type="text"
+                            value={form.name}
+                            onChange={(e) =>
+                              updateForm(
+                                "name",
+                                e.target.value
+                              )
+                            }
+                            className={inputClass}
+                            placeholder="Digite seu nome completo"
+                            autoComplete="name"
+                          />
+                        </Field>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Cidade
-                        </label>
-                        <input
-                          type="text"
-                          value={form.city}
-                          onChange={(e) =>
-                            updateForm("city", e.target.value)
-                          }
-                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="Cidade"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Estado
-                        </label>
-                        <input
-                          type="text"
-                          value={form.state}
-                          onChange={(e) =>
-                            updateForm("state", e.target.value.toUpperCase())
-                          }
-                          maxLength={2}
-                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="UF"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Duração da sessão
-                      </label>
-                      <select
-                        value={form.sessionDuration}
-                        onChange={(e) =>
-                          updateForm("sessionDuration", e.target.value)
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      <Field
+                        label="E-mail"
+                        required
                       >
-                        <option value="">Selecione</option>
-                        <option value="30">30 minutos</option>
-                        <option value="45">45 minutos</option>
-                        <option value="50">50 minutos</option>
-                        <option value="60">60 minutos</option>
-                        <option value="90">90 minutos</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Valor da sessão
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={form.sessionPrice}
-                        onChange={(e) =>
-                          updateForm("sessionPrice", e.target.value)
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="R$ 0,00"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 4 && (
-                <div className="space-y-8">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Foto e vídeo
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Adicione uma foto profissional e um vídeo curto de apresentação.
-                    </p>
-                  </div>
-
-                  <div className="grid lg:grid-cols-2 gap-6">
-                    <div className="border border-border rounded-2xl p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold">Foto de perfil</h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            JPG, PNG ou WEBP · até 5 MB
-                          </p>
-                        </div>
-
-                        <Camera className="w-5 h-5 text-muted-foreground" />
-                      </div>
-
-                      {photoPreview ? (
                         <div className="relative">
-                          <img
-                            src={photoPreview}
-                            alt="Prévia da foto"
-                            className="w-full aspect-square object-cover rounded-xl"
-                          />
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
 
-                          <button
-                            type="button"
-                            onClick={removePhoto}
-                            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 border border-border flex items-center justify-center"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/30 transition-colors">
-                          <Camera className="w-8 h-8 text-muted-foreground" />
-                          <span className="text-sm font-medium">
-                            Escolher foto
-                          </span>
                           <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handlePhotoChange}
-                            className="hidden"
+                            type="email"
+                            value={form.email}
+                            onChange={(e) =>
+                              updateForm(
+                                "email",
+                                e.target.value
+                              )
+                            }
+                            className={`${inputClass} pl-11`}
+                            placeholder="voce@email.com"
+                            autoComplete="email"
                           />
-                        </label>
-                      )}
-                    </div>
-
-                    <div className="border border-border rounded-2xl p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold">
-                            Vídeo de apresentação
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            MP4, WEBM ou MOV · até 100 MB
-                          </p>
                         </div>
+                      </Field>
 
-                        <Video className="w-5 h-5 text-muted-foreground" />
-                      </div>
-
-                      {videoPreview ? (
-                        <div className="relative">
-                          <video
-                            src={videoPreview}
-                            controls
-                            className="w-full aspect-video object-cover rounded-xl bg-black"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={removeVideo}
-                            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 border border-border flex items-center justify-center"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <label className="aspect-video rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/30 transition-colors">
-                          <Video className="w-8 h-8 text-muted-foreground" />
-                          <span className="text-sm font-medium">
-                            Escolher vídeo
-                          </span>
-                          <input
-                            type="file"
-                            accept="video/mp4,video/webm,video/quicktime"
-                            onChange={handleVideoChange}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Apresentação profissional
-                    </label>
-                    <textarea
-                      value={form.presentation}
-                      onChange={(e) =>
-                        updateForm("presentation", e.target.value)
-                      }
-                      rows={7}
-                      maxLength={2000}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-3 outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                      placeholder="Fale sobre sua experiência, sua forma de trabalhar e como você pode ajudar seus pacientes."
-                    />
-                    <div className="text-xs text-muted-foreground text-right mt-1">
-                      {form.presentation.length}/2000
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 5 && (
-                <div className="space-y-8">
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      Revise seu cadastro
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Confira os dados antes de enviar.
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-5">
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Nome
-                      </p>
-                      <p className="font-medium">{form.name || "—"}</p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        E-mail
-                      </p>
-                      <p className="font-medium break-all">
-                        {form.email || "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        CRP
-                      </p>
-                      <p className="font-medium">
-                        {form.crp
-                          ? `${form.crp} - ${form.crpState}`
-                          : "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Abordagem
-                      </p>
-                      <p className="font-medium">
-                        {form.approach || "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Público
-                      </p>
-                      <p className="font-medium">
-                        {form.audience.length
-                          ? form.audience.join(", ")
-                          : "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Modalidades
-                      </p>
-                      <p className="font-medium">
-                        {form.modalities.length
-                          ? form.modalities.join(", ")
-                          : "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Atendimento
-                      </p>
-                      <p className="font-medium">
-                        {[
-                          form.online && "Online",
-                          form.presencial && "Presencial",
-                        ]
-                          .filter(Boolean)
-                          .join(" e ") || "—"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border p-4">
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Arquivos
-                      </p>
-                      <p className="font-medium">
-                        {photoFile ? "Foto adicionada" : "Sem foto"}
-                        {" · "}
-                        {videoFile ? "Vídeo adicionado" : "Sem vídeo"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.privacyAccepted}
-                        onChange={(e) =>
-                          updateForm(
-                            "privacyAccepted",
-                            e.target.checked
-                          )
-                        }
-                        className="w-4 h-4 mt-1"
-                      />
-                      <span className="text-sm">
-                        Li e aceito a política de privacidade e o tratamento dos meus dados para utilização da plataforma.
-                      </span>
-                    </label>
-
-                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.confidentialityAccepted}
-                        onChange={(e) =>
-                          updateForm(
-                            "confidentialityAccepted",
-                            e.target.checked
-                          )
-                        }
-                        className="w-4 h-4 mt-1"
-                      />
-                      <span className="text-sm">
-                        Confirmo meu compromisso com o sigilo profissional e com as normas aplicáveis à minha atuação.
-                      </span>
-                    </label>
-                  </div>
-
-                  {otpSent && (
-                    <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
-                      <div className="flex items-start gap-3 mb-5">
-                        <ShieldCheck className="w-6 h-6 text-primary mt-0.5" />
-                        <div>
-                          <h3 className="font-semibold">
-                            Confirme seu e-mail
-                          </h3>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Enviamos um código de 6 dígitos para{" "}
-                            {form.email}.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-3">
+                      <Field label="Telefone">
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          maxLength={6}
-                          value={otp}
+                          type="tel"
+                          value={form.phone}
                           onChange={(e) =>
-                            setOtp(
-                              e.target.value
-                                .replace(/\D/g, "")
-                                .slice(0, 6)
+                            updateForm(
+                              "phone",
+                              formatPhone(
+                                e.target.value
+                              )
                             )
                           }
-                          className="flex-1 h-12 rounded-lg border border-border bg-background px-4 text-center text-xl tracking-[0.4em] font-semibold outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="000000"
+                          className={inputClass}
+                          placeholder="(00) 00000-0000"
+                          autoComplete="tel"
                         />
+                      </Field>
 
-                        <button
-                          type="button"
-                          onClick={verifyEmailCode}
-                          disabled={verifyingOtp}
-                          className="h-12 px-6 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          {verifyingOtp && (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          )}
-                          Confirmar e-mail
-                        </button>
-                      </div>
+                      <Field label="CPF">
+                        <input
+                          type="text"
+                          value={form.cpf}
+                          onChange={(e) =>
+                            updateForm(
+                              "cpf",
+                              formatCpf(
+                                e.target.value
+                              )
+                            )
+                          }
+                          className={inputClass}
+                          placeholder="000.000.000-00"
+                        />
+                      </Field>
 
-                      <div className="flex items-center justify-between mt-4">
-                        <button
-                          type="button"
-                          onClick={resendCode}
-                          disabled={submitting}
-                          className="text-sm font-medium hover:underline disabled:opacity-50"
-                        >
-                          Reenviar código
-                        </button>
+                      <Field label="Data de nascimento">
+                        <input
+                          type="date"
+                          value={form.birthDate}
+                          onChange={(e) =>
+                            updateForm(
+                              "birthDate",
+                              e.target.value
+                            )
+                          }
+                          className={inputClass}
+                        />
+                      </Field>
 
-                        <button
-                          type="button"
-                          onClick={() => setOtpSent(false)}
-                          className="text-sm text-muted-foreground hover:text-foreground"
-                        >
-                          Voltar
-                        </button>
-                      </div>
+                      <Field
+                        label="Senha"
+                        required
+                        hint="Use pelo menos 6 caracteres."
+                      >
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+
+                          <input
+                            type={
+                              showPassword
+                                ? "text"
+                                : "password"
+                            }
+                            value={form.password}
+                            onChange={(e) =>
+                              updateForm(
+                                "password",
+                                e.target.value
+                              )
+                            }
+                            className={`${inputClass} pl-11 pr-12`}
+                            placeholder="Sua senha"
+                            autoComplete="new-password"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowPassword(
+                                (value) => !value
+                              )
+                            }
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </Field>
+
+                      <Field
+                        label="Confirmar senha"
+                        required
+                      >
+                        <div className="relative">
+                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+
+                          <input
+                            type={
+                              showConfirmPassword
+                                ? "text"
+                                : "password"
+                            }
+                            value={
+                              form.confirmPassword
+                            }
+                            onChange={(e) =>
+                              updateForm(
+                                "confirmPassword",
+                                e.target.value
+                              )
+                            }
+                            className={`${inputClass} pl-11 pr-12`}
+                            placeholder="Repita sua senha"
+                            autoComplete="new-password"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowConfirmPassword(
+                                (value) => !value
+                              )
+                            }
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </Field>
                     </div>
-                  )}
 
-                  <div className="rounded-xl border border-border bg-muted/30 p-4">
-                    <div className="flex items-start gap-3">
-                      <Lock className="w-5 h-5 text-primary mt-0.5" />
-                      <div>
-                        <p className="font-medium">
-                          Seus dados estão protegidos
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          O envio do cadastro solicitará a confirmação do seu endereço de e-mail antes do acesso ao painel profissional.
-                        </p>
+                    <div className="rounded-2xl border border-primary/15 bg-primary/[0.04] p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <UserPlus className="w-5 h-5 text-primary" />
+                        </div>
+
+                        <div>
+                          <p className="font-semibold">
+                            Conta profissional
+                          </p>
+
+                          <p className="text-sm text-muted-foreground mt-1 leading-6">
+                            Sua conta será criada como
+                            profissional. Após confirmar
+                            seu e-mail, você terá acesso
+                            ao painel profissional.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* STEP 1 */}
+                {step === 1 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Registro"
+                      title="Seu registro profissional"
+                      description="Informe os dados relacionados ao seu registro profissional."
+                    />
+
+                    <div className="grid md:grid-cols-2 gap-5">
+                      <Field label="CRP" required>
+                        <input
+                          type="text"
+                          value={form.crp}
+                          onChange={(e) =>
+                            updateForm(
+                              "crp",
+                              e.target.value
+                            )
+                          }
+                          className={inputClass}
+                          placeholder="Ex.: 06/000000"
+                        />
+                      </Field>
+
+                      <Field
+                        label="Estado do CRP"
+                        required
+                      >
+                        <select
+                          value={form.crpState}
+                          onChange={(e) =>
+                            updateForm(
+                              "crpState",
+                              e.target.value
+                            )
+                          }
+                          className={selectClass}
+                        >
+                          <option value="">
+                            Selecione o estado
+                          </option>
+                          {[
+                            "AC",
+                            "AL",
+                            "AP",
+                            "AM",
+                            "BA",
+                            "CE",
+                            "DF",
+                            "ES",
+                            "GO",
+                            "MA",
+                            "MT",
+                            "MS",
+                            "MG",
+                            "PA",
+                            "PB",
+                            "PR",
+                            "PE",
+                            "PI",
+                            "RJ",
+                            "RN",
+                            "RS",
+                            "RO",
+                            "RR",
+                            "SC",
+                            "SP",
+                            "SE",
+                            "TO",
+                          ].map((state) => (
+                            <option
+                              key={state}
+                              value={state}
+                            >
+                              {state}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      <Field label="Situação do registro">
+                        <select
+                          value={form.crpStatus}
+                          onChange={(e) =>
+                            updateForm(
+                              "crpStatus",
+                              e.target.value
+                            )
+                          }
+                          className={selectClass}
+                        >
+                          <option value="">
+                            Selecione
+                          </option>
+                          <option value="ativo">
+                            Ativo
+                          </option>
+                          <option value="regular">
+                            Regular
+                          </option>
+                          <option value="outro">
+                            Outro
+                          </option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <ShieldCheck className="w-5 h-5 text-primary" />
+                        </div>
+
+                        <div>
+                          <p className="font-semibold">
+                            Verificação profissional
+                          </p>
+
+                          <p className="text-sm text-muted-foreground mt-1 leading-6">
+                            Os dados informados poderão
+                            ser utilizados para a
+                            verificação do seu cadastro
+                            profissional.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2 */}
+                {step === 2 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Especialidade"
+                      title="Sua atuação"
+                      description="Conte um pouco sobre sua abordagem, seu público e os temas em que você atua."
+                    />
+
+                    <Field
+                      label="Abordagem"
+                      required
+                      hint="Ex.: TCC, Psicanálise, Humanista, Sistêmica..."
+                    >
+                      <input
+                        type="text"
+                        value={form.approach}
+                        onChange={(e) =>
+                          updateForm(
+                            "approach",
+                            e.target.value
+                          )
+                        }
+                        className={inputClass}
+                        placeholder="Digite sua abordagem"
+                      />
+                    </Field>
+
+                    <div>
+                      <div className="mb-3">
+                        <label className="text-sm font-semibold">
+                          Público atendido
+                          <span className="text-primary ml-1">
+                            *
+                          </span>
+                        </label>
+
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Selecione todos que fazem parte
+                          do seu público.
+                        </p>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {[
+                          "Adultos",
+                          "Adolescentes",
+                          "Crianças",
+                          "Casais",
+                          "Famílias",
+                          "Idosos",
+                        ].map((item) => (
+                          <SelectionCard
+                            key={item}
+                            checked={form.audience.includes(
+                              item
+                            )}
+                            onChange={() =>
+                              toggleArrayValue(
+                                "audience",
+                                item
+                              )
+                            }
+                          >
+                            {item}
+                          </SelectionCard>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-3">
+                        <label className="text-sm font-semibold">
+                          Temas de atuação
+                          <span className="text-primary ml-1">
+                            *
+                          </span>
+                        </label>
+
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Escolha os temas que representam
+                          sua atuação.
+                        </p>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {[
+                          "Ansiedade",
+                          "Depressão",
+                          "Relacionamentos",
+                          "Autoestima",
+                          "Luto",
+                          "Estresse",
+                          "Traumas",
+                          "Carreira",
+                          "Autoconhecimento",
+                        ].map((item) => (
+                          <SelectionCard
+                            key={item}
+                            checked={form.modalities.includes(
+                              item
+                            )}
+                            onChange={() =>
+                              toggleArrayValue(
+                                "modalities",
+                                item
+                              )
+                            }
+                          >
+                            {item}
+                          </SelectionCard>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3 */}
+                {step === 3 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Atendimento"
+                      title="Como você atende?"
+                      description="Defina as modalidades e as condições do seu atendimento."
+                    />
+
+                    <div>
+                      <label className="block text-sm font-semibold mb-3">
+                        Modalidade de atendimento
+                        <span className="text-primary ml-1">
+                          *
+                        </span>
+                      </label>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <SelectionCard
+                          checked={form.online}
+                          onChange={(e) =>
+                            updateForm(
+                              "online",
+                              e.target.checked
+                            )
+                          }
+                          description="Atendimento por videochamada."
+                        >
+                          Online
+                        </SelectionCard>
+
+                        <SelectionCard
+                          checked={form.presencial}
+                          onChange={(e) =>
+                            updateForm(
+                              "presencial",
+                              e.target.checked
+                            )
+                          }
+                          description="Atendimento em consultório."
+                        >
+                          Presencial
+                        </SelectionCard>
+                      </div>
+                    </div>
+
+                    {form.online && (
+                      <div className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-5">
+                        <SelectionCard
+                          checked={form.ePsi}
+                          onChange={(e) =>
+                            updateForm(
+                              "ePsi",
+                              e.target.checked
+                            )
+                          }
+                        >
+                          Possuo autorização e-Psi
+                        </SelectionCard>
+
+                        <p className="text-xs text-muted-foreground mt-3 ml-1">
+                          Confirme que está regularizado
+                          para atendimento psicológico
+                          online.
+                        </p>
+                      </div>
+                    )}
+
+                    {form.presencial && (
+                      <div className="rounded-2xl border border-border/70 p-5 sm:p-6 space-y-5">
+                        <div className="flex items-center gap-3 mb-1">
+                          <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
+                            <MapPin className="w-4 h-4 text-primary" />
+                          </div>
+
+                          <div>
+                            <p className="font-semibold">
+                              Local do consultório
+                            </p>
+
+                            <p className="text-xs text-muted-foreground">
+                              Informe onde realiza seus
+                              atendimentos presenciais.
+                            </p>
+                          </div>
+                        </div>
+
+                        <Field label="Endereço">
+                          <input
+                            type="text"
+                            value={form.address}
+                            onChange={(e) =>
+                              updateForm(
+                                "address",
+                                e.target.value
+                              )
+                            }
+                            className={inputClass}
+                            placeholder="Endereço do consultório"
+                          />
+                        </Field>
+
+                        <div className="grid sm:grid-cols-2 gap-5">
+                          <Field label="Cidade">
+                            <input
+                              type="text"
+                              value={form.city}
+                              onChange={(e) =>
+                                updateForm(
+                                  "city",
+                                  e.target.value
+                                )
+                              }
+                              className={inputClass}
+                              placeholder="Cidade"
+                            />
+                          </Field>
+
+                          <Field label="Estado">
+                            <input
+                              type="text"
+                              value={form.state}
+                              onChange={(e) =>
+                                updateForm(
+                                  "state",
+                                  e.target.value.toUpperCase()
+                                )
+                              }
+                              maxLength={2}
+                              className={inputClass}
+                              placeholder="UF"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid md:grid-cols-2 gap-5">
+                      <Field label="Duração da sessão">
+                        <select
+                          value={form.sessionDuration}
+                          onChange={(e) =>
+                            updateForm(
+                              "sessionDuration",
+                              e.target.value
+                            )
+                          }
+                          className={selectClass}
+                        >
+                          <option value="">
+                            Selecione
+                          </option>
+                          <option value="30">
+                            30 minutos
+                          </option>
+                          <option value="45">
+                            45 minutos
+                          </option>
+                          <option value="50">
+                            50 minutos
+                          </option>
+                          <option value="60">
+                            60 minutos
+                          </option>
+                          <option value="90">
+                            90 minutos
+                          </option>
+                        </select>
+                      </Field>
+
+                      <Field
+                        label="Valor da sessão"
+                        hint="Informe apenas se desejar exibir o valor no perfil."
+                      >
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                            R$
+                          </span>
+
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={form.sessionPrice}
+                            onChange={(e) =>
+                              updateForm(
+                                "sessionPrice",
+                                e.target.value
+                              )
+                            }
+                            className={`${inputClass} pl-11`}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </Field>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4 */}
+                {step === 4 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Seu perfil"
+                      title="Apresente-se aos pacientes"
+                      description="Uma boa apresentação ajuda as pessoas a conhecerem seu trabalho antes de entrar em contato."
+                    />
+
+                    <div className="grid lg:grid-cols-2 gap-6">
+                      {/* PHOTO */}
+                      <div className="rounded-2xl border border-border/70 p-5 sm:p-6">
+                        <div className="flex items-center justify-between mb-5">
+                          <div>
+                            <h3 className="font-semibold">
+                              Foto de perfil
+                            </h3>
+
+                            <p className="text-xs text-muted-foreground mt-1">
+                              JPG, PNG ou WEBP · até 5 MB
+                            </p>
+                          </div>
+
+                          <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
+                            <Camera className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </div>
+
+                        {photoPreview ? (
+                          <div>
+                            <div className="relative overflow-hidden rounded-2xl bg-muted aspect-square">
+                              <img
+                                src={photoPreview}
+                                alt="Prévia da foto"
+                                className="w-full h-full object-cover"
+                              />
+
+                              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
+                                <div className="flex items-center justify-between gap-2 pt-5">
+                                  <span className="text-xs text-white font-medium truncate">
+                                    {photoFile?.name}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={removePhoto}
+                                    className="w-9 h-9 rounded-xl bg-white/90 text-black flex items-center justify-center hover:bg-white transition-colors shrink-0"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <label className="mt-3 h-11 rounded-xl border border-border flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-muted/30 transition-colors">
+                              Alterar foto
+
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={
+                                  handlePhotoChange
+                                }
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <label className="aspect-square rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/[0.02] transition-all">
+                            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                              <Camera className="w-6 h-6 text-muted-foreground" />
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-sm font-semibold">
+                                Adicionar foto
+                              </p>
+
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Escolha uma foto profissional
+                              </p>
+                            </div>
+
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={
+                                handlePhotoChange
+                              }
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* VIDEO */}
+                      <div className="rounded-2xl border border-border/70 p-5 sm:p-6">
+                        <div className="flex items-center justify-between mb-5">
+                          <div>
+                            <h3 className="font-semibold">
+                              Vídeo de apresentação
+                            </h3>
+
+                            <p className="text-xs text-muted-foreground mt-1">
+                              MP4, WEBM ou MOV · até 100 MB
+                            </p>
+                          </div>
+
+                          <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
+                            <Video className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </div>
+
+                        {videoPreview ? (
+                          <div>
+                            <div className="relative overflow-hidden rounded-2xl bg-black aspect-video">
+                              <video
+                                src={videoPreview}
+                                controls
+                                className="w-full h-full object-cover"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={removeVideo}
+                                className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-background/90 border border-border flex items-center justify-center hover:bg-background transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <label className="mt-3 h-11 rounded-xl border border-border flex items-center justify-center text-sm font-semibold cursor-pointer hover:bg-muted/30 transition-colors">
+                              Alterar vídeo
+
+                              <input
+                                type="file"
+                                accept="video/mp4,video/webm,video/quicktime"
+                                onChange={
+                                  handleVideoChange
+                                }
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <label className="aspect-video rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-4 cursor-pointer hover:border-primary/50 hover:bg-primary/[0.02] transition-all">
+                            <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center">
+                              <Video className="w-6 h-6 text-muted-foreground" />
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-sm font-semibold">
+                                Adicionar vídeo
+                              </p>
+
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Faça uma breve apresentação
+                              </p>
+                            </div>
+
+                            <input
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime"
+                              onChange={
+                                handleVideoChange
+                              }
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    <Field
+                      label="Apresentação profissional"
+                      required
+                      hint="Fale sobre sua experiência, sua forma de trabalhar e como você pode ajudar seus pacientes."
+                    >
+                      <textarea
+                        value={form.presentation}
+                        onChange={(e) =>
+                          updateForm(
+                            "presentation",
+                            e.target.value
+                          )
+                        }
+                        rows={8}
+                        maxLength={2000}
+                        className={textareaClass}
+                        placeholder="Escreva uma apresentação acolhedora e profissional..."
+                      />
+
+                      <div className="flex justify-end mt-2">
+                        <span className="text-xs text-muted-foreground">
+                          {form.presentation.length}/2000
+                        </span>
+                      </div>
+                    </Field>
+                  </div>
+                )}
+
+                {/* STEP 5 */}
+                {step === 5 && (
+                  <div className="space-y-8">
+                    <SectionTitle
+                      eyebrow="Quase lá"
+                      title="Revise seu cadastro"
+                      description="Confira suas informações antes de enviar o cadastro."
+                    />
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Nome
+                        </p>
+
+                        <p className="font-semibold mt-2">
+                          {form.name || "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          E-mail
+                        </p>
+
+                        <p className="font-semibold mt-2 break-all">
+                          {form.email || "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          CRP
+                        </p>
+
+                        <p className="font-semibold mt-2">
+                          {form.crp
+                            ? `${form.crp} - ${form.crpState}`
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Abordagem
+                        </p>
+
+                        <p className="font-semibold mt-2">
+                          {form.approach || "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Público
+                        </p>
+
+                        <p className="font-semibold mt-2 leading-6">
+                          {form.audience.length
+                            ? form.audience.join(", ")
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Temas de atuação
+                        </p>
+
+                        <p className="font-semibold mt-2 leading-6">
+                          {form.modalities.length
+                            ? form.modalities.join(", ")
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Atendimento
+                        </p>
+
+                        <p className="font-semibold mt-2">
+                          {[
+                            form.online && "Online",
+                            form.presencial &&
+                              "Presencial",
+                          ]
+                            .filter(Boolean)
+                            .join(" e ") || "—"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-border/70 p-5">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Arquivos
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <span
+                            className={`
+                              inline-flex items-center gap-1.5
+                              rounded-full px-3 py-1.5 text-xs font-semibold
+                              ${
+                                photoFile
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              }
+                            `}
+                          >
+                            {photoFile && (
+                              <Check className="w-3 h-3" />
+                            )}
+                            {photoFile
+                              ? "Foto adicionada"
+                              : "Sem foto"}
+                          </span>
+
+                          <span
+                            className={`
+                              inline-flex items-center gap-1.5
+                              rounded-full px-3 py-1.5 text-xs font-semibold
+                              ${
+                                videoFile
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              }
+                            `}
+                          >
+                            {videoFile && (
+                              <Check className="w-3 h-3" />
+                            )}
+                            {videoFile
+                              ? "Vídeo adicionado"
+                              : "Sem vídeo"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {form.presentation && (
+                      <div className="rounded-2xl border border-border/70 p-5 sm:p-6">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Apresentação
+                        </p>
+
+                        <p className="text-sm leading-7 mt-3 whitespace-pre-wrap">
+                          {form.presentation}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="space-y-3">
+                      <label
+                        className={`
+                          flex items-start gap-3 rounded-2xl
+                          border p-5 cursor-pointer transition-all
+                          ${
+                            form.privacyAccepted
+                              ? "border-primary/30 bg-primary/[0.04]"
+                              : "border-border/70 hover:bg-muted/20"
+                          }
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            form.privacyAccepted
+                          }
+                          onChange={(e) =>
+                            updateForm(
+                              "privacyAccepted",
+                              e.target.checked
+                            )
+                          }
+                          className="sr-only"
+                        />
+
+                        <div
+                          className={`
+                            w-5 h-5 mt-0.5 rounded-md border
+                            flex items-center justify-center shrink-0
+                            ${
+                              form.privacyAccepted
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-border"
+                            }
+                          `}
+                        >
+                          {form.privacyAccepted && (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+
+                        <span className="text-sm leading-6">
+                          Li e aceito a política de
+                          privacidade e o tratamento dos
+                          meus dados para utilização da
+                          plataforma.
+                        </span>
+                      </label>
+
+                      <label
+                        className={`
+                          flex items-start gap-3 rounded-2xl
+                          border p-5 cursor-pointer transition-all
+                          ${
+                            form.confidentialityAccepted
+                              ? "border-primary/30 bg-primary/[0.04]"
+                              : "border-border/70 hover:bg-muted/20"
+                          }
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            form.confidentialityAccepted
+                          }
+                          onChange={(e) =>
+                            updateForm(
+                              "confidentialityAccepted",
+                              e.target.checked
+                            )
+                          }
+                          className="sr-only"
+                        />
+
+                        <div
+                          className={`
+                            w-5 h-5 mt-0.5 rounded-md border
+                            flex items-center justify-center shrink-0
+                            ${
+                              form.confidentialityAccepted
+                                ? "bg-primary border-primary text-primary-foreground"
+                                : "border-border"
+                            }
+                          `}
+                        >
+                          {form.confidentialityAccepted && (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+
+                        <span className="text-sm leading-6">
+                          Confirmo meu compromisso com o
+                          sigilo profissional e com as
+                          normas aplicáveis à minha
+                          atuação.
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* OTP */}
+                    {otpSent && (
+                      <div className="rounded-3xl border border-primary/20 bg-primary/[0.04] p-6 sm:p-7">
+                        <div className="flex items-start gap-4 mb-6">
+                          <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <Mail className="w-5 h-5 text-primary" />
+                          </div>
+
+                          <div>
+                            <h3 className="font-bold text-lg">
+                              Confirme seu e-mail
+                            </h3>
+
+                            <p className="text-sm text-muted-foreground mt-1 leading-6">
+                              Enviamos um código de 6
+                              dígitos para{" "}
+                              <strong className="text-foreground">
+                                {form.email}
+                              </strong>
+                              .
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            value={otp}
+                            onChange={(e) =>
+                              setOtp(
+                                e.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 6)
+                              )
+                            }
+                            className="
+                              flex-1 h-14 rounded-xl
+                              border border-border bg-background
+                              px-4 text-center text-xl
+                              tracking-[0.4em] font-bold
+                              outline-none focus:border-primary
+                              focus:ring-4 focus:ring-primary/10
+                            "
+                            placeholder="000000"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={verifyEmailCode}
+                            disabled={verifyingOtp}
+                            className="
+                              h-14 px-6 rounded-xl
+                              bg-primary text-primary-foreground
+                              font-semibold inline-flex
+                              items-center justify-center gap-2
+                              hover:opacity-90 transition-opacity
+                              disabled:opacity-50
+                            "
+                          >
+                            {verifyingOtp && (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            )}
+
+                            Confirmar e-mail
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-4">
+                          <button
+                            type="button"
+                            onClick={resendCode}
+                            disabled={submitting}
+                            className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
+                          >
+                            Reenviar código
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOtpSent(false)
+                            }
+                            className="text-sm text-muted-foreground hover:text-foreground"
+                          >
+                            Voltar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-5">
+                      <div className="flex items-start gap-3">
+                        <FileCheck2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+
+                        <div>
+                          <p className="font-semibold">
+                            Tudo pronto
+                          </p>
+
+                          <p className="text-sm text-muted-foreground mt-1 leading-6">
+                            Ao enviar, seus dados serão
+                            salvos e você receberá um código
+                            de confirmação no seu e-mail.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER BUTTONS */}
+              <div className="p-6 sm:p-9 border-t border-border/60 bg-muted/[0.08]">
+                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={previousStep}
+                    disabled={
+                      step === 0 ||
+                      submitting ||
+                      verifyingOtp
+                    }
+                    className="
+                      h-12 px-5 rounded-xl
+                      border border-border/70
+                      bg-background
+                      font-semibold text-sm
+                      inline-flex items-center justify-center gap-2
+                      hover:bg-muted/40 transition-all
+                      disabled:opacity-40 disabled:cursor-not-allowed
+                    "
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Anterior
+                  </button>
+
+                  {step < STEPS.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={nextStep}
+                      disabled={submitting}
+                      className="
+                        h-12 px-6 rounded-xl
+                        bg-primary text-primary-foreground
+                        font-semibold text-sm
+                        inline-flex items-center justify-center gap-2
+                        hover:opacity-90 transition-all
+                        shadow-sm
+                        disabled:opacity-50
+                      "
+                    >
+                      Próxima etapa
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  ) : !otpSent ? (
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="
+                        h-12 px-7 rounded-xl
+                        bg-primary text-primary-foreground
+                        font-semibold text-sm
+                        inline-flex items-center justify-center gap-2
+                        hover:opacity-90 transition-all
+                        shadow-sm
+                        disabled:opacity-50
+                      "
+                    >
+                      {submitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+
+                      {submitting
+                        ? "Enviando..."
+                        : "Enviar cadastro"}
+                    </button>
+                  ) : null}
                 </div>
-              )}
+              </div>
             </div>
 
-            <div className="p-6 sm:p-8 border-t border-border flex flex-col sm:flex-row gap-3 sm:justify-between">
-              <button
-                type="button"
-                onClick={previousStep}
-                disabled={step === 0 || submitting || verifyingOtp}
-                className="h-11 px-5 rounded-lg border border-border font-medium inline-flex items-center justify-center gap-2 disabled:opacity-40"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Anterior
-              </button>
+            {/* BOTTOM INFO */}
+            <div className="mt-7">
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Cadastro profissional
+                </span>
 
-              {step < STEPS.length - 1 ? (
+                <span>•</span>
+
+                <span>EntreNós</span>
+
+                <span>•</span>
+
                 <button
                   type="button"
-                  onClick={nextStep}
-                  disabled={submitting}
-                  className="h-11 px-5 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={() =>
+                    navigate("/termos")
+                  }
+                  className="hover:text-foreground transition-colors inline-flex items-center gap-1"
                 >
-                  Próxima etapa
-                  <ArrowRight className="w-4 h-4" />
+                  Termos
+                  <ExternalLink className="w-3 h-3" />
                 </button>
-              ) : !otpSent ? (
+
+                <span>•</span>
+
                 <button
                   type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="h-11 px-6 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={() =>
+                    navigate("/privacidade")
+                  }
+                  className="hover:text-foreground transition-colors inline-flex items-center gap-1"
                 >
-                  {submitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Check className="w-4 h-4" />
-                  )}
-                  Enviar cadastro
+                  Privacidade
+                  <ExternalLink className="w-3 h-3" />
                 </button>
-              ) : null}
+
+                <span>•</span>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    navigate("/");
+                  }}
+                  className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+                >
+                  <LogOut className="w-3 h-3" />
+                  Sair
+                </button>
+              </div>
+
+              <div className="flex justify-center mt-4">
+                <p className="text-[11px] text-muted-foreground inline-flex items-center gap-1.5">
+                  <Lock className="w-3 h-3" />
+                  Seus dados são tratados com segurança.
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Cadastro profissional
-            </span>
-
-            <span>•</span>
-
-            <span>EntreNós</span>
-
-            <span>•</span>
-
-            <button
-              type="button"
-              onClick={() => navigate("/termos")}
-              className="hover:text-foreground inline-flex items-center gap-1"
-            >
-              Termos
-              <ExternalLink className="w-3 h-3" />
-            </button>
-
-            <span>•</span>
-
-            <button
-              type="button"
-              onClick={() => navigate("/privacidade")}
-              className="hover:text-foreground inline-flex items-center gap-1"
-            >
-              Privacidade
-              <ExternalLink className="w-3 h-3" />
-            </button>
-
-            <span>•</span>
-
-            <button
-              type="button"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                navigate("/");
-              }}
-              className="hover:text-foreground inline-flex items-center gap-1"
-            >
-              <LogOut className="w-3 h-3" />
-              Sair
-            </button>
           </div>
         </div>
       </div>
