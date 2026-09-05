@@ -13,6 +13,13 @@ import { Link, useNavigate } from "react-router-dom";
 import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
+const PROFESSIONAL_METADATA = {
+  role: "professional",
+  user_type: "professional",
+  account_type: "professional",
+  profile_type: "professional",
+};
+
 export default function ProfessionalSignup() {
   const navigate = useNavigate();
 
@@ -32,15 +39,9 @@ export default function ProfessionalSignup() {
 
   const [error, setError] = useState("");
 
-  // =========================================================
-  // OTP
-  // =========================================================
-
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
-
-  // Impede solicitar vários códigos seguidos.
   const [resendCooldown, setResendCooldown] = useState(0);
 
   // =========================================================
@@ -48,18 +49,12 @@ export default function ProfessionalSignup() {
   // =========================================================
 
   useEffect(() => {
-    if (resendCooldown <= 0) {
-      return;
-    }
+    if (resendCooldown <= 0) return;
 
     const timer = setInterval(() => {
-      setResendCooldown((current) => {
-        if (current <= 1) {
-          return 0;
-        }
-
-        return current - 1;
-      });
+      setResendCooldown((current) =>
+        current <= 1 ? 0 : current - 1
+      );
     }, 1000);
 
     return () => clearInterval(timer);
@@ -76,29 +71,36 @@ export default function ProfessionalSignup() {
       try {
         const {
           data: { session },
+          error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (!mounted) return;
-
-        if (session?.user) {
-          const user = session.user;
-
-          const role =
-            user.user_metadata?.role ||
-            user.user_metadata?.user_type ||
-            user.user_metadata?.account_type;
-
-          if (role === "professional") {
-            navigate("/painel-profissional", {
-              replace: true,
-            });
-          } else {
-            navigate("/painel-paciente", {
-              replace: true,
-            });
-          }
-
+        if (sessionError) {
+          console.error(
+            "Erro ao verificar sessão:",
+            sessionError
+          );
           return;
+        }
+
+        if (!mounted || !session?.user) {
+          return;
+        }
+
+        const user = session.user;
+
+        const role =
+          user.user_metadata?.role ||
+          user.user_metadata?.user_type ||
+          user.user_metadata?.account_type;
+
+        if (role === "professional") {
+          navigate("/painel-profissional", {
+            replace: true,
+          });
+        } else {
+          navigate("/painel-paciente", {
+            replace: true,
+          });
         }
       } catch (err) {
         console.error(
@@ -128,6 +130,10 @@ export default function ProfessionalSignup() {
       ...current,
       [key]: value,
     }));
+
+    if (error) {
+      setError("");
+    }
   };
 
   // =========================================================
@@ -135,18 +141,23 @@ export default function ProfessionalSignup() {
   // =========================================================
 
   const validate = () => {
-    if (!form.full_name.trim()) {
+    const fullName = form.full_name.trim();
+    const email = form.email.trim().toLowerCase();
+
+    if (!fullName) {
       return "Informe seu nome completo.";
     }
 
-    if (!form.email.trim()) {
+    if (fullName.length < 3) {
+      return "Informe seu nome completo.";
+    }
+
+    if (!email) {
       return "Informe seu e-mail.";
     }
 
     if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        form.email.trim()
-      )
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     ) {
       return "Informe um e-mail válido.";
     }
@@ -155,9 +166,7 @@ export default function ProfessionalSignup() {
       return "A senha deve ter pelo menos 8 caracteres.";
     }
 
-    if (
-      form.password !== form.confirm_password
-    ) {
+    if (form.password !== form.confirm_password) {
       return "As senhas não coincidem.";
     }
 
@@ -165,7 +174,97 @@ export default function ProfessionalSignup() {
   };
 
   // =========================================================
-  // CRIAR CONTA PROFISSIONAL
+  // TRATAMENTO DE ERROS DO SUPABASE
+  // =========================================================
+
+  const getErrorMessage = (err) => {
+    const rawMessage =
+      err?.message ||
+      "Não foi possível concluir a operação.";
+
+    const message = rawMessage.toLowerCase();
+
+    if (
+      message.includes("already registered") ||
+      message.includes("user already registered") ||
+      message.includes("already exists")
+    ) {
+      return "Este e-mail já possui uma conta. Tente fazer login.";
+    }
+
+    if (
+      message.includes("invalid login credentials")
+    ) {
+      return "E-mail ou senha inválidos.";
+    }
+
+    if (
+      message.includes("password") &&
+      (
+        message.includes("weak") ||
+        message.includes("short") ||
+        message.includes("characters")
+      )
+    ) {
+      return "A senha não atende aos requisitos de segurança.";
+    }
+
+    if (
+      message.includes("rate limit") ||
+      message.includes("too many requests") ||
+      message.includes("security") ||
+      message.includes("only request this after")
+    ) {
+      return "Por segurança, aguarde alguns segundos antes de tentar novamente.";
+    }
+
+    if (
+      message.includes("expired")
+    ) {
+      return "Esse código expirou. Solicite um novo código.";
+    }
+
+    if (
+      message.includes("invalid") &&
+      (
+        message.includes("otp") ||
+        message.includes("token")
+      )
+    ) {
+      return "Código inválido. Confira os 6 números e tente novamente.";
+    }
+
+    return rawMessage;
+  };
+
+  // =========================================================
+  // SALVA METADADOS PROFISSIONAIS
+  // =========================================================
+
+  const saveProfessionalMetadata = async (
+    fullName
+  ) => {
+    const { error: updateError } =
+      await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          name: fullName,
+          ...PROFESSIONAL_METADATA,
+        },
+      });
+
+    if (updateError) {
+      console.error(
+        "Erro ao salvar dados profissionais:",
+        updateError
+      );
+
+      throw updateError;
+    }
+  };
+
+  // =========================================================
+  // CRIA CONTA
   // =========================================================
 
   const createProfessionalAccount = async (
@@ -191,8 +290,7 @@ export default function ProfessionalSignup() {
         .trim()
         .toLowerCase();
 
-      const fullName =
-        form.full_name.trim();
+      const fullName = form.full_name.trim();
 
       const {
         data,
@@ -200,16 +298,11 @@ export default function ProfessionalSignup() {
       } = await supabase.auth.signUp({
         email,
         password: form.password,
-
         options: {
           data: {
             full_name: fullName,
             name: fullName,
-
-            role: "professional",
-            user_type: "professional",
-            account_type: "professional",
-            profile_type: "professional",
+            ...PROFESSIONAL_METADATA,
           },
         },
       });
@@ -219,64 +312,13 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * =====================================================
-       * IMPORTANTE
-       * =====================================================
+       * CASO 1:
        *
-       * Se o Supabase exigir confirmação de e-mail,
-       * NÃO vamos redirecionar.
-       *
-       * Vamos mostrar imediatamente a tela do código.
-       */
-
-      setOtp("");
-      setOtpSent(true);
-
-      /*
-       * O signUp acabou de disparar o primeiro e-mail.
-       * Impede outro pedido imediatamente.
-       */
-      setResendCooldown(60);
-
-      /*
-       * Se o Supabase já retornou uma sessão,
-       * não precisamos verificar OTP.
-       *
-       * Nesse caso, seguimos normalmente para
-       * o cadastro profissional.
+       * Supabase confirmou a conta imediatamente
+       * e devolveu uma sessão.
        */
       if (data?.session?.user) {
-        try {
-          const { error: updateError } =
-            await supabase.auth.updateUser({
-              data: {
-                full_name: fullName,
-                name: fullName,
-                role: "professional",
-                user_type: "professional",
-                account_type: "professional",
-                profile_type: "professional",
-              },
-            });
-
-          if (updateError) {
-            console.error(
-              "Erro ao salvar tipo profissional:",
-              updateError
-            );
-          }
-        } catch (updateErr) {
-          console.error(
-            "Erro ao atualizar dados:",
-            updateErr
-          );
-        }
-
-        /*
-         * Confirmação de e-mail provavelmente está
-         * desativada. Nesse caso podemos seguir.
-         */
-        setOtpSent(false);
+        await saveProfessionalMetadata(fullName);
 
         navigate("/cadastro-profissional", {
           replace: true,
@@ -286,67 +328,29 @@ export default function ProfessionalSignup() {
       }
 
       /*
-       * Aqui chegamos quando o Supabase criou a conta
-       * e está aguardando a confirmação por e-mail.
+       * CASO 2:
+       *
+       * Conta criada, mas confirmação de e-mail
+       * é necessária.
        */
+      setOtp("");
+      setOtpSent(true);
+      setResendCooldown(60);
       setError("");
-
     } catch (err) {
       console.error(
         "Erro ao criar conta profissional:",
         err
       );
 
-      let message =
-        err?.message ||
-        "Não foi possível criar sua conta.";
-
-      const lowerMessage =
-        message.toLowerCase();
-
-      if (
-        lowerMessage.includes("password")
-      ) {
-        message =
-          "A senha informada não atende aos requisitos.";
-      }
-
-      if (
-        lowerMessage.includes("rate limit") ||
-        lowerMessage.includes(
-          "too many requests"
-        ) ||
-        lowerMessage.includes(
-          "security"
-        ) ||
-        lowerMessage.includes(
-          "only request this after"
-        )
-      ) {
-        message =
-          "Por segurança, aguarde alguns segundos antes de solicitar outro código.";
-      }
-
-      if (
-        lowerMessage.includes(
-          "already registered"
-        ) ||
-        lowerMessage.includes(
-          "user already registered"
-        )
-      ) {
-        message =
-          "Este e-mail já possui uma conta. Tente fazer login.";
-      }
-
-      setError(message);
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
   // =========================================================
-  // VERIFICAR OTP
+  // CONFIRMA OTP
   // =========================================================
 
   const verifyOtp = async (event) => {
@@ -362,7 +366,6 @@ export default function ProfessionalSignup() {
       setError(
         "Digite o código de 6 dígitos recebido por e-mail."
       );
-
       return;
     }
 
@@ -386,90 +389,51 @@ export default function ProfessionalSignup() {
         throw verifyError;
       }
 
-      if (!data?.session?.user) {
+      /*
+       * Depois do verifyOtp, normalmente o Supabase
+       * devolve uma sessão.
+       */
+      let user = data?.user;
+      let session = data?.session;
+
+      /*
+       * Pequena proteção contra casos em que a sessão
+       * ainda não apareceu imediatamente na resposta.
+       */
+      if (!session?.user) {
+        const {
+          data: sessionData,
+        } = await supabase.auth.getSession();
+
+        session = sessionData?.session;
+        user = session?.user;
+      }
+
+      if (!user || !session) {
         throw new Error(
           "O e-mail foi confirmado, mas não foi possível iniciar sua sessão."
         );
       }
 
-      /*
-       * =====================================================
-       * GARANTE PERFIL PROFISSIONAL
-       * =====================================================
-       */
+      const fullName = form.full_name.trim();
 
-      const fullName =
-        form.full_name.trim();
-
-      const { error: updateError } =
-        await supabase.auth.updateUser({
-          data: {
-            full_name: fullName,
-            name: fullName,
-            role: "professional",
-            user_type: "professional",
-            account_type: "professional",
-            profile_type: "professional",
-          },
-        });
-
-      if (updateError) {
-        console.error(
-          "Erro ao salvar tipo profissional:",
-          updateError
-        );
-      }
-
-      /*
-       * =====================================================
-       * CONFIRMAÇÃO CONCLUÍDA
-       * =====================================================
-       */
+      await saveProfessionalMetadata(fullName);
 
       setOtp("");
       setOtpSent(false);
       setResendCooldown(0);
+      setError("");
 
       navigate("/cadastro-profissional", {
         replace: true,
       });
-
     } catch (err) {
       console.error(
         "Erro ao verificar código:",
         err
       );
 
-      let message =
-        err?.message ||
-        "Código inválido ou expirado.";
-
-      const lowerMessage =
-        message.toLowerCase();
-
-      if (
-        lowerMessage.includes("expired")
-      ) {
-        message =
-          "Esse código expirou. Solicite um novo código.";
-      }
-
-      if (
-        lowerMessage.includes("invalid")
-      ) {
-        message =
-          "Código inválido. Confira os 6 números e tente novamente.";
-      }
-
-      if (
-        lowerMessage.includes("security") ||
-        lowerMessage.includes("too many")
-      ) {
-        message =
-          "Muitas tentativas. Aguarde alguns segundos e tente novamente.";
-      }
-
-      setError(message);
+      setError(getErrorMessage(err));
     } finally {
       setVerifyingOtp(false);
     }
@@ -515,42 +479,30 @@ export default function ProfessionalSignup() {
 
       setOtp("");
       setResendCooldown(60);
-
       setError("");
-
     } catch (err) {
       console.error(
         "Erro ao reenviar código:",
         err
       );
 
-      let message =
-        err?.message ||
-        "Não foi possível reenviar o código.";
-
-      const lowerMessage =
-        message.toLowerCase();
-
-      if (
-        lowerMessage.includes("rate limit") ||
-        lowerMessage.includes(
-          "too many requests"
-        ) ||
-        lowerMessage.includes(
-          "security"
-        ) ||
-        lowerMessage.includes(
-          "only request this after"
-        )
-      ) {
-        message =
-          "Por segurança, você precisa aguardar antes de solicitar outro código.";
-      }
-
-      setError(message);
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
+  };
+
+  // =========================================================
+  // VOLTAR PARA O FORMULÁRIO
+  // =========================================================
+
+  const backToForm = () => {
+    if (verifyingOtp) return;
+
+    setOtpSent(false);
+    setOtp("");
+    setError("");
+    setResendCooldown(0);
   };
 
   // =========================================================
@@ -577,7 +529,7 @@ export default function ProfessionalSignup() {
   }
 
   // =========================================================
-  // TELA DE CONFIRMAÇÃO POR CÓDIGO
+  // TELA OTP
   // =========================================================
 
   if (otpSent) {
@@ -585,7 +537,6 @@ export default function ProfessionalSignup() {
       <PageShell>
         <div className="max-w-xl mx-auto px-4 pt-16 pb-20">
           <div className="card-elevated p-8 text-center">
-
             <div className="w-20 h-20 rounded-3xl bg-emerald-100 dark:bg-emerald-500/15 mx-auto flex items-center justify-center mb-6">
               <ShieldCheck
                 size={40}
@@ -630,11 +581,10 @@ export default function ProfessionalSignup() {
                 pattern="[0-9]*"
                 maxLength={6}
                 value={otp}
-                onChange={(e) => {
-                  const value =
-                    e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, 6);
+                onChange={(event) => {
+                  const value = event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, 6);
 
                   setOtp(value);
 
@@ -707,18 +657,12 @@ export default function ProfessionalSignup() {
 
             <button
               type="button"
-              onClick={() => {
-                setOtpSent(false);
-                setOtp("");
-                setError("");
-                setResendCooldown(0);
-              }}
+              onClick={backToForm}
               disabled={verifyingOtp}
               className="block mx-auto mt-4 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
               Voltar e alterar e-mail
             </button>
-
           </div>
         </div>
       </PageShell>
@@ -726,13 +670,12 @@ export default function ProfessionalSignup() {
   }
 
   // =========================================================
-  // FORMULÁRIO DE CRIAÇÃO DA CONTA
+  // FORMULÁRIO
   // =========================================================
 
   return (
     <PageShell>
       <div className="max-w-xl mx-auto px-4 sm:px-6 pt-10 pb-20">
-
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-8"
@@ -742,7 +685,6 @@ export default function ProfessionalSignup() {
         </Link>
 
         <div className="text-center mb-8">
-
           <div className="w-16 h-16 rounded-2xl gradient-brand mx-auto flex items-center justify-center mb-5">
             <Briefcase
               size={30}
@@ -758,7 +700,6 @@ export default function ProfessionalSignup() {
             Crie sua conta profissional para
             começar seu cadastro no EntreNós.
           </p>
-
         </div>
 
         {error && (
@@ -771,19 +712,22 @@ export default function ProfessionalSignup() {
           onSubmit={createProfessionalAccount}
           className="card-elevated p-6 sm:p-8 space-y-5"
         >
-
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="full-name"
+              className="block text-sm font-medium mb-2"
+            >
               Nome completo *
             </label>
 
             <input
+              id="full-name"
               type="text"
               value={form.full_name}
-              onChange={(e) =>
+              onChange={(event) =>
                 update(
                   "full_name",
-                  e.target.value
+                  event.target.value
                 )
               }
               placeholder="Seu nome completo"
@@ -794,17 +738,21 @@ export default function ProfessionalSignup() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="professional-email"
+              className="block text-sm font-medium mb-2"
+            >
               E-mail profissional *
             </label>
 
             <input
+              id="professional-email"
               type="email"
               value={form.email}
-              onChange={(e) =>
+              onChange={(event) =>
                 update(
                   "email",
-                  e.target.value
+                  event.target.value
                 )
               }
               placeholder="voce@exemplo.com"
@@ -815,23 +763,26 @@ export default function ProfessionalSignup() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="professional-password"
+              className="block text-sm font-medium mb-2"
+            >
               Senha *
             </label>
 
             <div className="relative">
-
               <input
+                id="professional-password"
                 type={
                   showPassword
                     ? "text"
                     : "password"
                 }
                 value={form.password}
-                onChange={(e) =>
+                onChange={(event) =>
                   update(
                     "password",
-                    e.target.value
+                    event.target.value
                   )
                 }
                 placeholder="Mínimo de 8 caracteres"
@@ -849,6 +800,11 @@ export default function ProfessionalSignup() {
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 tabIndex={-1}
+                aria-label={
+                  showPassword
+                    ? "Ocultar senha"
+                    : "Mostrar senha"
+                }
               >
                 {showPassword ? (
                   <EyeOff size={19} />
@@ -856,28 +812,30 @@ export default function ProfessionalSignup() {
                   <Eye size={19} />
                 )}
               </button>
-
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label
+              htmlFor="professional-confirm-password"
+              className="block text-sm font-medium mb-2"
+            >
               Confirmar senha *
             </label>
 
             <div className="relative">
-
               <input
+                id="professional-confirm-password"
                 type={
                   showConfirmPassword
                     ? "text"
                     : "password"
                 }
                 value={form.confirm_password}
-                onChange={(e) =>
+                onChange={(event) =>
                   update(
                     "confirm_password",
-                    e.target.value
+                    event.target.value
                   )
                 }
                 placeholder="Digite a senha novamente"
@@ -895,6 +853,11 @@ export default function ProfessionalSignup() {
                 }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 tabIndex={-1}
+                aria-label={
+                  showConfirmPassword
+                    ? "Ocultar confirmação de senha"
+                    : "Mostrar confirmação de senha"
+                }
               >
                 {showConfirmPassword ? (
                   <EyeOff size={19} />
@@ -902,21 +865,17 @@ export default function ProfessionalSignup() {
                   <Eye size={19} />
                 )}
               </button>
-
             </div>
           </div>
 
           <div className="rounded-2xl bg-muted/50 p-4">
-
             <div className="flex gap-3">
-
               <ShieldCheck
                 size={20}
                 className="shrink-0 mt-0.5"
               />
 
               <div className="text-sm text-muted-foreground">
-
                 <p className="font-medium text-foreground">
                   Conta profissional
                 </p>
@@ -927,11 +886,8 @@ export default function ProfessionalSignup() {
                   profissionais, CRP,
                   especialidades, foto e vídeo.
                 </p>
-
               </div>
-
             </div>
-
           </div>
 
           <button
@@ -964,7 +920,6 @@ export default function ProfessionalSignup() {
               Entrar
             </Link>
           </p>
-
         </form>
       </div>
     </PageShell>
