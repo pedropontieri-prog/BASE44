@@ -387,19 +387,6 @@ export default function ProfessionalOnboarding() {
         if (session?.user) {
           setUser(session.user);
           setCreatedUserId(session.user.id);
-
-          setForm((current) => ({
-            ...current,
-            email:
-              current.email ||
-              session.user.email ||
-              "",
-            name:
-              current.name ||
-              session.user.user_metadata?.name ||
-              session.user.user_metadata?.full_name ||
-              "",
-          }));
         } else {
           setUser(null);
         }
@@ -1067,125 +1054,122 @@ export default function ProfessionalOnboarding() {
       crp_region:
         form.crpState,
 
-      const professionalData = {
-  user_id: userId,
+      education: null,
 
-  education: null,
+      institution: null,
 
-  institution: null,
+      graduation_year: null,
 
-  graduation_year: null,
+      specializations: form.themes,
 
-  specializations: form.themes,
+      approaches: form.approach
+        ? [form.approach.trim()]
+        : [],
 
-  approaches: form.approach
-    ? [form.approach.trim()]
-    : [],
+      experience: null,
 
-  experience: null,
+      topics: form.themes,
 
-  topics: form.themes,
+      modalities,
 
-  modalities,
+      languages: [
+        "Português",
+      ],
 
-  languages: [
-    "Português",
-  ],
+      audience: form.audience,
 
-  audience: form.audience,
+      city: form.city.trim(),
 
-  city: form.city.trim(),
+      state: form.state
+        .trim()
+        .toUpperCase(),
 
-  state: form.state
-    .trim()
-    .toUpperCase(),
+      phone: form.phone.trim() || null,
 
-  phone: form.phone.trim() || null,
+      gender: null,
 
-  gender: null,
+      session_price:
+        Number(form.sessionPrice) || 0,
 
-  session_price:
-    Number(form.sessionPrice) || 0,
+      session_duration:
+        Number(form.sessionDuration) || 50,
 
-  session_duration:
-    Number(form.sessionDuration) || 50,
+      available_days: [],
 
-  available_days: [],
+      available_slots: [],
 
-  available_slots: [],
+      cancellation_policy: null,
 
-  cancellation_policy: null,
+      address:
+        form.presencial &&
+        form.address.trim()
+          ? form.address.trim()
+          : null,
 
-  address:
-    form.presencial &&
-    form.address.trim()
-      ? form.address.trim()
-      : null,
+      bio:
+        form.presentation.trim() || null,
 
-  bio:
-    form.presentation.trim() || null,
+      profile_photo_url:
+        photoUrl || null,
 
-  profile_photo_url:
-    photoUrl || null,
+      presentation_video_url:
+        videoUrl || null,
 
-  presentation_video_url:
-    videoUrl || null,
+      presentation_video_status:
+        videoUrl
+          ? "pending"
+          : null,
 
-  presentation_video_status:
-    videoUrl
-      ? "pending"
-      : null,
+      verification_status:
+        "pending",
 
-  verification_status:
-    "pending",
+      public_profile:
+        false,
+    };
 
-  public_profile:
-    false,
-};
+    const {
+      data: existing,
+      error: findError,
+    } = await supabase
+      .from("psychologists")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-const {
-  data: existing,
-  error: findError,
-} = await supabase
-  .from("psychologists")
-  .select("id")
-  .eq("user_id", userId)
-  .maybeSingle();
+    if (findError) {
+      throw findError;
+    }
 
-if (findError) {
-  throw findError;
-}
+    if (existing?.id) {
+      const {
+        error: updateError,
+      } = await supabase
+        .from("psychologists")
+        .update(professionalData)
+        .eq("id", existing.id);
 
-if (existing?.id) {
-  const {
-    error: updateError,
-  } = await supabase
-    .from("psychologists")
-    .update(professionalData)
-    .eq("id", existing.id);
+      if (updateError) {
+        throw updateError;
+      }
 
-  if (updateError) {
-    throw updateError;
+      return existing.id;
+    }
+
+    const {
+      data: inserted,
+      error: insertError,
+    } = await supabase
+      .from("psychologists")
+      .insert(professionalData)
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return inserted.id;
   }
-
-  return existing.id;
-}
-
-const {
-  data: inserted,
-  error: insertError,
-} = await supabase
-  .from("psychologists")
-  .insert(professionalData)
-  .select("id")
-  .single();
-
-if (insertError) {
-  throw insertError;
-}
-
-return inserted.id;
-
 
   /*
    * =====================================================
@@ -2964,7 +2948,6 @@ return inserted.id;
                   </div>
 
                   <div className="space-y-5">
-
                     <ReviewSection
                       title="Dados pessoais"
                       onEdit={() =>
