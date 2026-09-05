@@ -48,9 +48,9 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link to="/painel" className="hover:text-primary transition-colors">
-                  Meu painel
-                </Link>
+                <Link to="/painel-paciente" className="hover:text-primary transition-colors">
+  Meu painel
+</Link>
               </li>
             </ul>
           </div>
