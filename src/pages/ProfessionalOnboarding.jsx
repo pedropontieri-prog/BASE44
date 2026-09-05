@@ -25,12 +25,36 @@ import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
-  { id: "personal", label: "Pessoal", icon: User },
-  { id: "professional", label: "Registro profissional", icon: Briefcase },
-  { id: "approach", label: "Atuação", icon: Briefcase },
-  { id: "service", label: "Atendimento", icon: Calendar },
-  { id: "media", label: "Foto e vídeo", icon: Camera },
-  { id: "review", label: "Revisão", icon: ShieldCheck },
+  {
+    id: "personal",
+    label: "Pessoal",
+    icon: User,
+  },
+  {
+    id: "professional",
+    label: "Registro profissional",
+    icon: Briefcase,
+  },
+  {
+    id: "approach",
+    label: "Atuação",
+    icon: Briefcase,
+  },
+  {
+    id: "service",
+    label: "Atendimento",
+    icon: Calendar,
+  },
+  {
+    id: "media",
+    label: "Foto e vídeo",
+    icon: Camera,
+  },
+  {
+    id: "review",
+    label: "Revisão",
+    icon: ShieldCheck,
+  },
 ];
 
 const DEFAULT_FORM = {
@@ -39,6 +63,7 @@ const DEFAULT_FORM = {
   phone: "",
   cpf: "",
   birthDate: "",
+
   password: "",
   confirmPassword: "",
 
@@ -130,7 +155,9 @@ const UF_OPTIONS = [
 ];
 
 function formatPhone(value) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
+  const digits = value
+    .replace(/\D/g, "")
+    .slice(0, 11);
 
   if (digits.length <= 2) {
     return digits;
@@ -141,14 +168,22 @@ function formatPhone(value) {
   }
 
   if (digits.length <= 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(
+      2,
+      6
+    )}-${digits.slice(6)}`;
   }
 
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(
+    2,
+    7
+  )}-${digits.slice(7)}`;
 }
 
 function formatCpf(value) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
+  const digits = value
+    .replace(/\D/g, "")
+    .slice(0, 11);
 
   if (digits.length <= 3) {
     return digits;
@@ -159,17 +194,52 @@ function formatCpf(value) {
   }
 
   if (digits.length <= 9) {
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(
+      3,
+      6
+    )}.${digits.slice(6)}`;
   }
 
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(
-    6,
-    9
-  )}-${digits.slice(9)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(
+    3,
+    6
+  )}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
+}
+
+function getErrorMessage(error) {
+  if (!error) {
+    return "Ocorreu um erro. Tente novamente.";
+  }
+
+  return (
+    error.message ||
+    error.error_description ||
+    "Ocorreu um erro. Tente novamente."
+  );
+}
+
+function isRateLimitError(error) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("rate limit") ||
+    message.includes("too many requests") ||
+    message.includes("email rate limit")
+  );
+}
+
+function isAlreadyRegisteredError(error) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("already registered") ||
+    message.includes("user already registered") ||
+    message.includes("already exists")
+  );
 }
 
 function isValidCpf(value) {
@@ -218,69 +288,56 @@ function isValidCpf(value) {
   return remainder === Number(cpf[10]);
 }
 
-function getErrorMessage(error) {
-  if (!error) {
-    return "Ocorreu um erro. Tente novamente.";
-  }
-
-  return (
-    error.message ||
-    error.error_description ||
-    "Ocorreu um erro. Tente novamente."
-  );
-}
-
-function isRateLimitError(error) {
-  const message = getErrorMessage(error).toLowerCase();
-
-  return (
-    message.includes("rate limit") ||
-    message.includes("too many requests") ||
-    message.includes("email rate limit")
-  );
-}
-
-function isAlreadyRegisteredError(error) {
-  const message = getErrorMessage(error).toLowerCase();
-
-  return (
-    message.includes("already registered") ||
-    message.includes("user already registered") ||
-    message.includes("already exists")
-  );
-}
-
-function isEmailConfirmationError(error) {
-  const message = getErrorMessage(error).toLowerCase();
-
-  return (
-    message.includes("email not confirmed") ||
-    message.includes("email_not_confirmed")
-  );
-}
-
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState(DEFAULT_FORM);
+
+  const [form, setForm] =
+    useState(DEFAULT_FORM);
+
+  /*
+   * Usuário que eventualmente já possui uma sessão.
+   */
+  const [user, setUser] = useState(null);
+
+  /*
+   * IMPORTANTE:
+   * Quando a confirmação de e-mail está habilitada,
+   * o Supabase pode retornar o user, mas NÃO retornar
+   * uma session no signUp().
+   *
+   * Por isso guardamos o ID separadamente.
+   */
+  const [createdUserId, setCreatedUserId] =
+    useState(null);
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] =
+    useState(false);
+  const [verifyingOtp, setVerifyingOtp] =
+    useState(false);
+  const [uploading, setUploading] =
+    useState(false);
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPassword, setShowPassword] =
+    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState(false);
 
-  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  const [user, setUser] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [resendCooldown, setResendCooldown] =
+    useState(0);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  /*
+   * =====================================================
+   * CARREGAR SESSÃO
+   * =====================================================
+   */
 
   useEffect(() => {
     let mounted = true;
@@ -297,6 +354,7 @@ export default function ProfessionalOnboarding() {
 
         if (session?.user) {
           setUser(session.user);
+          setCreatedUserId(session.user.id);
 
           setForm((current) => ({
             ...current,
@@ -312,7 +370,10 @@ export default function ProfessionalOnboarding() {
           }));
         }
       } catch (err) {
-        console.error("Erro ao carregar sessão:", err);
+        console.error(
+          "Erro ao carregar sessão:",
+          err
+        );
       } finally {
         if (mounted) {
           setLoading(false);
@@ -324,36 +385,45 @@ export default function ProfessionalOnboarding() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) {
-        return;
-      }
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!mounted) {
+          return;
+        }
 
-      if (session?.user) {
-        setUser(session.user);
+        if (session?.user) {
+          setUser(session.user);
+          setCreatedUserId(session.user.id);
 
-        setForm((current) => ({
-          ...current,
-          email:
-            current.email ||
-            session.user.email ||
-            "",
-          name:
-            current.name ||
-            session.user.user_metadata?.name ||
-            session.user.user_metadata?.full_name ||
-            "",
-        }));
-      } else {
-        setUser(null);
+          setForm((current) => ({
+            ...current,
+            email:
+              current.email ||
+              session.user.email ||
+              "",
+            name:
+              current.name ||
+              session.user.user_metadata?.name ||
+              session.user.user_metadata?.full_name ||
+              "",
+          }));
+        } else {
+          setUser(null);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
   }, []);
+
+  /*
+   * =====================================================
+   * CONTADOR DE REENVIO
+   * =====================================================
+   */
 
   useEffect(() => {
     if (resendCooldown <= 0) {
@@ -371,8 +441,15 @@ export default function ProfessionalOnboarding() {
       });
     }, 1000);
 
-    return () => window.clearInterval(timer);
+    return () =>
+      window.clearInterval(timer);
   }, [resendCooldown]);
+
+  /*
+   * =====================================================
+   * FORMULÁRIO
+   * =====================================================
+   */
 
   function updateForm(field, value) {
     setForm((current) => ({
@@ -386,12 +463,15 @@ export default function ProfessionalOnboarding() {
 
   function toggleArrayValue(field, value) {
     setForm((current) => {
-      const exists = current[field].includes(value);
+      const exists =
+        current[field].includes(value);
 
       return {
         ...current,
         [field]: exists
-          ? current[field].filter((item) => item !== value)
+          ? current[field].filter(
+              (item) => item !== value
+            )
           : [...current[field], value],
       };
     });
@@ -399,12 +479,21 @@ export default function ProfessionalOnboarding() {
     setError("");
   }
 
+  /*
+   * =====================================================
+   * VALIDAÇÃO
+   * =====================================================
+   */
+
   function validateBirthDate() {
     if (!form.birthDate) {
       return true;
     }
 
-    const birthDate = new Date(`${form.birthDate}T00:00:00`);
+    const birthDate = new Date(
+      `${form.birthDate}T00:00:00`
+    );
+
     const today = new Date();
 
     if (Number.isNaN(birthDate.getTime())) {
@@ -426,7 +515,11 @@ export default function ProfessionalOnboarding() {
         return "Informe seu e-mail.";
       }
 
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      if (
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          form.email.trim()
+        )
+      ) {
         return "Informe um e-mail válido.";
       }
 
@@ -438,7 +531,11 @@ export default function ProfessionalOnboarding() {
         return "Informe uma data de nascimento válida.";
       }
 
-      if (!user) {
+      /*
+       * Só exige senha quando ainda não existe
+       * uma conta criada.
+       */
+      if (!user && !createdUserId) {
         if (!form.password) {
           return "Crie uma senha.";
         }
@@ -447,7 +544,10 @@ export default function ProfessionalOnboarding() {
           return "A senha deve ter pelo menos 6 caracteres.";
         }
 
-        if (form.password !== form.confirmPassword) {
+        if (
+          form.password !==
+          form.confirmPassword
+        ) {
           return "As senhas não coincidem.";
         }
       }
@@ -498,15 +598,24 @@ export default function ProfessionalOnboarding() {
         return "Confirme que possui cadastro/autorização e-Psi para atendimento on-line.";
       }
 
-      if (form.presencial && !form.address.trim()) {
+      if (
+        form.presencial &&
+        !form.address.trim()
+      ) {
         return "Informe o endereço para atendimento presencial.";
       }
 
-      if (!form.sessionDuration || Number(form.sessionDuration) <= 0) {
+      if (
+        !form.sessionDuration ||
+        Number(form.sessionDuration) <= 0
+      ) {
         return "Informe a duração da sessão.";
       }
 
-      if (!form.sessionPrice || Number(form.sessionPrice) <= 0) {
+      if (
+        !form.sessionPrice ||
+        Number(form.sessionPrice) <= 0
+      ) {
         return "Informe o valor da sessão.";
       }
     }
@@ -516,14 +625,18 @@ export default function ProfessionalOnboarding() {
         return "Adicione uma foto profissional.";
       }
 
-      if (form.presentation.trim().length > 800) {
+      if (
+        form.presentation.trim().length >
+        800
+      ) {
         return "A apresentação deve ter no máximo 800 caracteres.";
       }
     }
 
     if (stepNumber === 5) {
       for (let i = 0; i < 5; i++) {
-        const validation = validateStep(i);
+        const validation =
+          validateStep(i);
 
         if (validation) {
           return validation;
@@ -534,54 +647,49 @@ export default function ProfessionalOnboarding() {
     return "";
   }
 
-  async function updateProfessionalMetadata(authenticatedUser) {
-    if (!authenticatedUser) {
+  /*
+   * =====================================================
+   * METADADOS DO AUTH
+   *
+   * Só deve ser chamado quando existe sessão.
+   * Portanto, NÃO chamamos isso durante o signUp
+   * sem sessão.
+   * =====================================================
+   */
+
+  async function updateProfessionalMetadata() {
+    const { data, error: userError } =
+      await supabase.auth.getUser();
+
+    if (userError || !data?.user) {
       return;
     }
 
-    const { error: metadataError } = await supabase.auth.updateUser({
-      data: {
-        name: form.name.trim(),
-        full_name: form.name.trim(),
-        role: "professional",
-        user_type: "professional",
-        account_type: "professional",
-        profile_type: "professional",
-      },
-    });
+    const { error: metadataError } =
+      await supabase.auth.updateUser({
+        data: {
+          name: form.name.trim(),
+          full_name: form.name.trim(),
+          role: "professional",
+          user_type: "professional",
+          account_type: "professional",
+          profile_type: "professional",
+        },
+      });
 
     if (metadataError) {
       console.error(
-        "Não foi possível atualizar os metadados:",
+        "Erro ao atualizar metadados:",
         metadataError
       );
     }
   }
 
-  async function getAuthenticatedUser() {
-    const {
-      data: { user: authenticatedUser },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError) {
-      if (isEmailConfirmationError(authError)) {
-        throw new Error(
-          "Seu e-mail ainda não foi confirmado."
-        );
-      }
-
-      throw authError;
-    }
-
-    if (!authenticatedUser) {
-      throw new Error(
-        "Sua sessão não está ativa. Entre novamente para continuar."
-      );
-    }
-
-    return authenticatedUser;
-  }
+  /*
+   * =====================================================
+   * CRIAR CONTA
+   * =====================================================
+   */
 
   async function createAccount() {
     const validation = validateStep(0);
@@ -596,22 +704,30 @@ export default function ProfessionalOnboarding() {
     setSuccess("");
 
     try {
-      if (user) {
-        await updateProfessionalMetadata(user);
+      /*
+       * Se já temos usuário, não criamos outra conta.
+       */
+      if (user?.id || createdUserId) {
+        setCreatedUserId(
+          user?.id || createdUserId
+        );
 
         setSuccess(
-          "Conta identificada. Continue o preenchimento do cadastro."
+          "Conta identificada. Continue o preenchimento."
         );
 
         return true;
       }
 
-      const email = normalizeEmail(form.email);
+      const email = normalizeEmail(
+        form.email
+      );
 
       const { data, error: signupError } =
         await supabase.auth.signUp({
           email,
           password: form.password,
+
           options: {
             data: {
               name: form.name.trim(),
@@ -631,7 +747,11 @@ export default function ProfessionalOnboarding() {
           );
         }
 
-        if (isAlreadyRegisteredError(signupError)) {
+        if (
+          isAlreadyRegisteredError(
+            signupError
+          )
+        ) {
           throw new Error(
             "Este e-mail já possui uma conta. Entre na sua conta para continuar."
           );
@@ -640,35 +760,34 @@ export default function ProfessionalOnboarding() {
         throw signupError;
       }
 
-      if (!data?.user) {
+      if (!data?.user?.id) {
         throw new Error(
           "Não foi possível criar sua conta."
         );
       }
 
-      if (data.session?.user) {
-        setUser(data.session.user);
-
-        await updateProfessionalMetadata(data.session.user);
-
-        setSuccess(
-          "Conta criada. Continue preenchendo seu cadastro."
-        );
-
-        return true;
-      }
+      /*
+       * ESTA É A CORREÇÃO PRINCIPAL.
+       *
+       * Guardamos o ID mesmo que:
+       *
+       * data.session === null
+       *
+       * Isso acontece normalmente quando a confirmação
+       * de e-mail está habilitada.
+       */
+      setCreatedUserId(data.user.id);
 
       /*
-       * IMPORTANTE:
-       * Não enviamos o código de confirmação aqui.
-       *
-       * A confirmação do e-mail será feita somente
-       * depois que todo o cadastro estiver preenchido
-       * e revisado.
+       * Se o Supabase criou sessão imediatamente,
+       * também podemos guardar o usuário.
        */
+      if (data.session?.user) {
+        setUser(data.session.user);
+      }
 
       setSuccess(
-        "Conta criada. Continue preenchendo o cadastro."
+        "Conta criada. Continue preenchendo seu cadastro."
       );
 
       return true;
@@ -680,11 +799,22 @@ export default function ProfessionalOnboarding() {
     }
   }
 
-  async function sendSignupConfirmation(emailValue = form.email) {
-    const email = normalizeEmail(emailValue);
+  /*
+   * =====================================================
+   * ENVIAR CONFIRMAÇÃO
+   * =====================================================
+   */
+
+  async function sendSignupConfirmation(
+    emailValue = form.email
+  ) {
+    const email =
+      normalizeEmail(emailValue);
 
     if (!email) {
-      throw new Error("Informe seu e-mail.");
+      throw new Error(
+        "Informe seu e-mail."
+      );
     }
 
     const { error: resendError } =
@@ -694,7 +824,9 @@ export default function ProfessionalOnboarding() {
       });
 
     if (resendError) {
-      if (isRateLimitError(resendError)) {
+      if (
+        isRateLimitError(resendError)
+      ) {
         throw new Error(
           "Aguarde alguns instantes antes de solicitar outro código."
         );
@@ -712,101 +844,16 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  async function verifyEmailCode() {
-    const code = otp.replace(/\D/g, "");
-
-    if (code.length < 6) {
-      setError("Digite o código de confirmação recebido por e-mail.");
-      return;
-    }
-
-    setVerifyingOtp(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const email = normalizeEmail(form.email);
-
-      /*
-       * Para confirmação de cadastro por e-mail no Supabase,
-       * o type correto é "signup".
-       */
-      const { data, error: verifyError } =
-        await supabase.auth.verifyOtp({
-          email,
-          token: code,
-          type: "signup",
-        });
-
-      if (verifyError) {
-        const message = getErrorMessage(verifyError).toLowerCase();
-
-        if (
-          message.includes("expired") ||
-          message.includes("invalid")
-        ) {
-          throw new Error(
-            "Código inválido ou expirado. Solicite um novo código."
-          );
-        }
-
-        throw verifyError;
-      }
-
-      if (!data?.user) {
-        throw new Error(
-          "Não foi possível confirmar o e-mail."
-        );
-      }
-
-      setUser(data.user);
-
-      await updateProfessionalMetadata(data.user);
-
-      setOtpSent(false);
-      setOtp("");
-
-      setSuccess(
-        "E-mail confirmado com sucesso! Redirecionando para o painel..."
-      );
-
-      window.setTimeout(() => {
-        navigate("/painel-profissional", {
-          replace: true,
-        });
-      }, 900);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setVerifyingOtp(false);
-    }
-  }
-
-  async function resendCode() {
-    if (resendCooldown > 0) {
-      return;
-    }
-
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      await sendSignupConfirmation(form.email);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  /*
+   * =====================================================
+   * UPLOAD
+   * =====================================================
+   */
 
   async function uploadFile(event, type) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
-    /*
-     * Permite selecionar o mesmo arquivo novamente
-     * caso tenha ocorrido algum problema.
-     */
     event.target.value = "";
 
     if (!file) {
@@ -830,7 +877,10 @@ export default function ProfessionalOnboarding() {
         return;
       }
 
-      if (file.size > 5 * 1024 * 1024) {
+      if (
+        file.size >
+        5 * 1024 * 1024
+      ) {
         setError(
           "A foto deve ter no máximo 5 MB."
         );
@@ -852,7 +902,10 @@ export default function ProfessionalOnboarding() {
         return;
       }
 
-      if (file.size > 100 * 1024 * 1024) {
+      if (
+        file.size >
+        100 * 1024 * 1024
+      ) {
         setError(
           "O vídeo deve ter no máximo 100 MB."
         );
@@ -860,18 +913,48 @@ export default function ProfessionalOnboarding() {
       }
     }
 
+    /*
+     * Para Storage, precisamos de uma sessão.
+     *
+     * Como o cadastro foi criado sem sessão,
+     * o ideal é que o upload aconteça depois que
+     * o usuário esteja autenticado.
+     *
+     * Se o Supabase estiver retornando sessão após
+     * o signUp, funciona normalmente.
+     */
+    let storageUser = user;
+
+    if (!storageUser) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      storageUser = session?.user || null;
+    }
+
+    if (!storageUser) {
+      setError(
+        "Sua conta ainda não possui uma sessão ativa. Para enviar foto ou vídeo antes da confirmação do e-mail, é necessário permitir a sessão durante o cadastro no Supabase."
+      );
+      return;
+    }
+
     setUploading(true);
 
     try {
-      const authenticatedUser =
-        await getAuthenticatedUser();
-
       const extension =
-        file.name.split(".").pop()?.toLowerCase() ||
-        (type === "photo" ? "jpg" : "mp4");
+        file.name
+          .split(".")
+          .pop()
+          ?.toLowerCase() ||
+        (type === "photo"
+          ? "jpg"
+          : "mp4");
 
       const randomId =
-        typeof crypto !== "undefined" &&
+        typeof crypto !==
+          "undefined" &&
         crypto.randomUUID
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()
@@ -879,18 +962,22 @@ export default function ProfessionalOnboarding() {
               .slice(2)}`;
 
       const bucket =
-        type === "photo" ? "avatars" : "videos";
+        type === "photo"
+          ? "avatars"
+          : "videos";
 
-      const path = `professionals/${authenticatedUser.id}/${randomId}.${extension}`;
+      const path =
+        `professionals/${storageUser.id}/${randomId}.${extension}`;
 
-      const { error: uploadError } =
-        await supabase.storage
-          .from(bucket)
-          .upload(path, file, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: file.type,
-          });
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
 
       if (uploadError) {
         throw uploadError;
@@ -927,16 +1014,29 @@ export default function ProfessionalOnboarding() {
         );
       }
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(
+        getErrorMessage(err)
+      );
     } finally {
       setUploading(false);
     }
   }
 
-  async function saveProfessional(authenticatedUser) {
-    if (!authenticatedUser) {
+  /*
+   * =====================================================
+   * SALVAR PSICÓLOGO
+   *
+   * IMPORTANTE:
+   * Não usamos auth.getUser() aqui.
+   *
+   * Usamos o createdUserId.
+   * =====================================================
+   */
+
+  async function saveProfessional(userId) {
+    if (!userId) {
       throw new Error(
-        "Usuário não autenticado."
+        "Não foi possível identificar o usuário do cadastro."
       );
     }
 
@@ -951,29 +1051,35 @@ export default function ProfessionalOnboarding() {
     }
 
     const professionalData = {
-      user_id: authenticatedUser.id,
+      user_id: userId,
 
-      professional_name: form.name.trim(),
+      professional_name:
+        form.name.trim(),
 
-      /*
-       * Estes três campos precisam existir na tabela
-       * public.psychologists.
-       */
       cpf: form.cpf
         ? form.cpf.replace(/\D/g, "")
         : null,
 
-      birth_date: form.birthDate || null,
+      birth_date:
+        form.birthDate || null,
 
-      crp_number: form.crp.trim(),
-      crp_region: form.crpState,
-      crp_status: form.crpStatus,
+      crp_number:
+        form.crp.trim(),
+
+      crp_region:
+        form.crpState,
+
+      crp_status:
+        form.crpStatus,
 
       education: null,
+
       institution: null,
+
       graduation_year: null,
 
-      specializations: form.themes,
+      specializations:
+        form.themes,
 
       approaches: form.approach
         ? [form.approach.trim()]
@@ -981,34 +1087,46 @@ export default function ProfessionalOnboarding() {
 
       experience: null,
 
-      topics: form.themes,
+      topics:
+        form.themes,
 
       modalities,
 
-      languages: ["Português"],
+      languages: [
+        "Português",
+      ],
 
-      audience: form.audience,
+      audience:
+        form.audience,
 
-      city: form.city.trim(),
+      city:
+        form.city.trim(),
 
-      state: form.state
-        .trim()
-        .toUpperCase(),
+      state:
+        form.state
+          .trim()
+          .toUpperCase(),
 
-      phone: form.phone.trim() || null,
+      phone:
+        form.phone.trim() ||
+        null,
 
       gender: null,
 
       session_price:
-        Number(form.sessionPrice) || 0,
+        Number(form.sessionPrice) ||
+        0,
 
       session_duration:
-        Number(form.sessionDuration) || 50,
+        Number(form.sessionDuration) ||
+        50,
 
       available_days: [],
+
       available_slots: [],
 
-      cancellation_policy: null,
+      cancellation_policy:
+        null,
 
       address:
         form.presencial &&
@@ -1017,7 +1135,8 @@ export default function ProfessionalOnboarding() {
           : null,
 
       bio:
-        form.presentation.trim() || null,
+        form.presentation.trim() ||
+        null,
 
       profile_photo_url:
         form.photoUrl,
@@ -1031,32 +1150,45 @@ export default function ProfessionalOnboarding() {
           : null,
 
       /*
-       * O cadastro fica pendente.
-       * O perfil não será público antes da
-       * confirmação/análise.
+       * O cadastro ainda não foi confirmado.
        */
-      verification_status: "pending",
+      verification_status:
+        "pending",
 
-      public_profile: false,
+      /*
+       * Nunca fica público antes
+       * da confirmação/análise.
+       */
+      public_profile:
+        false,
     };
 
-    const { data: existing, error: findError } =
-      await supabase
-        .from("psychologists")
-        .select("id")
-        .eq("user_id", authenticatedUser.id)
-        .maybeSingle();
+    /*
+     * Procuramos o profissional pelo user_id.
+     */
+    const {
+      data: existing,
+      error: findError,
+    } = await supabase
+      .from("psychologists")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
 
     if (findError) {
       throw findError;
     }
 
+    /*
+     * Se já existe, atualiza.
+     */
     if (existing?.id) {
-      const { error: updateError } =
-        await supabase
-          .from("psychologists")
-          .update(professionalData)
-          .eq("id", existing.id);
+      const {
+        error: updateError,
+      } = await supabase
+        .from("psychologists")
+        .update(professionalData)
+        .eq("id", existing.id);
 
       if (updateError) {
         throw updateError;
@@ -1065,12 +1197,17 @@ export default function ProfessionalOnboarding() {
       return existing.id;
     }
 
-    const { data: inserted, error: insertError } =
-      await supabase
-        .from("psychologists")
-        .insert(professionalData)
-        .select("id")
-        .single();
+    /*
+     * Caso contrário, cria.
+     */
+    const {
+      data: inserted,
+      error: insertError,
+    } = await supabase
+      .from("psychologists")
+      .insert(professionalData)
+      .select("id")
+      .single();
 
     if (insertError) {
       throw insertError;
@@ -1079,8 +1216,15 @@ export default function ProfessionalOnboarding() {
     return inserted.id;
   }
 
+  /*
+   * =====================================================
+   * FINALIZAR CADASTRO
+   * =====================================================
+   */
+
   async function finishRegistration() {
-    const validation = validateStep(5);
+    const validation =
+      validateStep(5);
 
     if (validation) {
       setError(validation);
@@ -1092,47 +1236,233 @@ export default function ProfessionalOnboarding() {
     setSuccess("");
 
     try {
-      const authenticatedUser =
-        await getAuthenticatedUser();
-
-      await updateProfessionalMetadata(
-        authenticatedUser
-      );
-
       /*
-       * Primeiro salva todo o cadastro.
-       */
-      await saveProfessional(
-        authenticatedUser
-      );
-
-      /*
-       * Só agora enviamos o código de confirmação.
+       * Primeiro tentamos descobrir o ID.
        *
-       * A tela de confirmação é a última etapa
-       * antes do painel.
+       * NÃO usamos getUser(), porque ele pode gerar
+       * "Auth session missing!".
        */
+      let userId =
+        createdUserId ||
+        user?.id ||
+        null;
+
+      /*
+       * Se não temos ID localmente, verificamos
+       * se existe uma sessão.
+       */
+      if (!userId) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user?.id) {
+          userId =
+            session.user.id;
+
+          setUser(session.user);
+          setCreatedUserId(
+            session.user.id
+          );
+        }
+      }
+
+      if (!userId) {
+        throw new Error(
+          "Não foi possível identificar sua conta. Volte à primeira etapa e tente novamente."
+        );
+      }
+
+      /*
+       * ================================================
+       * 1. SALVA O CADASTRO
+       * ================================================
+       */
+
+      await saveProfessional(userId);
+
+      /*
+       * ================================================
+       * 2. ENVIA O CÓDIGO
+       *
+       * Só acontece agora, depois da revisão.
+       * ================================================
+       */
+
       await sendSignupConfirmation(
         form.email
       );
 
-      setStep(STEPS.length);
+      /*
+       * ================================================
+       * 3. ABRE A ÚLTIMA TELA:
+       * CONFIRMAÇÃO DO E-MAIL
+       * ================================================
+       */
+
+      setStep(
+        STEPS.length
+      );
     } catch (err) {
-      setError(getErrorMessage(err));
+      setError(
+        getErrorMessage(err)
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
+  /*
+   * =====================================================
+   * CONFIRMAR E-MAIL
+   * =====================================================
+   */
+
+  async function verifyEmailCode() {
+    const code =
+      otp.replace(/\D/g, "");
+
+    if (code.length < 6) {
+      setError(
+        "Digite o código de confirmação recebido por e-mail."
+      );
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const email =
+        normalizeEmail(form.email);
+
+      /*
+       * CORRETO PARA CONFIRMAÇÃO DO SIGNUP:
+       * type: "signup"
+       */
+      const {
+        data,
+        error: verifyError,
+      } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "signup",
+      });
+
+      if (verifyError) {
+        const message =
+          getErrorMessage(
+            verifyError
+          ).toLowerCase();
+
+        if (
+          message.includes("expired") ||
+          message.includes("invalid")
+        ) {
+          throw new Error(
+            "Código inválido ou expirado. Solicite um novo código."
+          );
+        }
+
+        throw verifyError;
+      }
+
+      if (!data?.user) {
+        throw new Error(
+          "O e-mail não pôde ser confirmado."
+        );
+      }
+
+      /*
+       * Agora SIM existe sessão.
+       */
+      setUser(data.user);
+      setCreatedUserId(
+        data.user.id
+      );
+
+      /*
+       * Agora podemos atualizar os metadados
+       * com segurança.
+       */
+      await updateProfessionalMetadata();
+
+      setOtp("");
+      setOtpSent(false);
+
+      setSuccess(
+        "E-mail confirmado com sucesso! Redirecionando para o painel..."
+      );
+
+      /*
+       * Só agora entra no painel.
+       */
+      window.setTimeout(() => {
+        navigate(
+          "/painel-profissional",
+          {
+            replace: true,
+          }
+        );
+      }, 1000);
+    } catch (err) {
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  /*
+   * =====================================================
+   * REENVIAR CÓDIGO
+   * =====================================================
+   */
+
+  async function resendCode() {
+    if (resendCooldown > 0) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await sendSignupConfirmation(
+        form.email
+      );
+    } catch (err) {
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /*
+   * =====================================================
+   * NAVEGAÇÃO
+   * =====================================================
+   */
+
   async function nextStep() {
-    if (submitting || uploading || verifyingOtp) {
+    if (
+      submitting ||
+      uploading ||
+      verifyingOtp
+    ) {
       return;
     }
 
     setError("");
     setSuccess("");
 
-    const validation = validateStep(step);
+    const validation =
+      validateStep(step);
 
     if (validation) {
       setError(validation);
@@ -1140,11 +1470,14 @@ export default function ProfessionalOnboarding() {
     }
 
     /*
-     * A conta é criada no primeiro passo,
-     * mas a confirmação do e-mail só acontece
-     * depois da revisão.
+     * PRIMEIRO PASSO:
+     * cria a conta.
      */
-    if (step === 0 && !user) {
+    if (
+      step === 0 &&
+      !user &&
+      !createdUserId
+    ) {
       const accountCreated =
         await createAccount();
 
@@ -1153,18 +1486,29 @@ export default function ProfessionalOnboarding() {
       }
 
       setStep(1);
+
       return;
     }
 
     /*
-     * Última etapa normal: revisão.
+     * ÚLTIMO PASSO:
+     * revisão → salvar → confirmação.
      */
-    if (step === STEPS.length - 1) {
+    if (
+      step === STEPS.length - 1
+    ) {
       await finishRegistration();
       return;
     }
 
-    setStep((current) => current + 1);
+    setStep(
+      (current) => current + 1
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
 
   function previousStep() {
@@ -1180,7 +1524,9 @@ export default function ProfessionalOnboarding() {
     setError("");
     setSuccess("");
 
-    setStep((current) => current - 1);
+    setStep(
+      (current) => current - 1
+    );
 
     window.scrollTo({
       top: 0,
@@ -1210,10 +1556,17 @@ export default function ProfessionalOnboarding() {
   }
 
   function maskedCpf() {
-    const digits = form.cpf.replace(/\D/g, "");
+    const digits =
+      form.cpf.replace(
+        /\D/g,
+        ""
+      );
 
     if (digits.length !== 11) {
-      return form.cpf || "Não informado";
+      return (
+        form.cpf ||
+        "Não informado"
+      );
     }
 
     return `***.***.${digits.slice(
@@ -1222,13 +1575,22 @@ export default function ProfessionalOnboarding() {
     )}-${digits.slice(9)}`;
   }
 
+  /*
+   * =====================================================
+   * LOADING
+   * =====================================================
+   */
+
   if (loading) {
     return (
       <PageShell>
         <div className="min-h-[70vh] flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-slate-600">
             <Loader2 className="w-8 h-8 animate-spin" />
-            <span>Carregando...</span>
+
+            <span>
+              Carregando...
+            </span>
           </div>
         </div>
       </PageShell>
@@ -1237,11 +1599,14 @@ export default function ProfessionalOnboarding() {
 
   /*
    * =====================================================
+   * ÚLTIMA ETAPA:
    * CONFIRMAÇÃO DO E-MAIL
    * =====================================================
    */
 
-  if (step === STEPS.length) {
+  if (
+    step === STEPS.length
+  ) {
     return (
       <PageShell>
         <div className="min-h-screen bg-slate-50 py-10 px-4">
@@ -1259,8 +1624,10 @@ export default function ProfessionalOnboarding() {
                 </h1>
 
                 <p className="mt-3 text-slate-600 leading-relaxed">
-                  Seu cadastro foi preenchido e salvo.
-                  Enviamos um código de confirmação para:
+                  Seu cadastro foi
+                  preenchido e salvo.
+                  Enviamos um código
+                  de confirmação para:
                 </p>
 
                 <p className="mt-3 font-semibold text-slate-900 break-all">
@@ -1281,7 +1648,10 @@ export default function ProfessionalOnboarding() {
                   onChange={(event) => {
                     const value =
                       event.target.value
-                        .replace(/\D/g, "")
+                        .replace(
+                          /\D/g,
+                          ""
+                        )
                         .slice(0, 8);
 
                     setOtp(value);
@@ -1306,21 +1676,28 @@ export default function ProfessionalOnboarding() {
 
               <button
                 type="button"
-                onClick={verifyEmailCode}
+                onClick={
+                  verifyEmailCode
+                }
                 disabled={
                   verifyingOtp ||
-                  otp.replace(/\D/g, "").length < 6
+                  otp.replace(
+                    /\D/g,
+                    ""
+                  ).length < 6
                 }
                 className="w-full mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {verifyingOtp ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
+
                     Confirmando...
                   </>
                 ) : (
                   <>
                     <Check className="w-5 h-5" />
+
                     Confirmar e-mail
                   </>
                 )}
@@ -1329,7 +1706,9 @@ export default function ProfessionalOnboarding() {
               <div className="mt-5 text-center">
                 <button
                   type="button"
-                  onClick={resendCode}
+                  onClick={
+                    resendCode
+                  }
                   disabled={
                     submitting ||
                     resendCooldown > 0
@@ -1338,7 +1717,8 @@ export default function ProfessionalOnboarding() {
                 >
                   <RefreshCw className="w-4 h-4" />
 
-                  {resendCooldown > 0
+                  {resendCooldown >
+                  0
                     ? `Enviar novamente em ${resendCooldown}s`
                     : "Não recebi o código"}
                 </button>
@@ -1346,8 +1726,9 @@ export default function ProfessionalOnboarding() {
 
               <div className="mt-8 rounded-xl bg-slate-50 border border-slate-200 p-4">
                 <p className="text-sm text-slate-600 text-center">
-                  Verifique também a pasta de spam,
-                  lixo eletrônico ou promoções.
+                  Verifique também a
+                  pasta de spam, lixo
+                  eletrônico ou promoções.
                 </p>
               </div>
             </div>
@@ -1356,6 +1737,12 @@ export default function ProfessionalOnboarding() {
       </PageShell>
     );
   }
+
+  /*
+   * =====================================================
+   * CADASTRO PRINCIPAL
+   * =====================================================
+   */
 
   return (
     <PageShell>
@@ -1370,19 +1757,22 @@ export default function ProfessionalOnboarding() {
                 </h1>
 
                 <p className="mt-2 text-slate-600">
-                  Preencha seus dados para criar seu
-                  perfil profissional.
+                  Preencha seus dados para
+                  criar seu perfil profissional.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  navigate("/login-profissional")
+                  navigate(
+                    "/login-profissional"
+                  )
                 }
                 className="hidden md:inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 <LogIn className="w-4 h-4" />
+
                 Já tenho uma conta
               </button>
             </div>
@@ -1391,63 +1781,85 @@ export default function ProfessionalOnboarding() {
           {/* STEPPER */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6 mb-6 overflow-x-auto">
             <div className="flex min-w-[700px] items-center">
-              {STEPS.map((item, index) => {
-                const Icon = item.icon;
-                const active = index === step;
-                const completed = index < step;
+              {STEPS.map(
+                (item, index) => {
+                  const Icon =
+                    item.icon;
 
-                return (
-                  <React.Fragment key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        goToStep(index)
-                      }
-                      disabled={index > step}
-                      className="flex items-center gap-2 group disabled:cursor-default"
+                  const active =
+                    index === step;
+
+                  const completed =
+                    index < step;
+
+                  return (
+                    <React.Fragment
+                      key={item.id}
                     >
-                      <div
-                        className={[
-                          "w-9 h-9 rounded-full flex items-center justify-center border-2 transition",
-                          completed
-                            ? "bg-blue-600 border-blue-600 text-white"
-                            : active
-                            ? "border-blue-600 text-blue-600 bg-blue-50"
-                            : "border-slate-300 text-slate-400",
-                        ].join(" ")}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          goToStep(
+                            index
+                          )
+                        }
+                        disabled={
+                          index > step
+                        }
+                        className="flex items-center gap-2 group disabled:cursor-default"
                       >
-                        {completed ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Icon className="w-4 h-4" />
-                        )}
-                      </div>
+                        <div
+                          className={[
+                            "w-9 h-9 rounded-full flex items-center justify-center border-2 transition",
+                            completed
+                              ? "bg-blue-600 border-blue-600 text-white"
+                              : active
+                              ? "border-blue-600 text-blue-600 bg-blue-50"
+                              : "border-slate-300 text-slate-400",
+                          ].join(
+                            " "
+                          )}
+                        >
+                          {completed ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Icon className="w-4 h-4" />
+                          )}
+                        </div>
 
-                      <span
-                        className={[
-                          "hidden lg:block text-sm font-medium whitespace-nowrap",
-                          active || completed
-                            ? "text-slate-900"
-                            : "text-slate-400",
-                        ].join(" ")}
-                      >
-                        {item.label}
-                      </span>
-                    </button>
+                        <span
+                          className={[
+                            "hidden lg:block text-sm font-medium whitespace-nowrap",
+                            active ||
+                            completed
+                              ? "text-slate-900"
+                              : "text-slate-400",
+                          ].join(
+                            " "
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                      </button>
 
-                    {index < STEPS.length - 1 && (
-                      <div
-                        className={[
-                          "h-px flex-1 mx-3",
-                          index < step
-                            ? "bg-blue-600"
-                            : "bg-slate-200",
-                        ].join(" ")}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      {index <
+                        STEPS.length -
+                          1 && (
+                        <div
+                          className={[
+                            "h-px flex-1 mx-3",
+                            index < step
+                              ? "bg-blue-600"
+                              : "bg-slate-200",
+                          ].join(
+                            " "
+                          )}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                }
+              )}
             </div>
           </div>
 
@@ -1464,12 +1876,13 @@ export default function ProfessionalOnboarding() {
             </div>
           )}
 
-          {/* CONTEÚDO */}
+          {/* CARD PRINCIPAL */}
           <div className="bg-white border border-slate-200 rounded-3xl shadow-sm">
             <div className="p-6 md:p-8">
               {/* =================================================
-                  PASSO 0 - PESSOAL
+                  PASSO 0
               ================================================= */}
+
               {step === 0 && (
                 <div>
                   <div className="mb-7">
@@ -1516,7 +1929,9 @@ export default function ProfessionalOnboarding() {
                             event.target.value
                           )
                         }
-                        disabled={Boolean(user)}
+                        disabled={
+                          Boolean(user)
+                        }
                         placeholder="seu@email.com"
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -1534,7 +1949,8 @@ export default function ProfessionalOnboarding() {
                           updateForm(
                             "phone",
                             formatPhone(
-                              event.target.value
+                              event.target
+                                .value
                             )
                           )
                         }
@@ -1555,7 +1971,8 @@ export default function ProfessionalOnboarding() {
                           updateForm(
                             "cpf",
                             formatCpf(
-                              event.target.value
+                              event.target
+                                .value
                             )
                           )
                         }
@@ -1571,108 +1988,122 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="date"
-                        value={form.birthDate}
+                        value={
+                          form.birthDate
+                        }
                         onChange={(event) =>
                           updateForm(
                             "birthDate",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
-                    {!user && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Senha *
-                          </label>
+                    {!user &&
+                      !createdUserId && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Senha *
+                            </label>
 
-                          <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <div className="relative">
+                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
-                            <input
-                              type={
-                                showPassword
-                                  ? "text"
-                                  : "password"
-                              }
-                              value={form.password}
-                              onChange={(event) =>
-                                updateForm(
-                                  "password",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Mínimo de 6 caracteres"
-                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                              <input
+                                type={
+                                  showPassword
+                                    ? "text"
+                                    : "password"
+                                }
+                                value={
+                                  form.password
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  updateForm(
+                                    "password",
+                                    event.target
+                                      .value
+                                  )
+                                }
+                                placeholder="Mínimo de 6 caracteres"
+                                className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setShowPassword(
-                                  (value) => !value
-                                )
-                              }
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                              {showPassword ? (
-                                <EyeOff className="w-5 h-5" />
-                              ) : (
-                                <Eye className="w-5 h-5" />
-                              )}
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowPassword(
+                                    (value) =>
+                                      !value
+                                  )
+                                }
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="w-5 h-5" />
+                                ) : (
+                                  <Eye className="w-5 h-5" />
+                                )}
+                              </button>
+                            </div>
                           </div>
-                        </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Confirmar senha *
-                          </label>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Confirmar senha *
+                            </label>
 
-                          <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <div className="relative">
+                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
-                            <input
-                              type={
-                                showConfirmPassword
-                                  ? "text"
-                                  : "password"
-                              }
-                              value={
-                                form.confirmPassword
-                              }
-                              onChange={(event) =>
-                                updateForm(
-                                  "confirmPassword",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Repita sua senha"
-                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
+                              <input
+                                type={
+                                  showConfirmPassword
+                                    ? "text"
+                                    : "password"
+                                }
+                                value={
+                                  form.confirmPassword
+                                }
+                                onChange={(
+                                  event
+                                ) =>
+                                  updateForm(
+                                    "confirmPassword",
+                                    event.target
+                                      .value
+                                  )
+                                }
+                                placeholder="Repita sua senha"
+                                className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setShowConfirmPassword(
-                                  (value) => !value
-                                )
-                              }
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                              {showConfirmPassword ? (
-                                <EyeOff className="w-5 h-5" />
-                              ) : (
-                                <Eye className="w-5 h-5" />
-                              )}
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowConfirmPassword(
+                                    (value) =>
+                                      !value
+                                  )
+                                }
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                              >
+                                {showConfirmPassword ? (
+                                  <EyeOff className="w-5 h-5" />
+                                ) : (
+                                  <Eye className="w-5 h-5" />
+                                )}
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </>
-                    )}
+                        </>
+                      )}
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1684,11 +2115,14 @@ export default function ProfessionalOnboarding() {
 
                         <input
                           type="text"
-                          value={form.city}
+                          value={
+                            form.city
+                          }
                           onChange={(event) =>
                             updateForm(
                               "city",
-                              event.target.value
+                              event.target
+                                .value
                             )
                           }
                           placeholder="Sua cidade"
@@ -1703,11 +2137,14 @@ export default function ProfessionalOnboarding() {
                       </label>
 
                       <select
-                        value={form.state}
+                        value={
+                          form.state
+                        }
                         onChange={(event) =>
                           updateForm(
                             "state",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1716,11 +2153,16 @@ export default function ProfessionalOnboarding() {
                           Selecione
                         </option>
 
-                        {UF_OPTIONS.map((uf) => (
-                          <option key={uf} value={uf}>
-                            {uf}
-                          </option>
-                        ))}
+                        {UF_OPTIONS.map(
+                          (uf) => (
+                            <option
+                              key={uf}
+                              value={uf}
+                            >
+                              {uf}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
                   </div>
@@ -1728,8 +2170,9 @@ export default function ProfessionalOnboarding() {
               )}
 
               {/* =================================================
-                  PASSO 1 - PROFISSIONAL
+                  PASSO 1
               ================================================= */}
+
               {step === 1 && (
                 <div>
                   <div className="mb-7">
@@ -1738,8 +2181,8 @@ export default function ProfessionalOnboarding() {
                     </h2>
 
                     <p className="mt-1 text-slate-500">
-                      Informe os dados do seu registro
-                      profissional.
+                      Informe os dados do seu
+                      registro profissional.
                     </p>
                   </div>
 
@@ -1755,7 +2198,8 @@ export default function ProfessionalOnboarding() {
                         onChange={(event) =>
                           updateForm(
                             "crp",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         placeholder="Ex.: 06/123456"
@@ -1769,11 +2213,14 @@ export default function ProfessionalOnboarding() {
                       </label>
 
                       <select
-                        value={form.crpState}
+                        value={
+                          form.crpState
+                        }
                         onChange={(event) =>
                           updateForm(
                             "crpState",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1782,11 +2229,16 @@ export default function ProfessionalOnboarding() {
                           Selecione
                         </option>
 
-                        {UF_OPTIONS.map((uf) => (
-                          <option key={uf} value={uf}>
-                            {uf}
-                          </option>
-                        ))}
+                        {UF_OPTIONS.map(
+                          (uf) => (
+                            <option
+                              key={uf}
+                              value={uf}
+                            >
+                              {uf}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
 
@@ -1796,11 +2248,14 @@ export default function ProfessionalOnboarding() {
                       </label>
 
                       <select
-                        value={form.crpStatus}
+                        value={
+                          form.crpStatus
+                        }
                         onChange={(event) =>
                           updateForm(
                             "crpStatus",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1818,17 +2273,18 @@ export default function ProfessionalOnboarding() {
 
                   <div className="mt-6 rounded-xl bg-blue-50 border border-blue-100 p-4">
                     <p className="text-sm text-blue-800">
-                      Os dados profissionais poderão passar
-                      por análise antes da publicação do
-                      perfil.
+                      Os dados profissionais
+                      poderão passar por análise
+                      antes da publicação do perfil.
                     </p>
                   </div>
                 </div>
               )}
 
               {/* =================================================
-                  PASSO 2 - ATUAÇÃO
+                  PASSO 2
               ================================================= */}
+
               {step === 2 && (
                 <div>
                   <div className="mb-7">
@@ -1837,8 +2293,8 @@ export default function ProfessionalOnboarding() {
                     </h2>
 
                     <p className="mt-1 text-slate-500">
-                      Conte aos pacientes com quais públicos
-                      e temas você trabalha.
+                      Conte aos pacientes com quais
+                      públicos e temas você trabalha.
                     </p>
                   </div>
 
@@ -1857,7 +2313,9 @@ export default function ProfessionalOnboarding() {
                           return (
                             <button
                               type="button"
-                              key={approach}
+                              key={
+                                approach
+                              }
                               onClick={() =>
                                 updateForm(
                                   "approach",
@@ -1869,7 +2327,9 @@ export default function ProfessionalOnboarding() {
                                 selected
                                   ? "border-blue-600 bg-blue-50 text-blue-800"
                                   : "border-slate-200 hover:border-slate-300",
-                              ].join(" ")}
+                              ].join(
+                                " "
+                              )}
                             >
                               {approach}
                             </button>
@@ -1907,7 +2367,9 @@ export default function ProfessionalOnboarding() {
                                 selected
                                   ? "bg-blue-600 border-blue-600 text-white"
                                   : "bg-white border-slate-300 text-slate-700 hover:border-blue-400",
-                              ].join(" ")}
+                              ].join(
+                                " "
+                              )}
                             >
                               {item}
                             </button>
@@ -1923,39 +2385,46 @@ export default function ProfessionalOnboarding() {
                     </label>
 
                     <div className="flex flex-wrap gap-2">
-                      {THEME_OPTIONS.map((item) => {
-                        const selected =
-                          form.themes.includes(item);
+                      {THEME_OPTIONS.map(
+                        (item) => {
+                          const selected =
+                            form.themes.includes(
+                              item
+                            );
 
-                        return (
-                          <button
-                            type="button"
-                            key={item}
-                            onClick={() =>
-                              toggleArrayValue(
-                                "themes",
-                                item
-                              )
-                            }
-                            className={[
-                              "rounded-full px-4 py-2 text-sm border transition",
-                              selected
-                                ? "bg-blue-600 border-blue-600 text-white"
-                                : "bg-white border-slate-300 text-slate-700 hover:border-blue-400",
-                            ].join(" ")}
-                          >
-                            {item}
-                          </button>
-                        );
-                      })}
+                          return (
+                            <button
+                              type="button"
+                              key={item}
+                              onClick={() =>
+                                toggleArrayValue(
+                                  "themes",
+                                  item
+                                )
+                              }
+                              className={[
+                                "rounded-full px-4 py-2 text-sm border transition",
+                                selected
+                                  ? "bg-blue-600 border-blue-600 text-white"
+                                  : "bg-white border-slate-300 text-slate-700 hover:border-blue-400",
+                              ].join(
+                                " "
+                              )}
+                            >
+                              {item}
+                            </button>
+                          );
+                        }
+                      )}
                     </div>
                   </div>
                 </div>
               )}
 
               {/* =================================================
-                  PASSO 3 - ATENDIMENTO
+                  PASSO 3
               ================================================= */}
+
               {step === 3 && (
                 <div>
                   <div className="mb-7">
@@ -1982,17 +2451,20 @@ export default function ProfessionalOnboarding() {
                         form.online
                           ? "border-blue-600 bg-blue-50"
                           : "border-slate-200",
-                      ].join(" ")}
+                      ].join(
+                        " "
+                      )}
                     >
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="font-semibold text-slate-900">
-                            Atendimento on-line
+                            Atendimento
+                            on-line
                           </h3>
 
                           <p className="text-sm text-slate-500 mt-1">
-                            Atenda seus pacientes por
-                            videochamada.
+                            Atenda seus pacientes
+                            por videochamada.
                           </p>
                         </div>
 
@@ -2002,7 +2474,9 @@ export default function ProfessionalOnboarding() {
                             form.online
                               ? "bg-blue-600 border-blue-600 text-white"
                               : "border-slate-300",
-                          ].join(" ")}
+                          ].join(
+                            " "
+                          )}
                         >
                           {form.online && (
                             <Check className="w-4 h-4" />
@@ -2024,12 +2498,15 @@ export default function ProfessionalOnboarding() {
                         form.presencial
                           ? "border-blue-600 bg-blue-50"
                           : "border-slate-200",
-                      ].join(" ")}
+                      ].join(
+                        " "
+                      )}
                     >
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="font-semibold text-slate-900">
-                            Atendimento presencial
+                            Atendimento
+                            presencial
                           </h3>
 
                           <p className="text-sm text-slate-500 mt-1">
@@ -2043,7 +2520,9 @@ export default function ProfessionalOnboarding() {
                             form.presencial
                               ? "bg-blue-600 border-blue-600 text-white"
                               : "border-slate-300",
-                          ].join(" ")}
+                          ].join(
+                            " "
+                          )}
                         >
                           {form.presencial && (
                             <Check className="w-4 h-4" />
@@ -2057,11 +2536,14 @@ export default function ProfessionalOnboarding() {
                     <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={form.ePsi}
+                        checked={
+                          form.ePsi
+                        }
                         onChange={(event) =>
                           updateForm(
                             "ePsi",
-                            event.target.checked
+                            event.target
+                              .checked
                           )
                         }
                         className="mt-1 w-4 h-4"
@@ -2069,13 +2551,17 @@ export default function ProfessionalOnboarding() {
 
                       <span>
                         <span className="block font-medium text-slate-800">
-                          Cadastro/autorização e-Psi
+                          Cadastro/autorização
+                          e-Psi
                         </span>
 
                         <span className="block text-sm text-slate-500 mt-1">
-                          Confirmo que possuo a autorização
-                          necessária para atendimento
-                          psicológico on-line.
+                          Confirmo que possuo
+                          a autorização
+                          necessária para
+                          atendimento
+                          psicológico
+                          on-line.
                         </span>
                       </span>
                     </label>
@@ -2089,11 +2575,14 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="text"
-                        value={form.address}
+                        value={
+                          form.address
+                        }
                         onChange={(event) =>
                           updateForm(
                             "address",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         placeholder="Rua, número, bairro..."
@@ -2109,11 +2598,14 @@ export default function ProfessionalOnboarding() {
                       </label>
 
                       <select
-                        value={form.sessionDuration}
+                        value={
+                          form.sessionDuration
+                        }
                         onChange={(event) =>
                           updateForm(
                             "sessionDuration",
-                            event.target.value
+                            event.target
+                              .value
                           )
                         }
                         className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -2154,11 +2646,14 @@ export default function ProfessionalOnboarding() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={form.sessionPrice}
+                          value={
+                            form.sessionPrice
+                          }
                           onChange={(event) =>
                             updateForm(
                               "sessionPrice",
-                              event.target.value
+                              event.target
+                                .value
                             )
                           }
                           placeholder="0,00"
@@ -2171,8 +2666,9 @@ export default function ProfessionalOnboarding() {
               )}
 
               {/* =================================================
-                  PASSO 4 - FOTO E VÍDEO
+                  PASSO 4
               ================================================= */}
+
               {step === 4 && (
                 <div>
                   <div className="mb-7">
@@ -2199,7 +2695,8 @@ export default function ProfessionalOnboarding() {
                           </h3>
 
                           <p className="text-sm text-slate-500">
-                            JPG, PNG ou WEBP — até 5 MB
+                            JPG, PNG ou WEBP —
+                            até 5 MB
                           </p>
                         </div>
                       </div>
@@ -2208,7 +2705,9 @@ export default function ProfessionalOnboarding() {
                         <div>
                           <div className="aspect-square max-w-xs mx-auto overflow-hidden rounded-2xl bg-slate-100">
                             <img
-                              src={form.photoUrl}
+                              src={
+                                form.photoUrl
+                              }
                               alt="Foto profissional"
                               className="w-full h-full object-cover"
                             />
@@ -2216,13 +2715,16 @@ export default function ProfessionalOnboarding() {
 
                           <label className="mt-4 w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-700 hover:bg-slate-50">
                             <Camera className="w-4 h-4" />
+
                             Alterar foto
 
                             <input
                               type="file"
                               accept="image/jpeg,image/png,image/webp"
                               className="hidden"
-                              onChange={(event) =>
+                              onChange={(
+                                event
+                              ) =>
                                 uploadFile(
                                   event,
                                   "photo"
@@ -2237,11 +2739,14 @@ export default function ProfessionalOnboarding() {
                             <Camera className="w-10 h-10 mx-auto text-slate-400" />
 
                             <p className="mt-3 font-medium text-slate-700">
-                              Clique para adicionar sua foto
+                              Clique para
+                              adicionar sua
+                              foto
                             </p>
 
                             <p className="mt-1 text-sm text-slate-500">
-                              Escolha uma foto profissional
+                              Escolha uma foto
+                              profissional
                             </p>
                           </div>
 
@@ -2249,7 +2754,9 @@ export default function ProfessionalOnboarding() {
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
                             className="hidden"
-                            onChange={(event) =>
+                            onChange={(
+                              event
+                            ) =>
                               uploadFile(
                                 event,
                                 "photo"
@@ -2273,7 +2780,8 @@ export default function ProfessionalOnboarding() {
                           </h3>
 
                           <p className="text-sm text-slate-500">
-                            Opcional — até 100 MB
+                            Opcional — até
+                            100 MB
                           </p>
                         </div>
                       </div>
@@ -2281,20 +2789,25 @@ export default function ProfessionalOnboarding() {
                       {form.videoUrl ? (
                         <div>
                           <video
-                            src={form.videoUrl}
+                            src={
+                              form.videoUrl
+                            }
                             controls
                             className="w-full aspect-video rounded-xl bg-black"
                           />
 
                           <label className="mt-4 w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-700 hover:bg-slate-50">
                             <Video className="w-4 h-4" />
+
                             Alterar vídeo
 
                             <input
                               type="file"
                               accept="video/mp4,video/webm,video/quicktime"
                               className="hidden"
-                              onChange={(event) =>
+                              onChange={(
+                                event
+                              ) =>
                                 uploadFile(
                                   event,
                                   "video"
@@ -2313,7 +2826,9 @@ export default function ProfessionalOnboarding() {
                             </p>
 
                             <p className="mt-1 text-sm text-slate-500">
-                              Mostre um pouco sobre seu trabalho
+                              Mostre um pouco
+                              sobre seu
+                              trabalho
                             </p>
                           </div>
 
@@ -2321,7 +2836,9 @@ export default function ProfessionalOnboarding() {
                             type="file"
                             accept="video/mp4,video/webm,video/quicktime"
                             className="hidden"
-                            onChange={(event) =>
+                            onChange={(
+                              event
+                            ) =>
                               uploadFile(
                                 event,
                                 "video"
@@ -2342,22 +2859,32 @@ export default function ProfessionalOnboarding() {
                       <span
                         className={[
                           "text-xs",
-                          form.presentation.length >
+                          form.presentation
+                            .length >
                           800
                             ? "text-red-600"
                             : "text-slate-400",
-                        ].join(" ")}
+                        ].join(
+                          " "
+                        )}
                       >
-                        {form.presentation.length}/800
+                        {
+                          form.presentation
+                            .length
+                        }
+                        /800
                       </span>
                     </div>
 
                     <textarea
-                      value={form.presentation}
+                      value={
+                        form.presentation
+                      }
                       onChange={(event) =>
                         updateForm(
                           "presentation",
-                          event.target.value
+                          event.target
+                            .value
                         )
                       }
                       maxLength={800}
@@ -2372,6 +2899,7 @@ export default function ProfessionalOnboarding() {
               {/* =================================================
                   PASSO 5 - REVISÃO
               ================================================= */}
+
               {step === 5 && (
                 <div>
                   <div className="mb-7">
@@ -2380,30 +2908,29 @@ export default function ProfessionalOnboarding() {
                     </h2>
 
                     <p className="mt-1 text-slate-500">
-                      Confira as informações antes de
-                      finalizar.
+                      Confira todas as informações
+                      antes de finalizar.
                     </p>
                   </div>
 
                   <div className="space-y-5">
-                    {/* PESSOAL */}
                     <ReviewSection
                       title="Dados pessoais"
-                      onEdit={() => goToStep(0)}
+                      onEdit={() =>
+                        goToStep(0)
+                      }
                     >
                       <ReviewItem
                         label="Nome"
                         value={
-                          form.name ||
-                          "Não informado"
+                          form.name
                         }
                       />
 
                       <ReviewItem
                         label="E-mail"
                         value={
-                          form.email ||
-                          "Não informado"
+                          form.email
                         }
                       />
 
@@ -2417,11 +2944,13 @@ export default function ProfessionalOnboarding() {
 
                       <ReviewItem
                         label="CPF"
-                        value={maskedCpf()}
+                        value={
+                          maskedCpf()
+                        }
                       />
 
                       <ReviewItem
-                        label="Nascimento"
+                        label="Data de nascimento"
                         value={
                           form.birthDate ||
                           "Não informado"
@@ -2429,86 +2958,83 @@ export default function ProfessionalOnboarding() {
                       />
 
                       <ReviewItem
-                        label="Localização"
-                        value={`${form.city || ""}${
-                          form.city && form.state
-                            ? " - "
+                        label="Cidade"
+                        value={`${form.city}${
+                          form.state
+                            ? ` - ${form.state}`
                             : ""
-                        }${form.state || ""}`}
+                        }`}
                       />
                     </ReviewSection>
 
-                    {/* PROFISSIONAL */}
                     <ReviewSection
                       title="Registro profissional"
-                      onEdit={() => goToStep(1)}
+                      onEdit={() =>
+                        goToStep(1)
+                      }
                     >
                       <ReviewItem
                         label="CRP"
                         value={
-                          form.crp ||
-                          "Não informado"
+                          form.crp
                         }
                       />
 
                       <ReviewItem
                         label="Região"
                         value={
-                          form.crpState ||
-                          "Não informado"
+                          form.crpState
                         }
                       />
 
                       <ReviewItem
                         label="Situação"
                         value={
-                          form.crpStatus ||
-                          "Não informado"
+                          form.crpStatus
                         }
                       />
                     </ReviewSection>
 
-                    {/* ATUAÇÃO */}
                     <ReviewSection
                       title="Atuação"
-                      onEdit={() => goToStep(2)}
+                      onEdit={() =>
+                        goToStep(2)
+                      }
                     >
                       <ReviewItem
                         label="Abordagem"
                         value={
-                          form.approach ||
-                          "Não informado"
+                          form.approach
                         }
                       />
 
                       <ReviewItem
                         label="Público"
                         value={
-                          form.audience.length
-                            ? form.audience.join(
-                                ", "
-                              )
-                            : "Não informado"
+                          form.audience.join(
+                            ", "
+                          )
                         }
                       />
 
                       <ReviewItem
                         label="Temas"
                         value={
-                          form.themes.length
-                            ? form.themes.join(", ")
-                            : "Não informado"
+                          form.themes.join(
+                            ", "
+                          )
                         }
                       />
                     </ReviewSection>
 
-                    {/* ATENDIMENTO */}
                     <ReviewSection
                       title="Atendimento"
-                      onEdit={() => goToStep(3)}
+                      onEdit={() =>
+                        goToStep(3)
+                      }
                     >
                       <ReviewItem
-                        label="Modalidades"
+                        label="Modalidade"
                         value={[
                           form.online
                             ? "On-line"
@@ -2517,8 +3043,12 @@ export default function ProfessionalOnboarding() {
                             ? "Presencial"
                             : null,
                         ]
-                          .filter(Boolean)
-                          .join(", ")}
+                          .filter(
+                            Boolean
+                          )
+                          .join(
+                            ", "
+                          )}
                       />
 
                       <ReviewItem
@@ -2536,8 +3066,7 @@ export default function ProfessionalOnboarding() {
                         <ReviewItem
                           label="Endereço"
                           value={
-                            form.address ||
-                            "Não informado"
+                            form.address
                           }
                         />
                       )}
@@ -2554,7 +3083,9 @@ export default function ProfessionalOnboarding() {
                             ? `R$ ${Number(
                                 form.sessionPrice
                               )
-                                .toFixed(2)
+                                .toFixed(
+                                  2
+                                )
                                 .replace(
                                   ".",
                                   ","
@@ -2564,15 +3095,18 @@ export default function ProfessionalOnboarding() {
                       />
                     </ReviewSection>
 
-                    {/* MÍDIA */}
                     <ReviewSection
                       title="Foto e apresentação"
-                      onEdit={() => goToStep(4)}
+                      onEdit={() =>
+                        goToStep(4)
+                      }
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="md:col-span-2 flex items-center gap-4">
                         {form.photoUrl ? (
                           <img
-                            src={form.photoUrl}
+                            src={
+                              form.photoUrl
+                            }
                             alt="Foto profissional"
                             className="w-20 h-20 rounded-xl object-cover"
                           />
@@ -2603,13 +3137,15 @@ export default function ProfessionalOnboarding() {
                       </div>
 
                       {form.presentation && (
-                        <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                        <div className="md:col-span-2 rounded-xl bg-slate-50 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
                             Apresentação
                           </p>
 
                           <p className="text-sm text-slate-700 whitespace-pre-line">
-                            {form.presentation}
+                            {
+                              form.presentation
+                            }
                           </p>
                         </div>
                       )}
@@ -2622,16 +3158,26 @@ export default function ProfessionalOnboarding() {
 
                       <div>
                         <h3 className="font-semibold text-blue-900">
-                          Quase tudo pronto!
+                          Seu cadastro está pronto!
                         </h3>
 
                         <p className="mt-1 text-sm text-blue-800 leading-relaxed">
-                          Ao clicar em "Finalizar cadastro",
-                          suas informações serão salvas e
-                          enviaremos um código para seu
-                          e-mail. A confirmação do e-mail é
-                          necessária antes de acessar o
-                          painel profissional.
+                          Ao clicar em
+                          <strong>
+                            {" "}
+                            "Finalizar cadastro"
+                          </strong>
+                          , seus dados serão
+                          salvos. Em seguida,
+                          enviaremos um código
+                          para seu e-mail.
+                        </p>
+
+                        <p className="mt-2 text-sm text-blue-800 leading-relaxed">
+                          A confirmação do
+                          e-mail será a última
+                          etapa antes do acesso
+                          ao painel profissional.
                         </p>
                       </div>
                     </div>
@@ -2640,11 +3186,16 @@ export default function ProfessionalOnboarding() {
               )}
             </div>
 
-            {/* RODAPÉ */}
+            {/* =================================================
+                RODAPÉ
+            ================================================= */}
+
             <div className="border-t border-slate-200 px-6 md:px-8 py-5 flex items-center justify-between gap-4">
               <button
                 type="button"
-                onClick={previousStep}
+                onClick={
+                  previousStep
+                }
                 disabled={
                   step === 0 ||
                   submitting ||
@@ -2654,16 +3205,20 @@ export default function ProfessionalOnboarding() {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ArrowLeft className="w-4 h-4" />
+
                 Voltar
               </button>
 
               <div className="text-sm text-slate-400">
-                Etapa {step + 1} de {STEPS.length}
+                Etapa {step + 1} de{" "}
+                {STEPS.length}
               </div>
 
               <button
                 type="button"
-                onClick={nextStep}
+                onClick={
+                  nextStep
+                }
                 disabled={
                   submitting ||
                   uploading ||
@@ -2682,11 +3237,13 @@ export default function ProfessionalOnboarding() {
                 ) : step === 5 ? (
                   <>
                     Finalizar cadastro
+
                     <Check className="w-4 h-4" />
                   </>
                 ) : (
                   <>
                     Continuar
+
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -2694,10 +3251,10 @@ export default function ProfessionalOnboarding() {
             </div>
           </div>
 
-          {/* RODAPÉ INFORMATIVO */}
           <div className="mt-6 text-center text-xs text-slate-400">
-            Seus dados serão utilizados para criação e
-            gerenciamento do seu perfil profissional.
+            Seus dados serão utilizados para
+            criação e gerenciamento do seu perfil
+            profissional.
           </div>
         </div>
       </div>
@@ -2705,9 +3262,11 @@ export default function ProfessionalOnboarding() {
   );
 }
 
-/* =========================================================
-   COMPONENTES AUXILIARES
-========================================================= */
+/*
+ * =========================================================
+ * COMPONENTES AUXILIARES
+ * =========================================================
+ */
 
 function ReviewSection({
   title,
@@ -2727,6 +3286,7 @@ function ReviewSection({
           className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
         >
           <Edit3 className="w-4 h-4" />
+
           Editar
         </button>
       </div>
@@ -2738,7 +3298,10 @@ function ReviewSection({
   );
 }
 
-function ReviewItem({ label, value }) {
+function ReviewItem({
+  label,
+  value,
+}) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
