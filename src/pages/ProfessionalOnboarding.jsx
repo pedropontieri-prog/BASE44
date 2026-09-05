@@ -32,1003 +32,378 @@ const STEPS = [
   { title: "Revisão", icon: Check },
 ];
 
-const SPEC_OPTS = [
-  "Ansiedade",
-  "Depressão",
-  "Relacionamentos",
-  "Autoestima",
-  "Luto",
-  "Trauma",
-  "TDAH",
-  "Terapia de casal",
-  "Adolescentes",
-  "Estresse",
-  "Fobias",
-  "Pânico",
-  "Autoconhecimento",
-  "Burnout",
-  "Comportamento alimentar",
-];
-
-const APPROACH_OPTS = [
-  "TCC",
-  "Psicanálise",
-  "Humanista",
-  "Jungiana",
-  "Sistêmica",
-  "Gestalt",
-  "ACT",
-  "Mindfulness",
-  "Integração",
-  "Outra",
-];
-
-const THEME_OPTS = [
-  "Ansiedade",
-  "Depressão",
-  "Relacionamentos",
-  "Luto",
-  "Trauma",
-  "TDAH",
-  "Estresse",
-  "Autoestima",
-  "Sexualidade",
-  "Carreira",
-  "Família",
-  "Adicções",
-];
-
-const AUDIENCE_OPTS = [
-  "Adultos",
-  "Adolescentes",
-  "Crianças",
-  "Casais",
-  "Idosos",
-];
-
-const LANG_OPTS = [
-  "Português",
-  "Inglês",
-  "Espanhol",
-  "Libras",
-  "Francês",
-];
-
-const DAY_OPTS = [
-  "Seg",
-  "Ter",
-  "Qua",
-  "Qui",
-  "Sex",
-  "Sáb",
-  "Dom",
-];
-
-const SLOT_OPTS = [
-  "07:00",
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-  "21:00",
-];
-
-const REGION_OPTS = Array.from({ length: 24 }, (_, i) => {
-  const value = String(i + 1).padStart(2, "0");
-
-  return {
-    value,
-    label: `CRP ${value}`,
-  };
-});
-
-const DEFAULTS = {
-  full_name: "",
-  professional_name: "",
-  email: "",
-  phone: "",
-  whatsapp: "",
-  city: "",
-  state: "",
-  gender: "",
-
-  crp_number: "",
-  crp_region: "",
-  crp_status: "active",
-  crp_verified: false,
-
-  education: "Psicologia",
-  institution: "",
-  graduation_year: "",
-  experience: "",
-
-  specializations: [],
-  approaches: [],
-  specialties: [],
-  themes: [],
-  audience: ["Adultos"],
-  languages: ["Português"],
-
-  modalities: ["online"],
-  epsico_registered: false,
-
-  price: "",
-  session_duration: 50,
-
-  available_days: [],
-  available_slots: [],
-
-  cancellation_policy: "",
-
-  address: "",
-  address_number: "",
-  address_complement: "",
-  neighborhood: "",
-  zip_code: "",
-
-  about: "",
-
-  photo_url: "",
-  video_url: "",
-
-  instagram: "",
-  linkedin: "",
-  website: "",
-
-  ethical_commitment: false,
-  information_truthful: false,
-  privacy_commitment: false,
-};
-
-function getFriendlyError(error) {
-  const message =
-    error && error.message
-      ? String(error.message)
-      : "Ocorreu um erro inesperado.";
-
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("invalid login credentials") ||
-    normalized.includes("invalid credentials")
-  ) {
-    return "E-mail ou senha incorretos.";
-  }
-
-  if (
-    normalized.includes("email not confirmed") ||
-    normalized.includes("email_not_confirmed")
-  ) {
-    return "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada.";
-  }
-
-  if (
-    normalized.includes("user already registered") ||
-    normalized.includes("already registered")
-  ) {
-    return "Este e-mail já está cadastrado. Tente entrar na sua conta.";
-  }
-
-  if (
-    normalized.includes("password") &&
-    (normalized.includes("at least") ||
-      normalized.includes("characters") ||
-      normalized.includes("short"))
-  ) {
-    return "A senha deve ter pelo menos 6 caracteres.";
-  }
-
-  if (
-    normalized.includes("duplicate") ||
-    normalized.includes("unique constraint")
-  ) {
-    return "Este cadastro já existe.";
-  }
-
-  if (
-    normalized.includes("row-level security") ||
-    normalized.includes("permission denied") ||
-    normalized.includes("not authorized")
-  ) {
-    return "Você não tem permissão para realizar esta operação.";
-  }
-
-  if (
-    normalized.includes("bucket") ||
-    normalized.includes("storage") ||
-    normalized.includes("object")
-  ) {
-    return "Não foi possível enviar o arquivo. Verifique as configurações de armazenamento.";
-  }
-
-  return message;
-}
-
-function makeFileName(file) {
-  const originalName = file?.name || "arquivo";
-  const parts = originalName.split(".");
-
-  const extension =
-    parts.length > 1
-      ? parts[parts.length - 1].toLowerCase()
-      : "bin";
-
-  const id =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-  return `${id}.${extension}`;
-}
-
-function Input({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder = "",
-  required = false,
-  disabled = false,
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium">
-        {label}{" "}
-        {required && <span className="text-red-500">*</span>}
-      </span>
-
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        disabled={disabled}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
-      />
-    </label>
-  );
-}
-
-function Select({
-  label,
-  value,
-  onChange,
-  options,
-  required = false,
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium">
-        {label}{" "}
-        {required && <span className="text-red-500">*</span>}
-      </span>
-
-      <select
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
-      >
-        <option value="">Selecione...</option>
-
-        {options.map((option) => (
-          <option
-            key={option.value || option}
-            value={option.value || option}
-          >
-            {option.label || option}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  onChange,
-  placeholder = "",
-  rows = 5,
-  required = false,
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium">
-        {label}{" "}
-        {required && <span className="text-red-500">*</span>}
-      </span>
-
-      <textarea
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        required={required}
-        className="w-full resize-y rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
-      />
-    </label>
-  );
-}
-
-function Checkbox({ checked, onChange, children }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-4">
-      <input
-        type="checkbox"
-        checked={Boolean(checked)}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-1 h-4 w-4 accent-primary"
-      />
-
-      <span className="text-sm leading-6">{children}</span>
-    </label>
-  );
-}
-
-function Chips({
-  label,
-  options,
-  values = [],
-  onChange,
-  multiple = true,
-}) {
-  function toggle(option) {
-    if (!multiple) {
-      onChange(values.includes(option) ? [] : [option]);
-      return;
-    }
-
-    if (values.includes(option)) {
-      onChange(values.filter((item) => item !== option));
-    } else {
-      onChange([...values, option]);
-    }
-  }
-
-  return (
-    <div>
-      <span className="mb-3 block text-sm font-medium">
-        {label}
-      </span>
-
-      <div className="flex flex-wrap gap-2">
-        {options.map((option) => {
-          const active = values.includes(option);
-
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => toggle(option)}
-              className={
-                active
-                  ? "rounded-full border border-primary bg-primary px-4 py-2 text-sm text-primary-foreground"
-                  : "rounded-full border border-border bg-background px-4 py-2 text-sm transition hover:border-primary hover:text-primary"
-              }
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MediaUploadCard({
-  type,
-  preview,
-  uploading,
-  onChange,
-  onRemove,
-}) {
-  const isPhoto = type === "photo";
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5">
-      <div className="mb-4">
-        <h3 className="font-semibold">
-          {isPhoto
-            ? "Foto de perfil"
-            : "Vídeo de apresentação"}
-        </h3>
-
-        <p className="mt-1 text-sm text-muted-foreground">
-          {isPhoto
-            ? "Use uma foto profissional, clara e atual."
-            : "Apresente brevemente sua formação, abordagem e forma de trabalho."}
-        </p>
-      </div>
-
-      {preview ? (
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-muted">
-          {isPhoto ? (
-            <img
-              src={preview}
-              alt="Pré-visualização da foto profissional"
-              className="h-72 w-full object-cover"
-            />
-          ) : (
-            <video
-              src={preview}
-              controls
-              className="h-72 w-full object-cover"
-            />
-          )}
-
-          {!uploading && (
-            <button
-              type="button"
-              onClick={onRemove}
-              className="absolute right-3 top-3 rounded-full bg-background/90 p-2 shadow"
-              aria-label="Remover arquivo"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-      ) : (
-        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 text-center transition hover:border-primary">
-          <input
-            type="file"
-            accept={
-              isPhoto
-                ? "image/jpeg,image/png,image/webp"
-                : "video/mp4,video/webm,video/quicktime"
-            }
-            className="hidden"
-            onChange={onChange}
-            disabled={uploading}
-          />
-
-          {uploading ? (
-            <Loader2 className="mb-3 h-10 w-10 animate-spin text-primary" />
-          ) : isPhoto ? (
-            <Camera className="mb-3 h-10 w-10 text-muted-foreground" />
-          ) : (
-            <Video className="mb-3 h-10 w-10 text-muted-foreground" />
-          )}
-
-          <span className="font-medium">
-            {uploading
-              ? `Enviando ${isPhoto ? "foto" : "vídeo"}...`
-              : `Adicionar ${
-                  isPhoto
-                    ? "foto de perfil"
-                    : "vídeo de apresentação"
-                }`}
-          </span>
-
-          <span className="mt-2 text-xs text-muted-foreground">
-            {isPhoto
-              ? "JPG, PNG ou WEBP • até 10 MB"
-              : "MP4, WEBM ou MOV • até 200 MB"}
-          </span>
-        </label>
-      )}
-    </div>
-  );
-}
-
-function InfoCard({ icon: Icon, title, children }) {
-  return (
-    <div className="rounded-2xl border border-border bg-muted/30 p-5">
-      <div className="flex gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
-        </div>
-
-        <div>
-          <h3 className="font-semibold">{title}</h3>
-
-          <div className="mt-1 text-sm leading-6 text-muted-foreground">
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
-  const [data, setData] = useState(DEFAULTS);
-
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("register");
-
-  const [authenticatedUser, setAuthenticatedUser] =
-    useState(null);
-
-  /*
-   * IMPORTANTE:
-   * Esse estado permite abrir o formulário imediatamente
-   * depois do cadastro, mesmo quando o Supabase estiver
-   * configurado para confirmação de e-mail.
-   */
-  const [registrationStarted, setRegistrationStarted] =
-    useState(false);
-
-  const [authName, setAuthName] = useState("");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [authSubmitting, setAuthSubmitting] = useState(false);
-
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  const [done, setDone] = useState(false);
-  const [confirmationSent, setConfirmationSent] =
-    useState(false);
-
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const [photoFile, setPhotoFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
-
   const [photoPreview, setPhotoPreview] = useState("");
   const [videoPreview, setVideoPreview] = useState("");
 
-  const isAuthenticated = Boolean(
-    authenticatedUser && authenticatedUser.id
-  );
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    cpf: "",
+    phone: "",
+    birthDate: "",
+    crp: "",
+    crpState: "",
+    crpStatus: "",
+    approach: "",
+    audience: [],
+    modalities: [],
+    online: false,
+    ePsi: false,
+    presencial: false,
+    address: "",
+    city: "",
+    state: "",
+    sessionDuration: "",
+    sessionPrice: "",
+    presentation: "",
+    privacyAccepted: false,
+    confidentialityAccepted: false,
+  });
 
-  const displayName = useMemo(() => {
-    return (
-      data.professional_name ||
-      data.full_name ||
-      authenticatedUser?.user_metadata?.full_name ||
-      authenticatedUser?.user_metadata?.name ||
-      "Profissional"
-    );
-  }, [data, authenticatedUser]);
-
-  function set(key, value) {
-    setData((current) => ({
-      ...current,
-      [key]: value,
-    }));
-  }
-
-  /*
-   * Carrega a sessão existente.
-   */
   useEffect(() => {
     let mounted = true;
 
     async function loadSession() {
       try {
-        const {
-          data: sessionData,
-          error: sessionError,
-        } = await supabase.auth.getSession();
-
-        if (sessionError) throw sessionError;
+        const { data } = await supabase.auth.getSession();
 
         if (!mounted) return;
 
-        const user = sessionData?.session?.user || null;
+        if (data?.session?.user) {
+          const user = data.session.user;
 
-        setAuthenticatedUser(user);
-
-        if (user) {
-          const metadata = user.user_metadata || {};
-
-          setRegistrationStarted(true);
-
-          setData((current) => ({
+          setForm((current) => ({
             ...current,
-            email: user.email || current.email,
-            full_name:
-              current.full_name ||
-              metadata.full_name ||
-              metadata.name ||
+            name:
+              current.name ||
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
               "",
+            email: current.email || user.email || "",
           }));
-
-          setAuthEmail(user.email || "");
-          setAuthName(
-            metadata.full_name ||
-              metadata.name ||
-              ""
-          );
-        }
-      } catch (sessionError) {
-        if (mounted) {
-          setError(getFriendlyError(sessionError));
         }
       } finally {
-        if (mounted) {
-          setAuthLoading(false);
-        }
+        if (mounted) setCheckingSession(false);
       }
     }
 
     loadSession();
 
-    const {
-      data: authSubscription,
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
-
-        const user = session?.user || null;
-
-        setAuthenticatedUser(user);
-
-        if (user) {
-          const metadata = user.user_metadata || {};
-
-          setRegistrationStarted(true);
-
-          setData((current) => ({
-            ...current,
-            email: user.email || current.email,
-            full_name:
-              current.full_name ||
-              metadata.full_name ||
-              metadata.name ||
-              "",
-          }));
-
-          setAuthEmail(user.email || "");
-        }
-      }
-    );
-
     return () => {
       mounted = false;
-      authSubscription?.subscription?.unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     return () => {
-      if (photoPreview) {
-        URL.revokeObjectURL(photoPreview);
-      }
-
-      if (videoPreview) {
-        URL.revokeObjectURL(videoPreview);
-      }
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
     };
   }, [photoPreview, videoPreview]);
 
-  function validatePhoto(file) {
-    if (!file) return "Selecione uma foto.";
+  const updateForm = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setError("");
+    setSuccess("");
+  };
 
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-    ];
+  const toggleArrayValue = (field, value) => {
+    setForm((current) => {
+      const values = current[field] || [];
+      const exists = values.includes(value);
 
-    if (!allowedTypes.includes(file.type)) {
-      return "A foto deve estar em JPG, PNG ou WEBP.";
+      return {
+        ...current,
+        [field]: exists
+          ? values.filter((item) => item !== value)
+          : [...values, value],
+      };
+    });
+
+    setError("");
+  };
+
+  const formatCpf = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+
+    return digits
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1-$2");
+  };
+
+  const formatPhone = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return "A foto deve ter no máximo 10 MB.";
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const validateFile = (file, type) => {
+    if (!file) return false;
+
+    if (type === "photo") {
+      const allowed = ["image/jpeg", "image/png", "image/webp"];
+      const maxSize = 5 * 1024 * 1024;
+
+      if (!allowed.includes(file.type)) {
+        setError("A foto deve estar em JPG, PNG ou WEBP.");
+        return false;
+      }
+
+      if (file.size > maxSize) {
+        setError("A foto deve ter no máximo 5 MB.");
+        return false;
+      }
     }
 
-    return "";
-  }
+    if (type === "video") {
+      const allowed = ["video/mp4", "video/webm", "video/quicktime"];
+      const maxSize = 100 * 1024 * 1024;
 
-  function validateVideo(file) {
-    if (!file) return "Selecione um vídeo.";
+      if (!allowed.includes(file.type)) {
+        setError("O vídeo deve estar em MP4, WEBM ou MOV.");
+        return false;
+      }
 
-    const allowedTypes = [
-      "video/mp4",
-      "video/webm",
-      "video/quicktime",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      return "O vídeo deve estar em MP4, WEBM ou MOV.";
+      if (file.size > maxSize) {
+        setError("O vídeo deve ter no máximo 100 MB.");
+        return false;
+      }
     }
 
-    if (file.size > 200 * 1024 * 1024) {
-      return "O vídeo deve ter no máximo 200 MB.";
-    }
+    return true;
+  };
 
-    return "";
-  }
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0];
 
-  function handlePhotoChange(event) {
-    const file = event.target.files?.[0] || null;
+    if (!file || !validateFile(file, "photo")) return;
 
-    const validationError = validatePhoto(file);
-
-    if (validationError) {
-      setError(validationError);
-      event.target.value = "";
-      return;
-    }
-
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
-    }
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
 
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
-    set("photo_url", "");
     setError("");
-  }
+  };
 
-  function handleVideoChange(event) {
-    const file = event.target.files?.[0] || null;
+  const handleVideoChange = (event) => {
+    const file = event.target.files?.[0];
 
-    const validationError = validateVideo(file);
+    if (!file || !validateFile(file, "video")) return;
 
-    if (validationError) {
-      setError(validationError);
-      event.target.value = "";
-      return;
-    }
-
-    if (videoPreview) {
-      URL.revokeObjectURL(videoPreview);
-    }
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
 
     setVideoFile(file);
     setVideoPreview(URL.createObjectURL(file));
-    set("video_url", "");
     setError("");
-  }
+  };
 
-  function removePhoto() {
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
-    }
-
+  const removePhoto = () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoFile(null);
     setPhotoPreview("");
-    set("photo_url", "");
-  }
+  };
 
-  function removeVideo() {
-    if (videoPreview) {
-      URL.revokeObjectURL(videoPreview);
-    }
-
+  const removeVideo = () => {
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoFile(null);
     setVideoPreview("");
-    set("video_url", "");
-  }
+  };
 
-  /*
-   * CADASTRO / LOGIN
-   */
-  async function authenticateProfessional() {
-    setError("");
-    setConfirmationSent(false);
+  const validation = useMemo(() => {
+    const errors = [];
 
-    const email = authEmail.trim().toLowerCase();
-    const password = authPassword;
+    if (!form.name.trim()) errors.push("Informe seu nome.");
+    if (!form.email.trim()) errors.push("Informe seu e-mail.");
 
-    if (!email) {
-      setError("Digite seu e-mail.");
-      return;
+    if (form.password.length < 6) {
+      errors.push("A senha deve ter pelo menos 6 caracteres.");
     }
 
-    if (!password) {
-      setError("Digite sua senha.");
-      return;
+    if (form.password !== form.confirmPassword) {
+      errors.push("As senhas não coincidem.");
     }
 
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
-      return;
+    if (!form.crp.trim()) errors.push("Informe seu CRP.");
+    if (!form.crpState.trim()) errors.push("Informe o estado do CRP.");
+    if (!form.approach.trim()) errors.push("Informe sua abordagem.");
+
+    if (!form.audience.length) {
+      errors.push("Selecione pelo menos um público.");
     }
 
-    if (authMode === "register" && !authName.trim()) {
-      setError("Digite seu nome completo.");
-      return;
+    if (!form.modalities.length) {
+      errors.push("Selecione pelo menos uma modalidade.");
     }
 
-    setAuthSubmitting(true);
-
-    try {
-      /*
-       * NOVO CADASTRO
-       */
-      if (authMode === "register") {
-        const {
-          data: signUpData,
-          error: signUpError,
-        } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: authName.trim(),
-              name: authName.trim(),
-              role: "psychologist",
-              account_type: "professional",
-              user_type: "professional",
-            },
-          },
-        });
-
-        if (signUpError) {
-          throw signUpError;
-        }
-
-        /*
-         * Guarda os dados imediatamente.
-         */
-        setData((current) => ({
-          ...current,
-          email,
-          full_name: authName.trim(),
-        }));
-
-        /*
-         * Se o Supabase criou sessão automaticamente,
-         * o formulário abre imediatamente.
-         */
-        if (signUpData.session && signUpData.user) {
-          setAuthenticatedUser(signUpData.user);
-          setRegistrationStarted(true);
-          setStep(0);
-          setError("");
-          return;
-        }
-
-        /*
-         * Se a confirmação de e-mail estiver habilitada,
-         * ainda assim liberamos o formulário para preenchimento.
-         *
-         * O usuário poderá preencher tudo.
-         */
-        if (signUpData.user) {
-          setRegistrationStarted(true);
-          setConfirmationSent(true);
-          setAuthenticatedUser(null);
-          setStep(0);
-          setError("");
-          return;
-        }
-      }
-
-      /*
-       * LOGIN
-       */
-      const {
-        data: loginData,
-        error: loginError,
-      } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      if (loginError) {
-        throw loginError;
-      }
-
-      const user = loginData.user;
-
-      setAuthenticatedUser(user);
-      setRegistrationStarted(true);
-
-      const metadata = user.user_metadata || {};
-
-      setData((current) => ({
-        ...current,
-        email: user.email || email,
-        full_name:
-          current.full_name ||
-          metadata.full_name ||
-          metadata.name ||
-          "",
-      }));
-
-      setStep(0);
-      setError("");
-    } catch (authError) {
-      setError(getFriendlyError(authError));
-    } finally {
-      setAuthSubmitting(false);
+    if (!form.online && !form.presencial) {
+      errors.push("Selecione pelo menos uma forma de atendimento.");
     }
-  }
 
-  async function resendConfirmation() {
+    if (form.online && !form.ePsi) {
+      errors.push("Informe se possui autorização e-Psi para atendimento online.");
+    }
+
+    if (!form.presentation.trim()) {
+      errors.push("Escreva uma apresentação profissional.");
+    }
+
+    if (!form.privacyAccepted) {
+      errors.push("Aceite a política de privacidade.");
+    }
+
+    if (!form.confidentialityAccepted) {
+      errors.push("Confirme o compromisso com sigilo profissional.");
+    }
+
+    return errors;
+  }, [form]);
+
+  const validateStep = (currentStep) => {
     setError("");
 
-    if (!authEmail.trim()) {
-      setError("Digite seu e-mail.");
-      return;
-    }
-
-    try {
-      const {
-        error: resendError,
-      } = await supabase.auth.resend({
-        type: "signup",
-        email: authEmail.trim().toLowerCase(),
-      });
-
-      if (resendError) {
-        throw resendError;
+    if (currentStep === 0) {
+      if (!form.name.trim()) {
+        setError("Informe seu nome.");
+        return false;
       }
 
-      setConfirmationSent(true);
-    } catch (resendError) {
-      setError(getFriendlyError(resendError));
+      if (!form.email.trim()) {
+        setError("Informe seu e-mail.");
+        return false;
+      }
+
+      if (form.password.length < 6) {
+        setError("A senha deve ter pelo menos 6 caracteres.");
+        return false;
+      }
+
+      if (form.password !== form.confirmPassword) {
+        setError("As senhas não coincidem.");
+        return false;
+      }
+
+      return true;
     }
-  }
 
-  async function logoutProfessional() {
-    await supabase.auth.signOut();
+    if (currentStep === 1) {
+      if (!form.crp.trim()) {
+        setError("Informe seu CRP.");
+        return false;
+      }
 
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
+      if (!form.crpState.trim()) {
+        setError("Informe o estado do CRP.");
+        return false;
+      }
+
+      return true;
     }
 
-    if (videoPreview) {
-      URL.revokeObjectURL(videoPreview);
+    if (currentStep === 2) {
+      if (!form.approach.trim()) {
+        setError("Informe sua abordagem.");
+        return false;
+      }
+
+      if (!form.audience.length) {
+        setError("Selecione pelo menos um público.");
+        return false;
+      }
+
+      return true;
     }
 
-    setAuthenticatedUser(null);
-    setRegistrationStarted(false);
+    if (currentStep === 3) {
+      if (!form.modalities.length) {
+        setError("Selecione pelo menos uma modalidade.");
+        return false;
+      }
 
-    setData(DEFAULTS);
+      if (!form.online && !form.presencial) {
+        setError("Selecione pelo menos uma forma de atendimento.");
+        return false;
+      }
 
-    setStep(0);
-    setDone(false);
+      if (form.online && !form.ePsi) {
+        setError("Informe se possui autorização e-Psi para atendimento online.");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (currentStep === 4) {
+      if (!form.presentation.trim()) {
+        setError("Escreva uma apresentação profissional.");
+        return false;
+      }
+
+      return true;
+    }
+
+    if (currentStep === 5) {
+      if (!form.privacyAccepted) {
+        setError("Aceite a política de privacidade.");
+        return false;
+      }
+
+      if (!form.confidentialityAccepted) {
+        setError("Confirme o compromisso com sigilo profissional.");
+        return false;
+      }
+
+      return true;
+    }
+
+    return true;
+  };
+
+  const nextStep = () => {
+    if (!validateStep(step)) return;
+
+    setStep((current) => Math.min(current + 1, STEPS.length - 1));
+  };
+
+  const previousStep = () => {
     setError("");
+    setSuccess("");
+    setStep((current) => Math.max(current - 1, 0));
+  };
 
-    setAuthName("");
-    setAuthEmail("");
-    setAuthPassword("");
+  const uploadFile = async (bucket, file, path) => {
+    if (!file) return null;
 
-    setPhotoFile(null);
-    setVideoFile(null);
-
-    setPhotoPreview("");
-    setVideoPreview("");
-
-    setConfirmationSent(false);
-  }
-
-  /*
-   * UPLOAD
-   */
-  async function uploadFileToStorage(
-    file,
-    type,
-    userId
-  ) {
-    const folder =
-      type === "photo"
-        ? `professionals/${userId}/photos`
-        : `professionals/${userId}/videos`;
-
-    const filePath = `${folder}/${makeFileName(file)}`;
-
-    const {
-      error: uploadError,
-    } = await supabase.storage
-      .from("profiles")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        upsert: true,
         contentType: file.type,
       });
 
@@ -1036,2154 +411,1303 @@ export default function ProfessionalOnboarding() {
       throw uploadError;
     }
 
-    const {
-      data: publicData,
-    } = supabase.storage
-      .from("profiles")
-      .getPublicUrl(filePath);
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
 
-    return publicData.publicUrl;
-  }
+    return data?.publicUrl || null;
+  };
 
-  async function uploadPendingFiles(userId) {
-    let nextData = { ...data };
+  const saveProfile = async (userId) => {
+    let photoUrl = null;
+    let videoUrl = null;
 
     if (photoFile) {
-      const photoUrl =
-        await uploadFileToStorage(
-          photoFile,
-          "photo",
-          userId
-        );
-
-      nextData = {
-        ...nextData,
-        photo_url: photoUrl,
-      };
+      photoUrl = await uploadFile(
+        "avatars",
+        photoFile,
+        `${userId}/profile-${Date.now()}-${photoFile.name}`
+      );
     }
 
     if (videoFile) {
-      const videoUrl =
-        await uploadFileToStorage(
-          videoFile,
-          "video",
-          userId
-        );
-
-      nextData = {
-        ...nextData,
-        video_url: videoUrl,
-      };
-    }
-
-    setData(nextData);
-
-    return nextData;
-  }
-
-  /*
-   * VALIDAÇÃO DAS ETAPAS
-   */
-  function validateStep(stepNumber) {
-    if (stepNumber === 0) {
-      if (!data.full_name.trim()) {
-        return "Informe seu nome completo.";
-      }
-
-      if (!data.email.trim()) {
-        return "Informe seu e-mail.";
-      }
-
-      if (!data.phone.trim()) {
-        return "Informe seu telefone profissional.";
-      }
-
-      if (!data.city.trim()) {
-        return "Informe sua cidade.";
-      }
-
-      if (
-        !data.state.trim() ||
-        data.state.trim().length !== 2
-      ) {
-        return "Informe o estado com 2 letras.";
-      }
-    }
-
-    if (stepNumber === 1) {
-      if (!data.crp_number.trim()) {
-        return "Informe o número do CRP.";
-      }
-
-      if (!data.crp_region) {
-        return "Selecione a região do CRP.";
-      }
-
-      if (data.crp_status !== "active") {
-        return "O cadastro profissional exige que o CRP esteja ativo.";
-      }
-    }
-
-    if (stepNumber === 2) {
-      if (!data.education.trim()) {
-        return "Informe sua formação.";
-      }
-
-      if (!data.institution.trim()) {
-        return "Informe a instituição de formação.";
-      }
-
-      if (!data.approaches.length) {
-        return "Selecione pelo menos uma abordagem teórica.";
-      }
-
-      if (!data.audience.length) {
-        return "Selecione pelo menos um público.";
-      }
-
-      if (!data.about.trim()) {
-        return "Escreva uma apresentação profissional.";
-      }
-    }
-
-    if (stepNumber === 3) {
-      if (!data.modalities.length) {
-        return "Selecione pelo menos uma modalidade de atendimento.";
-      }
-
-      if (
-        data.modalities.includes("online") &&
-        !data.epsico_registered
-      ) {
-        return "Confirme o cadastro no e-Psi para informar atendimento online.";
-      }
-
-      if (
-        data.modalities.includes("presencial") &&
-        !data.address.trim()
-      ) {
-        return "Informe o endereço do consultório para atendimento presencial.";
-      }
-
-      if (!data.available_days.length) {
-        return "Selecione pelo menos um dia de atendimento.";
-      }
-
-      if (!data.available_slots.length) {
-        return "Selecione pelo menos um horário disponível.";
-      }
-    }
-
-    if (stepNumber === 4) {
-      if (!data.photo_url && !photoFile) {
-        return "Adicione uma foto de perfil.";
-      }
-
-      if (!data.video_url && !videoFile) {
-        return "Adicione um vídeo de apresentação.";
-      }
-    }
-
-    if (stepNumber === 5) {
-      if (!data.ethical_commitment) {
-        return "Confirme seu compromisso com o sigilo e as normas éticas da profissão.";
-      }
-
-      if (!data.information_truthful) {
-        return "Confirme que as informações fornecidas são verdadeiras.";
-      }
-
-      if (!data.privacy_commitment) {
-        return "Confirme o compromisso com a privacidade e proteção de dados.";
-      }
-    }
-
-    return "";
-  }
-
-  function nextStep() {
-    const validationError = validateStep(step);
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    setError("");
-
-    if (step < STEPS.length - 1) {
-      setStep((current) => current + 1);
-    }
-  }
-
-  function previousStep() {
-    setError("");
-
-    if (step > 0) {
-      setStep((current) => current - 1);
-    }
-  }
-
-  /*
-   * ENVIO DO CADASTRO
-   */
-  async function submit() {
-    if (submitting) return;
-
-    setError("");
-
-    /*
-     * O envio definitivo exige sessão autenticada.
-     */
-    if (!isAuthenticated) {
-      setError(
-        "Sua conta foi criada, mas você precisa confirmar o e-mail e entrar novamente para enviar o cadastro."
+      videoUrl = await uploadFile(
+        "videos",
+        videoFile,
+        `${userId}/presentation-${Date.now()}-${videoFile.name}`
       );
-      return;
     }
 
-    /*
-     * Valida todas as etapas.
-     */
-    for (
-      let index = 0;
-      index < STEPS.length;
-      index += 1
-    ) {
-      const validationError =
-        validateStep(index);
+    const profilePayload = {
+      id: userId,
+      email: form.email.trim().toLowerCase(),
+      name: form.name.trim(),
+      cpf: form.cpf.replace(/\D/g, "") || null,
+      phone: form.phone.replace(/\D/g, "") || null,
+      birth_date: form.birthDate || null,
+      crp: form.crp.trim(),
+      crp_state: form.crpState.trim().toUpperCase(),
+      crp_status: form.crpStatus || null,
+      approach: form.approach.trim(),
+      audience: form.audience,
+      modalities: form.modalities,
+      online: form.online,
+      epsi: form.ePsi,
+      presencial: form.presencial,
+      address: form.address.trim() || null,
+      city: form.city.trim() || null,
+      state: form.state.trim().toUpperCase() || null,
+      session_duration: form.sessionDuration || null,
+      session_price: form.sessionPrice || null,
+      presentation: form.presentation.trim(),
+      photo_url: photoUrl,
+      video_url: videoUrl,
+      role: "professional",
+      privacy_accepted: form.privacyAccepted,
+      confidentiality_accepted: form.confidentialityAccepted,
+      registration_verified: false,
+    };
 
-      if (validationError) {
-        setStep(index);
-        setError(validationError);
-        return;
-      }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "id" });
+
+    if (profileError) {
+      throw profileError;
     }
+
+    return {
+      photoUrl,
+      videoUrl,
+    };
+  };
+
+  const handleSubmit = async () => {
+    if (!validateStep(5)) return;
 
     setSubmitting(true);
-
-    setUploading(
-      Boolean(photoFile || videoFile)
-    );
+    setError("");
+    setSuccess("");
 
     try {
-      /*
-       * Confirma usuário atual.
-       */
-      const {
-        data: currentUserData,
-        error: currentUserError,
-      } =
-        await supabase.auth.getUser();
+      const email = form.email.trim().toLowerCase();
 
-      if (currentUserError) {
-        throw currentUserError;
-      }
+      const { data: existingSession } = await supabase.auth.getSession();
 
-      const user = currentUserData.user;
+      let user = existingSession?.session?.user || null;
 
       if (!user) {
-        throw new Error(
-          "Sua sessão expirou. Entre novamente."
-        );
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password: form.password,
+          options: {
+            data: {
+              name: form.name.trim(),
+              full_name: form.name.trim(),
+              role: "professional",
+            },
+          },
+        });
+
+        if (signUpError) throw signUpError;
+
+        user = data?.user || null;
       }
 
-      /*
-       * Upload dos arquivos.
-       */
-      const finalData =
-        await uploadPendingFiles(user.id);
+      if (!user) {
+        throw new Error("Não foi possível criar a conta.");
+      }
 
-      /*
-       * Atualiza metadata do usuário.
-       */
-      const {
-        error: metadataError,
-      } = await supabase.auth.updateUser({
-        data: {
-          full_name: finalData.full_name,
-          name:
-            finalData.professional_name ||
-            finalData.full_name,
-          role: "psychologist",
-          account_type: "professional",
-          user_type: "professional",
+      await saveProfile(user.id);
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
         },
       });
 
-      if (metadataError) {
-        throw metadataError;
-      }
+      if (otpError) throw otpError;
 
-      /*
-       * Dados que serão gravados em psychologists.
-       */
-      const psychologistData = {
-        user_id: user.id,
-
-        professional_name:
-          finalData.professional_name ||
-          finalData.full_name,
-
-        crp_number: finalData.crp_number,
-        crp_region: finalData.crp_region,
-        crp_status: finalData.crp_status,
-
-        /*
-         * Sempre começa como false.
-         * A plataforma/admin deverá verificar.
-         */
-        crp_verified: false,
-
-        education: finalData.education,
-        institution: finalData.institution,
-        graduation_year:
-          finalData.graduation_year,
-        experience: finalData.experience,
-
-        specializations:
-          finalData.specializations,
-
-        approaches:
-          finalData.approaches,
-
-        specialties:
-          finalData.specialties,
-
-        topics:
-          finalData.themes,
-
-        modalities:
-          finalData.modalities,
-
-        languages:
-          finalData.languages,
-
-        audience:
-          finalData.audience,
-
-        epsico_registered:
-          finalData.epsico_registered,
-
-        city: finalData.city,
-        state: finalData.state,
-
-        phone: finalData.phone,
-        whatsapp: finalData.whatsapp,
-        gender: finalData.gender,
-
-        session_price: finalData.price
-          ? Number(finalData.price)
-          : null,
-
-        session_duration:
-          Number(
-            finalData.session_duration
-          ) || 50,
-
-        available_days:
-          finalData.available_days,
-
-        available_slots:
-          finalData.available_slots,
-
-        cancellation_policy:
-          finalData.cancellation_policy,
-
-        address:
-          finalData.address,
-
-        address_number:
-          finalData.address_number,
-
-        address_complement:
-          finalData.address_complement,
-
-        neighborhood:
-          finalData.neighborhood,
-
-        zip_code:
-          finalData.zip_code,
-
-        bio:
-          finalData.about,
-
-        photo_url:
-          finalData.photo_url,
-
-        profile_photo_url:
-          finalData.photo_url,
-
-        presentation_video_url:
-          finalData.video_url,
-
-        presentation_video_status:
-          "pending",
-
-        instagram:
-          finalData.instagram,
-
-        linkedin:
-          finalData.linkedin,
-
-        website:
-          finalData.website,
-
-        verification_status:
-          "pending",
-
-        /*
-         * IMPORTANTE:
-         * Nunca publicar automaticamente.
-         */
-        public_profile: false,
-      };
-
-      /*
-       * Verifica se já existe cadastro.
-       */
-      const {
-        data: existingProfessional,
-        error: existingError,
-      } = await supabase
-        .from("psychologists")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (existingError) {
-        throw existingError;
-      }
-
-      /*
-       * Atualiza se existir.
-       */
-      if (existingProfessional) {
-        const {
-          error: updateError,
-        } = await supabase
-          .from("psychologists")
-          .update(psychologistData)
-          .eq(
-            "id",
-            existingProfessional.id
-          );
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
-        /*
-         * Cria novo cadastro.
-         */
-        const {
-          error: insertError,
-        } = await supabase
-          .from("psychologists")
-          .insert(
-            psychologistData
-          );
-
-        if (insertError) {
-          throw insertError;
-        }
-      }
-
-      setDone(true);
+      setOtpSent(true);
+      setSuccess("Cadastro enviado. Digite o código de 6 dígitos enviado para seu e-mail.");
     } catch (submitError) {
       setError(
-        getFriendlyError(submitError)
+        submitError?.message ||
+          "Não foi possível enviar o cadastro. Tente novamente."
       );
     } finally {
-      setUploading(false);
       setSubmitting(false);
     }
-  }
+  };
 
-  /*
-   * CARREGAMENTO
-   */
-  if (authLoading) {
+  const verifyEmailCode = async () => {
+    const code = otp.replace(/\D/g, "");
+
+    if (code.length !== 6) {
+      setError("Digite o código de 6 dígitos.");
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const email = form.email.trim().toLowerCase();
+
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "email",
+      });
+
+      if (verifyError) throw verifyError;
+
+      const user = data?.user;
+
+      if (!user) {
+        throw new Error("Não foi possível confirmar seu e-mail.");
+      }
+
+      await supabase.auth.updateUser({
+        data: {
+          name: form.name.trim(),
+          full_name: form.name.trim(),
+          role: "professional",
+        },
+      });
+
+      try {
+        await supabase
+          .from("profiles")
+          .update({
+            role: "professional",
+            registration_verified: true,
+          })
+          .eq("id", user.id);
+      } catch {
+      }
+
+      navigate("/painel-profissional");
+    } catch (verifyError) {
+      setError(
+        verifyError?.message ||
+          "Código inválido ou expirado. Solicite um novo código."
+      );
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const resendCode = async () => {
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const email = form.email.trim().toLowerCase();
+
+      const { error: resendError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+        },
+      });
+
+      if (resendError) throw resendError;
+
+      setOtp("");
+      setSuccess("Um novo código foi enviado para seu e-mail.");
+    } catch (resendError) {
+      setError(
+        resendError?.message ||
+          "Não foi possível reenviar o código."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const goToLogin = () => {
+    navigate("/login");
+  };
+
+  if (checkingSession) {
     return (
       <PageShell>
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="min-h-[70vh] flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       </PageShell>
     );
   }
 
-  /*
-   * TELA DE CADASTRO / LOGIN
-   *
-   * Só aparece quando ainda não começou
-   * o cadastro.
-   */
-  if (
-    !isAuthenticated &&
-    !registrationStarted
-  ) {
-    return (
-      <PageShell>
-        <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="mx-auto max-w-5xl">
-            <div className="mb-10 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                {authMode === "register" ? (
-                  <UserPlus className="h-8 w-8" />
-                ) : (
-                  <LogIn className="h-8 w-8" />
-                )}
-              </div>
+  const StepIcon = STEPS[step].icon;
 
-              <p className="mb-2 text-sm font-medium text-primary">
-                EntreNós • Área profissional
-              </p>
-
-              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-                {authMode === "register"
-                  ? "Cadastre-se como profissional"
-                  : "Entrar como profissional"}
-              </h1>
-
-              <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-                Crie seu perfil profissional com informações de
-                identificação, registro, formação, abordagem,
-                serviços e contato.
-              </p>
-            </div>
-
-            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
-                <div className="space-y-6">
-                  {authMode === "register" && (
-                    <Input
-                      label="Nome completo"
-                      value={authName}
-                      onChange={(value) => {
-                        setAuthName(value);
-                        set(
-                          "full_name",
-                          value
-                        );
-                      }}
-                      placeholder="Digite seu nome completo"
-                      required
-                    />
-                  )}
-
-                  <Input
-                    label="E-mail profissional"
-                    value={authEmail}
-                    onChange={(value) => {
-                      setAuthEmail(value);
-                      set("email", value);
-                    }}
-                    type="email"
-                    placeholder="seu@email.com"
-                    required
-                  />
-
-                  <div>
-                    <span className="mb-2 block text-sm font-medium">
-                      Senha
-                    </span>
-
-                    <div className="relative">
-                      <input
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
-                        value={authPassword}
-                        onChange={(e) =>
-                          setAuthPassword(
-                            e.target.value
-                          )
-                        }
-                        placeholder="Mínimo de 6 caracteres"
-                        className="w-full rounded-xl border border-border bg-background px-4 py-3 pr-12 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowPassword(
-                            (current) =>
-                              !current
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                        aria-label={
-                          showPassword
-                            ? "Ocultar senha"
-                            : "Mostrar senha"
-                        }
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {error && (
-                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
-                      {error}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={
-                      authenticateProfessional
-                    }
-                    disabled={
-                      authSubmitting
-                    }
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {authSubmitting ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : authMode ===
-                      "register" ? (
-                      <UserPlus className="h-5 w-5" />
-                    ) : (
-                      <LogIn className="h-5 w-5" />
-                    )}
-
-                    {authMode === "register"
-                      ? "Criar conta profissional"
-                      : "Entrar"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode(
-                        (current) =>
-                          current ===
-                          "register"
-                            ? "login"
-                            : "register"
-                      );
-
-                      setError("");
-                      setConfirmationSent(
-                        false
-                      );
-                    }}
-                    className="w-full text-sm text-muted-foreground transition hover:text-foreground"
-                  >
-                    {authMode === "register"
-                      ? "Já tenho uma conta profissional"
-                      : "Ainda não tenho uma conta profissional"}
-                  </button>
-
-                  <div className="flex items-start gap-3 rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">
-                    <Lock className="mt-0.5 h-5 w-5 shrink-0" />
-
-                    <span>
-                      Seus dados são utilizados
-                      para o funcionamento da
-                      plataforma e para o processo
-                      de verificação profissional.
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <InfoCard
-                  icon={ShieldCheck}
-                  title="CRP e identificação profissional"
-                >
-                  O cadastro profissional deverá
-                  conter nome completo, número do
-                  CRP, região do CRP e demais
-                  informações necessárias para a
-                  verificação.
-                </InfoCard>
-
-                <InfoCard
-                  icon={User}
-                  title="Formação e atuação"
-                >
-                  O profissional deverá informar
-                  formação, instituição, abordagem
-                  teórica, público atendido e áreas
-                  de atuação.
-                </InfoCard>
-
-                <InfoCard
-                  icon={Video}
-                  title="Atendimento online"
-                >
-                  Caso ofereça atendimento online,
-                  o profissional deverá informar a
-                  situação do cadastro aplicável
-                  no e-Psi.
-                </InfoCard>
-
-                <InfoCard
-                  icon={Lock}
-                  title="Ética e privacidade"
-                >
-                  O perfil deverá respeitar o
-                  sigilo profissional, a privacidade,
-                  a proteção de dados e as normas
-                  éticas aplicáveis à Psicologia.
-                </InfoCard>
-
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                  <p className="font-semibold">
-                    Consulte seu registro
-                  </p>
-
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    O cadastro profissional será
-                    submetido à verificação antes
-                    da publicação do perfil.
-                  </p>
-
-                  <a
-                    href="https://cadastro.cfp.org.br/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                  >
-                    Cadastro Nacional de Psicólogas(os)
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  /*
-   * CADASTRO CRIADO MAS AINDA SEM SESSÃO
-   *
-   * Nesse caso mostramos uma tela intermediária
-   * explicando que o formulário foi liberado,
-   * mas o envio final exige confirmação/login.
-   *
-   * O formulário continua disponível somente se
-   * houver sessão. Para evitar perda de dados,
-   * recomendamos confirmação/login antes do envio.
-   */
-
-  /*
-   * CONCLUÍDO
-   */
-  if (done) {
-    return (
-      <PageShell>
-        <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-10">
-          <div className="w-full rounded-3xl border border-border bg-card p-8 text-center shadow-sm md:p-12">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/10 text-green-600">
-              <Check className="h-10 w-10" />
-            </div>
-
-            <p className="mb-2 text-sm font-medium text-primary">
-              EntreNós • Área profissional
-            </p>
-
-            <h1 className="text-3xl font-bold">
-              Cadastro enviado!
-            </h1>
-
-            <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-              Seu cadastro profissional foi enviado
-              para análise. O perfil permanecerá
-              não publicado até a conclusão da
-              verificação.
-            </p>
-
-            <div className="mt-8 space-y-3 text-left">
-              <InfoCard
-                icon={ShieldCheck}
-                title="Verificação do CRP"
-              >
-                As informações profissionais
-                fornecidas serão analisadas antes
-                da publicação do perfil.
-              </InfoCard>
-
-              <InfoCard
-                icon={Lock}
-                title="Publicação segura"
-              >
-                O perfil foi enviado com status
-                pendente e não ficará público
-                enquanto estiver em análise.
-              </InfoCard>
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(-1)
-                }
-                className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium transition hover:bg-muted"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                Voltar
-              </button>
-
-              <button
-                type="button"
-                onClick={
-                  logoutProfessional
-                }
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90"
-              >
-                <LogOut className="h-5 w-5" />
-                Sair
-              </button>
-            </div>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  const progress =
-    ((step + 1) / STEPS.length) * 100;
-
-  /*
-   * FORMULÁRIO
-   */
   return (
     <PageShell>
-      <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Área profissional
-            </p>
-
-            <h1 className="mt-1 text-3xl font-bold">
-              Complete seu perfil profissional
-            </h1>
-
-            <p className="mt-2 text-muted-foreground">
-              {displayName}, informe seus dados
-              profissionais para que seu perfil possa
-              ser analisado e publicado.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={
-              logoutProfessional
-            }
-            className="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair
-          </button>
-        </div>
-
-        /*
-         * AVISO DE CONFIRMAÇÃO
-         */
-        {confirmationSent &&
-          !isAuthenticated && (
-            <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
-              <div className="flex gap-3">
-                <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-
-                <div>
-                  <p className="font-semibold">
-                    Conta criada com sucesso
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Você pode preencher o formulário
-                    agora. Antes de enviar o cadastro,
-                    confirme seu e-mail e entre
-                    novamente na conta para concluir
-                    o envio.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={
-                      resendConfirmation
-                    }
-                    className="mt-3 text-sm font-medium text-primary hover:underline"
-                  >
-                    Reenviar confirmação de e-mail
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-        <div className="mb-8 rounded-2xl border border-border bg-card p-4 md:p-5">
-          <div className="flex flex-wrap gap-2">
-            {STEPS.map((item, index) => {
-              const Icon = item.icon;
-
-              const active =
-                index === step;
-
-              const completed =
-                index < step;
-
-              return (
-                <button
-                  key={item.title}
-                  type="button"
-                  onClick={() => {
-                    if (index <= step) {
-                      setError("");
-                      setStep(index);
-                    }
-                  }}
-                  className={
-                    active
-                      ? "flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                      : completed
-                      ? "flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
-                      : "flex items-center gap-2 rounded-xl bg-muted px-4 py-2 text-sm font-medium text-muted-foreground"
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.title}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{
-                width: `${progress}%`,
-              }}
-            />
-          </div>
-
-          <p className="mt-3 text-sm text-muted-foreground">
-            Etapa {step + 1} de {STEPS.length}
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
-          {/*
-           * ETAPA 0
-           */}
-          {step === 0 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 1
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Identificação e contato
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Informe seus dados básicos e os
-                  meios de contato profissional.
-                </p>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Input
-                  label="Nome completo"
-                  value={data.full_name}
-                  onChange={(value) =>
-                    set(
-                      "full_name",
-                      value
-                    )
-                  }
-                  placeholder="Seu nome completo"
-                  required
-                />
-
-                <Input
-                  label="Nome profissional"
-                  value={
-                    data.professional_name
-                  }
-                  onChange={(value) =>
-                    set(
-                      "professional_name",
-                      value
-                    )
-                  }
-                  placeholder="Como deseja ser apresentado"
-                />
-
-                <Input
-                  label="E-mail profissional"
-                  value={data.email}
-                  onChange={(value) =>
-                    set(
-                      "email",
-                      value
-                    )
-                  }
-                  type="email"
-                  placeholder="seu@email.com"
-                  required
-                />
-
-                <Input
-                  label="Telefone profissional"
-                  value={data.phone}
-                  onChange={(value) =>
-                    set(
-                      "phone",
-                      value
-                    )
-                  }
-                  placeholder="(00) 00000-0000"
-                  required
-                />
-
-                <Input
-                  label="WhatsApp profissional"
-                  value={data.whatsapp}
-                  onChange={(value) =>
-                    set(
-                      "whatsapp",
-                      value
-                    )
-                  }
-                  placeholder="(00) 00000-0000"
-                />
-
-                <Select
-                  label="Gênero"
-                  value={data.gender}
-                  onChange={(value) =>
-                    set(
-                      "gender",
-                      value
-                    )
-                  }
-                  options={[
-                    "Feminino",
-                    "Masculino",
-                    "Não binário",
-                    "Prefiro não informar",
-                  ]}
-                />
-
-                <Input
-                  label="Cidade"
-                  value={data.city}
-                  onChange={(value) =>
-                    set(
-                      "city",
-                      value
-                    )
-                  }
-                  placeholder="Sua cidade"
-                  required
-                />
-
-                <Input
-                  label="Estado"
-                  value={data.state}
-                  onChange={(value) =>
-                    set(
-                      "state",
-                      value
-                        .toUpperCase()
-                        .slice(0, 2)
-                    )
-                  }
-                  placeholder="SP"
-                  required
-                />
-              </div>
-
-              <InfoCard
-                icon={ShieldCheck}
-                title="Identificação profissional"
-              >
-                O nome profissional, CRP e demais
-                informações exibidas no perfil devem
-                corresponder à atuação profissional
-                informada no cadastro.
-              </InfoCard>
-            </div>
-          )}
-
-          {/*
-           * ETAPA 1
-           */}
-          {step === 1 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 2
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Registro profissional
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  O número do CRP é uma informação
-                  essencial para a identificação e
-                  verificação do profissional.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                <div className="flex gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-
-                  <div>
-                    <p className="font-semibold">
-                      Registro no Conselho Regional
-                      de Psicologia
-                    </p>
-
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Informe corretamente seu CRP e
-                      a respectiva região. A plataforma
-                      utilizará essas informações no
-                      processo de verificação.
-                    </p>
-
-                    <a
-                      href="https://cadastro.cfp.org.br/"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                    >
-                      Consultar Cadastro Nacional
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Input
-                  label="Número do CRP"
-                  value={data.crp_number}
-                  onChange={(value) =>
-                    set(
-                      "crp_number",
-                      value
-                    )
-                  }
-                  placeholder="Digite seu número de registro"
-                  required
-                />
-
-                <Select
-                  label="Região do CRP"
-                  value={
-                    data.crp_region
-                  }
-                  onChange={(value) =>
-                    set(
-                      "crp_region",
-                      value
-                    )
-                  }
-                  options={REGION_OPTS}
-                  required
-                />
-
-                <Select
-                  label="Situação do registro"
-                  value={
-                    data.crp_status
-                  }
-                  onChange={(value) =>
-                    set(
-                      "crp_status",
-                      value
-                    )
-                  }
-                  options={[
-                    {
-                      value: "active",
-                      label: "Ativo",
-                    },
-                    {
-                      value: "inactive",
-                      label: "Inativo",
-                    },
-                    {
-                      value: "suspended",
-                      label: "Suspenso",
-                    },
-                  ]}
-                  required
-                />
-
-                <Input
-                  label="Ano de formação"
-                  value={
-                    data.graduation_year
-                  }
-                  onChange={(value) =>
-                    set(
-                      "graduation_year",
-                      value
-                    )
-                  }
-                  type="number"
-                  placeholder="Ex.: 2020"
-                />
-              </div>
-
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-muted-foreground">
-                A informação de CRP fornecida pelo
-                profissional será submetida ao
-                processo de verificação da plataforma.
-              </div>
-            </div>
-          )}
-
-          {/*
-           * ETAPA 2
-           */}
-          {step === 2 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 3
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Formação e atuação
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Essas informações ajudam o paciente
-                  a entender sua formação, abordagem
-                  e áreas de atuação.
-                </p>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Input
-                  label="Formação"
-                  value={
-                    data.education
-                  }
-                  onChange={(value) =>
-                    set(
-                      "education",
-                      value
-                    )
-                  }
-                  placeholder="Psicologia"
-                  required
-                />
-
-                <Input
-                  label="Instituição de formação"
-                  value={
-                    data.institution
-                  }
-                  onChange={(value) =>
-                    set(
-                      "institution",
-                      value
-                    )
-                  }
-                  placeholder="Nome da instituição"
-                  required
-                />
-
-                <Input
-                  label="Experiência profissional"
-                  value={
-                    data.experience
-                  }
-                  onChange={(value) =>
-                    set(
-                      "experience",
-                      value
-                    )
-                  }
-                  placeholder="Ex.: 5 anos"
-                />
-              </div>
-
-              <Chips
-                label="Abordagem teórica"
-                options={
-                  APPROACH_OPTS
-                }
-                values={
-                  data.approaches
-                }
-                onChange={(values) =>
-                  set(
-                    "approaches",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Especializações"
-                options={SPEC_OPTS}
-                values={
-                  data.specializations
-                }
-                onChange={(values) =>
-                  set(
-                    "specializations",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Áreas de atuação"
-                options={SPEC_OPTS}
-                values={
-                  data.specialties
-                }
-                onChange={(values) =>
-                  set(
-                    "specialties",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Temas de atendimento"
-                options={
-                  THEME_OPTS
-                }
-                values={
-                  data.themes
-                }
-                onChange={(values) =>
-                  set(
-                    "themes",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Público atendido"
-                options={
-                  AUDIENCE_OPTS
-                }
-                values={
-                  data.audience
-                }
-                onChange={(values) =>
-                  set(
-                    "audience",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Idiomas"
-                options={LANG_OPTS}
-                values={
-                  data.languages
-                }
-                onChange={(values) =>
-                  set(
-                    "languages",
-                    values
-                  )
-                }
-              />
-
-              <TextArea
-                label="Sobre você"
-                value={
-                  data.about
-                }
-                onChange={(value) =>
-                  set(
-                    "about",
-                    value
-                  )
-                }
-                placeholder="Apresente sua formação, experiência, abordagem, forma de trabalho e como você pode ajudar seus pacientes."
-                rows={7}
-                required
-              />
-
-              <InfoCard
-                icon={User}
-                title="Comunicação profissional"
-              >
-                Evite promessas de resultados,
-                garantias de cura, informações
-                enganosas ou qualquer conteúdo que
-                possa induzir o paciente a erro.
-              </InfoCard>
-            </div>
-          )}
-
-          {/*
-           * ETAPA 3
-           */}
-          {step === 3 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 4
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Atendimento e serviços
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Informe como você atende, sua
-                  disponibilidade, valores e condições
-                  do serviço.
-                </p>
-              </div>
-
-              <Chips
-                label="Modalidades de atendimento"
-                options={[
-                  "online",
-                  "presencial",
-                  "híbrido",
-                ]}
-                values={
-                  data.modalities
-                }
-                onChange={(values) =>
-                  set(
-                    "modalities",
-                    values
-                  )
-                }
-              />
-
-              {data.modalities.includes(
-                "online"
-              ) && (
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                  <div className="flex gap-3">
-                    <Video className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-
-                    <div className="w-full">
-                      <p className="font-semibold">
-                        Atendimento psicológico
-                        online
-                      </p>
-
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        Informe sua situação no e-Psi
-                        e mantenha os registros
-                        necessários para o atendimento
-                        psicológico por meios digitais.
-                      </p>
-
-                      <Checkbox
-                        checked={
-                          data.epsico_registered
-                        }
-                        onChange={(value) =>
-                          set(
-                            "epsico_registered",
-                            value
-                          )
-                        }
-                      >
-                        Confirmo que possuo o cadastro
-                        pertinente no e-Psi para
-                        atendimento psicológico online,
-                        quando aplicável à minha atuação.
-                      </Checkbox>
-
-                      <a
-                        href="https://cadastro.epsicologia.cfp.org.br/"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                      >
-                        Acessar e-Psi
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {data.modalities.includes(
-                "presencial"
-              ) && (
-                <div className="space-y-5 rounded-2xl border border-border bg-muted/30 p-5">
-                  <div>
-                    <h3 className="font-semibold">
-                      Local do atendimento presencial
-                    </h3>
-
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Informe o endereço profissional
-                      onde o atendimento presencial é
-                      realizado.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <Input
-                      label="Endereço"
-                      value={
-                        data.address
-                      }
-                      onChange={(value) =>
-                        set(
-                          "address",
-                          value
-                        )
-                      }
-                      placeholder="Rua, avenida..."
-                      required
-                    />
-
-                    <Input
-                      label="Número"
-                      value={
-                        data.address_number
-                      }
-                      onChange={(value) =>
-                        set(
-                          "address_number",
-                          value
-                        )
-                      }
-                      placeholder="Número"
-                    />
-
-                    <Input
-                      label="Complemento"
-                      value={
-                        data.address_complement
-                      }
-                      onChange={(value) =>
-                        set(
-                          "address_complement",
-                          value
-                        )
-                      }
-                      placeholder="Sala, conjunto..."
-                    />
-
-                    <Input
-                      label="Bairro"
-                      value={
-                        data.neighborhood
-                      }
-                      onChange={(value) =>
-                        set(
-                          "neighborhood",
-                          value
-                        )
-                      }
-                      placeholder="Bairro"
-                    />
-
-                    <Input
-                      label="CEP"
-                      value={
-                        data.zip_code
-                      }
-                      onChange={(value) =>
-                        set(
-                          "zip_code",
-                          value
-                        )
-                      }
-                      placeholder="00000-000"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <Input
-                  label="Valor da sessão"
-                  value={
-                    data.price
-                  }
-                  onChange={(value) =>
-                    set(
-                      "price",
-                      value
-                    )
-                  }
-                  type="number"
-                  placeholder="Ex.: 150"
-                />
-
-                <Input
-                  label="Duração da sessão (minutos)"
-                  value={
-                    data.session_duration
-                  }
-                  onChange={(value) =>
-                    set(
-                      "session_duration",
-                      value
-                    )
-                  }
-                  type="number"
-                  placeholder="50"
-                />
-              </div>
-
-              <Chips
-                label="Dias disponíveis"
-                options={DAY_OPTS}
-                values={
-                  data.available_days
-                }
-                onChange={(values) =>
-                  set(
-                    "available_days",
-                    values
-                  )
-                }
-              />
-
-              <Chips
-                label="Horários disponíveis"
-                options={
-                  SLOT_OPTS
-                }
-                values={
-                  data.available_slots
-                }
-                onChange={(values) =>
-                  set(
-                    "available_slots",
-                    values
-                  )
-                }
-              />
-
-              <TextArea
-                label="Política de cancelamento e reagendamento"
-                value={
-                  data.cancellation_policy
-                }
-                onChange={(value) =>
-                  set(
-                    "cancellation_policy",
-                    value
-                  )
-                }
-                placeholder="Informe de forma clara sua política de cancelamento e reagendamento."
-                rows={4}
-              />
-
-              <div className="grid gap-5 md:grid-cols-3">
-                <Input
-                  label="Instagram profissional"
-                  value={
-                    data.instagram
-                  }
-                  onChange={(value) =>
-                    set(
-                      "instagram",
-                      value
-                    )
-                  }
-                  placeholder="@seuperfil"
-                />
-
-                <Input
-                  label="LinkedIn"
-                  value={
-                    data.linkedin
-                  }
-                  onChange={(value) =>
-                    set(
-                      "linkedin",
-                      value
-                    )
-                  }
-                  placeholder="Perfil profissional"
-                />
-
-                <Input
-                  label="Site profissional"
-                  value={
-                    data.website
-                  }
-                  onChange={(value) =>
-                    set(
-                      "website",
-                      value
-                    )
-                  }
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-          )}
-
-          {/*
-           * ETAPA 4
-           */}
-          {step === 4 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 5
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Foto e apresentação
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Uma apresentação profissional ajuda
-                  o paciente a conhecer melhor o
-                  profissional antes de entrar em
-                  contato.
-                </p>
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <MediaUploadCard
-                  type="photo"
-                  preview={
-                    photoPreview ||
-                    data.photo_url
-                  }
-                  uploading={
-                    uploading
-                  }
-                  onChange={
-                    handlePhotoChange
-                  }
-                  onRemove={
-                    removePhoto
-                  }
-                />
-
-                <MediaUploadCard
-                  type="video"
-                  preview={
-                    videoPreview ||
-                    data.video_url
-                  }
-                  uploading={
-                    uploading
-                  }
-                  onChange={
-                    handleVideoChange
-                  }
-                  onRemove={
-                    removeVideo
-                  }
-                />
-              </div>
-
-              <InfoCard
-                icon={Camera}
-                title="Foto profissional"
-              >
-                Prefira uma imagem atual, nítida,
-                com boa iluminação e aparência
-                profissional.
-              </InfoCard>
-
-              <InfoCard
-                icon={Video}
-                title="Vídeo de apresentação"
-              >
-                O vídeo pode apresentar sua formação,
-                abordagem, público atendido e forma de
-                trabalho. Evite promessas de resultados
-                ou garantias.
-              </InfoCard>
-            </div>
-          )}
-
-          {/*
-           * ETAPA 5
-           */}
-          {step === 5 && (
-            <div className="space-y-7">
-              <div>
-                <p className="text-sm font-medium text-primary">
-                  Etapa 6
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold">
-                  Revisão e compromisso profissional
-                </h2>
-
-                <p className="mt-1 text-muted-foreground">
-                  Confira seus dados e confirme os
-                  compromissos necessários antes de
-                  enviar o cadastro.
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Nome profissional
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.professional_name ||
-                      data.full_name ||
-                      "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    E-mail
-                  </p>
-
-                  <p className="mt-1 break-all font-medium">
-                    {data.email ||
-                      "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-primary/5 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    CRP
-                  </p>
-
-                  <p className="mt-1 font-semibold text-primary">
-                    {data.crp_number
-                      ? `CRP ${data.crp_region} - ${data.crp_number}`
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Situação do CRP
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.crp_status ===
-                    "active"
-                      ? "Ativo — sujeito à verificação"
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Formação
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.education ||
-                      "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Instituição
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.institution ||
-                      "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Abordagem
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.approaches.length
-                      ? data.approaches.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Público
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.audience.length
-                      ? data.audience.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Modalidades
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.modalities.length
-                      ? data.modalities.join(
-                          ", "
-                        )
-                      : "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Telefone
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.phone ||
-                      "Não informado"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-muted/50 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Localização
-                  </p>
-
-                  <p className="mt-1 font-medium">
-                    {data.city &&
-                    data.state
-                      ? `${data.city} - ${data.state}`
-                      : "Não informado"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
-                <div className="flex gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-
-                  <div>
-                    <p className="font-semibold">
-                      Verificação profissional
-                    </p>
-
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      O perfil será enviado para
-                      análise. O número do CRP e
-                      demais informações profissionais
-                      poderão ser verificados antes da
-                      publicação.
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-4">
-                      <a
-                        href="https://cadastro.cfp.org.br/"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                      >
-                        Cadastro Nacional
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-
-                      <a
-                        href="https://site.cfp.org.br/wp-content/uploads/2012/07/codigo-de-etica-psicologia.pdf"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                      >
-                        Código de Ética
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Checkbox
-                  checked={
-                    data.information_truthful
-                  }
-                  onChange={(value) =>
-                    set(
-                      "information_truthful",
-                      value
-                    )
-                  }
-                >
-                  Confirmo que as informações
-                  pessoais e profissionais fornecidas
-                  neste cadastro são verdadeiras,
-                  atuais e correspondem à minha
-                  atuação profissional.
-                </Checkbox>
-
-                <Checkbox
-                  checked={
-                    data.ethical_commitment
-                  }
-                  onChange={(value) =>
-                    set(
-                      "ethical_commitment",
-                      value
-                    )
-                  }
-                >
-                  Declaro estar ciente de que minha
-                  atuação profissional deve respeitar
-                  o sigilo profissional, o Código de
-                  Ética e as normas aplicáveis à
-                  Psicologia.
-                </Checkbox>
-
-                <Checkbox
-                  checked={
-                    data.privacy_commitment
-                  }
-                  onChange={(value) =>
-                    set(
-                      "privacy_commitment",
-                      value
-                    )
-                  }
-                >
-                  Comprometo-me a respeitar a privacidade
-                  e a proteção das informações dos
-                  pacientes, utilizando os meios
-                  disponibilizados pela plataforma de
-                  maneira responsável.
-                </Checkbox>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-background p-5">
-                <div className="flex gap-3">
-                  <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-
-                  <div>
-                    <p className="font-medium">
-                      Publicação condicionada à
-                      verificação
-                    </p>
-
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Enviar o cadastro não significa
-                      aprovação automática. O perfil
-                      ficará com status pendente e não
-                      será publicado até a conclusão do
-                      processo de verificação da
-                      plataforma.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-h-screen bg-background py-8 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
             <button
               type="button"
-              onClick={
-                previousStep
-              }
-              disabled={
-                step === 0 ||
-                submitting
-              }
-              className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => navigate("/")}
+              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70 transition-opacity"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="w-4 h-4" />
               Voltar
             </button>
 
-            {step <
-            STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={
-                  nextStep
-                }
-                disabled={
-                  submitting
-                }
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Continuar
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={
-                  submit
-                }
-                disabled={
-                  submitting ||
-                  !isAuthenticated
-                }
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Enviando cadastro...
-                  </>
-                ) : !isAuthenticated ? (
-                  <>
-                    <Lock className="h-5 w-5" />
-                    Confirme seu e-mail para enviar
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-5 w-5" />
-                    Enviar para verificação
-                  </>
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={goToLogin}
+              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70 transition-opacity"
+            >
+              <LogIn className="w-4 h-4" />
+              Já tenho uma conta
+            </button>
           </div>
-        </div>
 
-        <div className="mx-auto mt-8 max-w-4xl text-center">
-          <p className="text-xs leading-5 text-muted-foreground">
-            O EntreNós é uma plataforma de conexão
-            entre pacientes e profissionais. A
-            plataforma não substitui atendimento de
-            emergência e não presta atendimento
-            psicológico diretamente.
-          </p>
+          <div className="mb-10">
+            <div className="flex items-center justify-between gap-2">
+              {STEPS.map((item, index) => {
+                const Icon = item.icon;
+                const active = index === step;
+                const completed = index < step;
+
+                return (
+                  <React.Fragment key={item.title}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (index <= step) {
+                          setError("");
+                          setStep(index);
+                        }
+                      }}
+                      className="flex flex-col items-center gap-2 min-w-0"
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
+                          active || completed
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border text-muted-foreground"
+                        }`}
+                      >
+                        {completed ? (
+                          <Check className="w-5 h-5" />
+                        ) : (
+                          <Icon className="w-5 h-5" />
+                        )}
+                      </div>
+
+                      <span
+                        className={`text-xs text-center hidden sm:block ${
+                          active
+                            ? "font-semibold text-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {item.title}
+                      </span>
+                    </button>
+
+                    {index < STEPS.length - 1 && (
+                      <div
+                        className={`h-px flex-1 ${
+                          index < step
+                            ? "bg-primary"
+                            : "bg-border"
+                        }`}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-6 sm:p-8 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <StepIcon className="w-5 h-5" />
+                </div>
+
+                <div>
+                  <h1 className="text-2xl font-bold">
+                    {STEPS[step].title}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Etapa {step + 1} de {STEPS.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              {error && (
+                <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="mb-6 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
+                  {success}
+                </div>
+              )}
+
+              {step === 0 && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Vamos começar
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Informe seus dados básicos para criar sua conta profissional.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium mb-2">
+                        Nome completo
+                      </label>
+                      <input
+                        type="text"
+                        value={form.name}
+                        onChange={(e) => updateForm("name", e.target.value)}
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="Seu nome completo"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        E-mail
+                      </label>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => updateForm("email", e.target.value)}
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="voce@email.com"
+                        autoComplete="email"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Telefone
+                      </label>
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) =>
+                          updateForm("phone", formatPhone(e.target.value))
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="(00) 00000-0000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        CPF
+                      </label>
+                      <input
+                        type="text"
+                        value={form.cpf}
+                        onChange={(e) =>
+                          updateForm("cpf", formatCpf(e.target.value))
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="000.000.000-00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Data de nascimento
+                      </label>
+                      <input
+                        type="date"
+                        value={form.birthDate}
+                        onChange={(e) =>
+                          updateForm("birthDate", e.target.value)
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Senha
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={form.password}
+                          onChange={(e) =>
+                            updateForm("password", e.target.value)
+                          }
+                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="Mínimo de 6 caracteres"
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((value) => !value)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Confirmar senha
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={form.confirmPassword}
+                          onChange={(e) =>
+                            updateForm("confirmPassword", e.target.value)
+                          }
+                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="Repita sua senha"
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowConfirmPassword((value) => !value)
+                          }
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border p-4">
+                    <div className="flex items-start gap-3">
+                      <UserPlus className="w-5 h-5 mt-0.5 text-primary" />
+                      <div>
+                        <p className="font-medium">
+                          Seu cadastro será como profissional
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Depois da confirmação do e-mail, você será direcionado ao painel profissional.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Registro profissional
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Informe os dados relacionados ao seu registro profissional.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        CRP
+                      </label>
+                      <input
+                        type="text"
+                        value={form.crp}
+                        onChange={(e) => updateForm("crp", e.target.value)}
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="Ex.: 06/000000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Estado do CRP
+                      </label>
+                      <select
+                        value={form.crpState}
+                        onChange={(e) =>
+                          updateForm("crpState", e.target.value)
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">Selecione</option>
+                        <option value="AC">AC</option>
+                        <option value="AL">AL</option>
+                        <option value="AP">AP</option>
+                        <option value="AM">AM</option>
+                        <option value="BA">BA</option>
+                        <option value="CE">CE</option>
+                        <option value="DF">DF</option>
+                        <option value="ES">ES</option>
+                        <option value="GO">GO</option>
+                        <option value="MA">MA</option>
+                        <option value="MT">MT</option>
+                        <option value="MS">MS</option>
+                        <option value="MG">MG</option>
+                        <option value="PA">PA</option>
+                        <option value="PB">PB</option>
+                        <option value="PR">PR</option>
+                        <option value="PE">PE</option>
+                        <option value="PI">PI</option>
+                        <option value="RJ">RJ</option>
+                        <option value="RN">RN</option>
+                        <option value="RS">RS</option>
+                        <option value="RO">RO</option>
+                        <option value="RR">RR</option>
+                        <option value="SC">SC</option>
+                        <option value="SP">SP</option>
+                        <option value="SE">SE</option>
+                        <option value="TO">TO</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Situação do registro
+                      </label>
+                      <select
+                        value={form.crpStatus}
+                        onChange={(e) =>
+                          updateForm("crpStatus", e.target.value)
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">Selecione</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="regular">Regular</option>
+                        <option value="outro">Outro</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex gap-3">
+                      <ShieldCheck className="w-5 h-5 text-primary mt-0.5" />
+                      <div>
+                        <p className="font-medium">Verificação profissional</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Os dados informados poderão ser utilizados para a verificação do seu cadastro profissional.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Sua atuação
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Conte um pouco sobre sua abordagem e o público que atende.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Abordagem
+                    </label>
+                    <input
+                      type="text"
+                      value={form.approach}
+                      onChange={(e) =>
+                        updateForm("approach", e.target.value)
+                      }
+                      className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      placeholder="Ex.: TCC, Psicanálise, Humanista..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Público atendido
+                    </label>
+
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {[
+                        "Adultos",
+                        "Adolescentes",
+                        "Crianças",
+                        "Casais",
+                        "Famílias",
+                        "Idosos",
+                      ].map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.audience.includes(item)}
+                            onChange={() =>
+                              toggleArrayValue("audience", item)
+                            }
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Temas de atuação
+                    </label>
+
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {[
+                        "Ansiedade",
+                        "Depressão",
+                        "Relacionamentos",
+                        "Autoestima",
+                        "Luto",
+                        "Estresse",
+                        "Traumas",
+                        "Carreira",
+                        "Autoconhecimento",
+                      ].map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.modalities.includes(item)}
+                            onChange={() =>
+                              toggleArrayValue("modalities", item)
+                            }
+                            className="w-4 h-4"
+                          />
+                          <span className="text-sm">{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Atendimento
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Defina como você atende seus pacientes.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Modalidade de atendimento
+                    </label>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <label className="border border-border rounded-xl p-4 cursor-pointer hover:bg-muted/40">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={form.online}
+                            onChange={(e) =>
+                              updateForm("online", e.target.checked)
+                            }
+                            className="w-4 h-4 mt-1"
+                          />
+                          <div>
+                            <p className="font-medium">Online</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Atendimento por videochamada.
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="border border-border rounded-xl p-4 cursor-pointer hover:bg-muted/40">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={form.presencial}
+                            onChange={(e) =>
+                              updateForm("presencial", e.target.checked)
+                            }
+                            className="w-4 h-4 mt-1"
+                          />
+                          <div>
+                            <p className="font-medium">Presencial</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Atendimento em consultório.
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {form.online && (
+                    <label className="flex items-start gap-3 border border-border rounded-xl p-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.ePsi}
+                        onChange={(e) =>
+                          updateForm("ePsi", e.target.checked)
+                        }
+                        className="w-4 h-4 mt-1"
+                      />
+                      <div>
+                        <p className="font-medium">
+                          Possuo autorização e-Psi
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Confirmo que estou regularizado para atendimento psicológico online.
+                        </p>
+                      </div>
+                    </label>
+                  )}
+
+                  {form.presencial && (
+                    <div className="grid md:grid-cols-2 gap-5">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-2">
+                          Endereço
+                        </label>
+                        <input
+                          type="text"
+                          value={form.address}
+                          onChange={(e) =>
+                            updateForm("address", e.target.value)
+                          }
+                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="Endereço do consultório"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Cidade
+                        </label>
+                        <input
+                          type="text"
+                          value={form.city}
+                          onChange={(e) =>
+                            updateForm("city", e.target.value)
+                          }
+                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="Cidade"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Estado
+                        </label>
+                        <input
+                          type="text"
+                          value={form.state}
+                          onChange={(e) =>
+                            updateForm("state", e.target.value.toUpperCase())
+                          }
+                          maxLength={2}
+                          className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="UF"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Duração da sessão
+                      </label>
+                      <select
+                        value={form.sessionDuration}
+                        onChange={(e) =>
+                          updateForm("sessionDuration", e.target.value)
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">Selecione</option>
+                        <option value="30">30 minutos</option>
+                        <option value="45">45 minutos</option>
+                        <option value="50">50 minutos</option>
+                        <option value="60">60 minutos</option>
+                        <option value="90">90 minutos</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Valor da sessão
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.sessionPrice}
+                        onChange={(e) =>
+                          updateForm("sessionPrice", e.target.value)
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="R$ 0,00"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 4 && (
+                <div className="space-y-8">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Foto e vídeo
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Adicione uma foto profissional e um vídeo curto de apresentação.
+                    </p>
+                  </div>
+
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    <div className="border border-border rounded-2xl p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-semibold">Foto de perfil</h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            JPG, PNG ou WEBP · até 5 MB
+                          </p>
+                        </div>
+
+                        <Camera className="w-5 h-5 text-muted-foreground" />
+                      </div>
+
+                      {photoPreview ? (
+                        <div className="relative">
+                          <img
+                            src={photoPreview}
+                            alt="Prévia da foto"
+                            className="w-full aspect-square object-cover rounded-xl"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={removePhoto}
+                            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 border border-border flex items-center justify-center"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                          <Camera className="w-8 h-8 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            Escolher foto
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handlePhotoChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="border border-border rounded-2xl p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-semibold">
+                            Vídeo de apresentação
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            MP4, WEBM ou MOV · até 100 MB
+                          </p>
+                        </div>
+
+                        <Video className="w-5 h-5 text-muted-foreground" />
+                      </div>
+
+                      {videoPreview ? (
+                        <div className="relative">
+                          <video
+                            src={videoPreview}
+                            controls
+                            className="w-full aspect-video object-cover rounded-xl bg-black"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={removeVideo}
+                            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-background/90 border border-border flex items-center justify-center"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="aspect-video rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                          <Video className="w-8 h-8 text-muted-foreground" />
+                          <span className="text-sm font-medium">
+                            Escolher vídeo
+                          </span>
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime"
+                            onChange={handleVideoChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Apresentação profissional
+                    </label>
+                    <textarea
+                      value={form.presentation}
+                      onChange={(e) =>
+                        updateForm("presentation", e.target.value)
+                      }
+                      rows={7}
+                      maxLength={2000}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-3 outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                      placeholder="Fale sobre sua experiência, sua forma de trabalhar e como você pode ajudar seus pacientes."
+                    />
+                    <div className="text-xs text-muted-foreground text-right mt-1">
+                      {form.presentation.length}/2000
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 5 && (
+                <div className="space-y-8">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">
+                      Revise seu cadastro
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Confira os dados antes de enviar.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Nome
+                      </p>
+                      <p className="font-medium">{form.name || "—"}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        E-mail
+                      </p>
+                      <p className="font-medium break-all">
+                        {form.email || "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        CRP
+                      </p>
+                      <p className="font-medium">
+                        {form.crp
+                          ? `${form.crp} - ${form.crpState}`
+                          : "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Abordagem
+                      </p>
+                      <p className="font-medium">
+                        {form.approach || "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Público
+                      </p>
+                      <p className="font-medium">
+                        {form.audience.length
+                          ? form.audience.join(", ")
+                          : "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Modalidades
+                      </p>
+                      <p className="font-medium">
+                        {form.modalities.length
+                          ? form.modalities.join(", ")
+                          : "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Atendimento
+                      </p>
+                      <p className="font-medium">
+                        {[
+                          form.online && "Online",
+                          form.presencial && "Presencial",
+                        ]
+                          .filter(Boolean)
+                          .join(" e ") || "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Arquivos
+                      </p>
+                      <p className="font-medium">
+                        {photoFile ? "Foto adicionada" : "Sem foto"}
+                        {" · "}
+                        {videoFile ? "Vídeo adicionado" : "Sem vídeo"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.privacyAccepted}
+                        onChange={(e) =>
+                          updateForm(
+                            "privacyAccepted",
+                            e.target.checked
+                          )
+                        }
+                        className="w-4 h-4 mt-1"
+                      />
+                      <span className="text-sm">
+                        Li e aceito a política de privacidade e o tratamento dos meus dados para utilização da plataforma.
+                      </span>
+                    </label>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.confidentialityAccepted}
+                        onChange={(e) =>
+                          updateForm(
+                            "confidentialityAccepted",
+                            e.target.checked
+                          )
+                        }
+                        className="w-4 h-4 mt-1"
+                      />
+                      <span className="text-sm">
+                        Confirmo meu compromisso com o sigilo profissional e com as normas aplicáveis à minha atuação.
+                      </span>
+                    </label>
+                  </div>
+
+                  {otpSent && (
+                    <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
+                      <div className="flex items-start gap-3 mb-5">
+                        <ShieldCheck className="w-6 h-6 text-primary mt-0.5" />
+                        <div>
+                          <h3 className="font-semibold">
+                            Confirme seu e-mail
+                          </h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Enviamos um código de 6 dígitos para{" "}
+                            {form.email}.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) =>
+                            setOtp(
+                              e.target.value
+                                .replace(/\D/g, "")
+                                .slice(0, 6)
+                            )
+                          }
+                          className="flex-1 h-12 rounded-lg border border-border bg-background px-4 text-center text-xl tracking-[0.4em] font-semibold outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="000000"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={verifyEmailCode}
+                          disabled={verifyingOtp}
+                          className="h-12 px-6 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {verifyingOtp && (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          )}
+                          Confirmar e-mail
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4">
+                        <button
+                          type="button"
+                          onClick={resendCode}
+                          disabled={submitting}
+                          className="text-sm font-medium hover:underline disabled:opacity-50"
+                        >
+                          Reenviar código
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setOtpSent(false)}
+                          className="text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          Voltar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="flex items-start gap-3">
+                      <Lock className="w-5 h-5 text-primary mt-0.5" />
+                      <div>
+                        <p className="font-medium">
+                          Seus dados estão protegidos
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          O envio do cadastro solicitará a confirmação do seu endereço de e-mail antes do acesso ao painel profissional.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 sm:p-8 border-t border-border flex flex-col sm:flex-row gap-3 sm:justify-between">
+              <button
+                type="button"
+                onClick={previousStep}
+                disabled={step === 0 || submitting || verifyingOtp}
+                className="h-11 px-5 rounded-lg border border-border font-medium inline-flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Anterior
+              </button>
+
+              {step < STEPS.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={submitting}
+                  className="h-11 px-5 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  Próxima etapa
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : !otpSent ? (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="h-11 px-6 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  Enviar cadastro
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Cadastro profissional
+            </span>
+
+            <span>•</span>
+
+            <span>EntreNós</span>
+
+            <span>•</span>
+
+            <button
+              type="button"
+              onClick={() => navigate("/termos")}
+              className="hover:text-foreground inline-flex items-center gap-1"
+            >
+              Termos
+              <ExternalLink className="w-3 h-3" />
+            </button>
+
+            <span>•</span>
+
+            <button
+              type="button"
+              onClick={() => navigate("/privacidade")}
+              className="hover:text-foreground inline-flex items-center gap-1"
+            >
+              Privacidade
+              <ExternalLink className="w-3 h-3" />
+            </button>
+
+            <span>•</span>
+
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate("/");
+              }}
+              className="hover:text-foreground inline-flex items-center gap-1"
+            >
+              <LogOut className="w-3 h-3" />
+              Sair
+            </button>
+          </div>
         </div>
       </div>
     </PageShell>
