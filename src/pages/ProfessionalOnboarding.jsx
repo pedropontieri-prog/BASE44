@@ -8,13 +8,13 @@ import {
   Briefcase,
   Calendar,
   Camera,
-  Video,
   ShieldCheck,
   Loader2,
   LogIn,
   Lock,
   Eye,
   EyeOff,
+  Video,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
@@ -139,6 +139,17 @@ const UF_OPTIONS = [
   "TO",
 ];
 
+const APPROACH_OPTIONS = [
+  "Terapia Cognitivo-Comportamental (TCC)",
+  "Psicanálise",
+  "Gestalt-terapia",
+  "Abordagem humanista",
+  "Terapia sistêmica",
+  "EMDR",
+  "Terapia comportamental",
+  "Outra",
+];
+
 function formatPhone(value = "") {
   const numbers = String(value)
     .replace(/\D/g, "")
@@ -205,10 +216,7 @@ function getErrorMessage(error, fallback) {
 }
 
 function isRateLimitError(error) {
-  const message = getErrorMessage(
-    error,
-    ""
-  ).toLowerCase();
+  const message = getErrorMessage(error, "").toLowerCase();
 
   return (
     message.includes("rate limit") ||
@@ -218,15 +226,22 @@ function isRateLimitError(error) {
 }
 
 function isAlreadyRegisteredError(error) {
-  const message = getErrorMessage(
-    error,
-    ""
-  ).toLowerCase();
+  const message = getErrorMessage(error, "").toLowerCase();
 
   return (
     message.includes("already registered") ||
     message.includes("user already registered") ||
     message.includes("already exists")
+  );
+}
+
+function isEmailConfirmationError(error) {
+  const message = getErrorMessage(error, "").toLowerCase();
+
+  return (
+    message.includes("email not confirmed") ||
+    message.includes("email_not_confirmed") ||
+    message.includes("email confirmation")
   );
 }
 
@@ -247,19 +262,13 @@ export default function ProfessionalOnboarding() {
 
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [resendCooldown, setResendCooldown] =
-    useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [user, setUser] = useState(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  /*
-   * =========================================================
-   * SESSÃO
-   * =========================================================
-   */
   useEffect(() => {
     let mounted = true;
 
@@ -292,10 +301,8 @@ export default function ProfessionalOnboarding() {
               session.user.email ||
               current.email,
             name:
-              session.user.user_metadata
-                ?.full_name ||
-              session.user.user_metadata
-                ?.name ||
+              session.user.user_metadata?.full_name ||
+              session.user.user_metadata?.name ||
               current.name,
           }));
         }
@@ -318,11 +325,6 @@ export default function ProfessionalOnboarding() {
     };
   }, []);
 
-  /*
-   * =========================================================
-   * OBSERVA MUDANÇAS DE AUTENTICAÇÃO
-   * =========================================================
-   */
   useEffect(() => {
     const {
       data: subscriptionData,
@@ -342,8 +344,7 @@ export default function ProfessionalOnboarding() {
             name:
               authenticatedUser.user_metadata
                 ?.full_name ||
-              authenticatedUser.user_metadata
-                ?.name ||
+              authenticatedUser.user_metadata?.name ||
               current.name,
           }));
         }
@@ -355,11 +356,6 @@ export default function ProfessionalOnboarding() {
     };
   }, []);
 
-  /*
-   * =========================================================
-   * COOLDOWN DO OTP
-   * =========================================================
-   */
   useEffect(() => {
     if (resendCooldown <= 0) {
       return undefined;
@@ -381,11 +377,6 @@ export default function ProfessionalOnboarding() {
     };
   }, [resendCooldown]);
 
-  /*
-   * =========================================================
-   * FORM
-   * =========================================================
-   */
   const updateForm = (key, value) => {
     setForm((current) => ({
       ...current,
@@ -397,14 +388,11 @@ export default function ProfessionalOnboarding() {
 
   const toggleArrayValue = (key, value) => {
     setForm((current) => {
-      const currentValues = Array.isArray(
-        current[key]
-      )
+      const currentValues = Array.isArray(current[key])
         ? current[key]
         : [];
 
-      const exists =
-        currentValues.includes(value);
+      const exists = currentValues.includes(value);
 
       return {
         ...current,
@@ -419,14 +407,7 @@ export default function ProfessionalOnboarding() {
     setError("");
   };
 
-  /*
-   * =========================================================
-   * VALIDAÇÕES
-   * =========================================================
-   */
-  const validateStep = (
-    currentStep = step
-  ) => {
+  const validateStep = (currentStep = step) => {
     if (currentStep === 0) {
       if (!form.name.trim()) {
         return "Informe seu nome completo.";
@@ -454,8 +435,7 @@ export default function ProfessionalOnboarding() {
         }
 
         if (
-          form.password !==
-          form.confirmPassword
+          form.password !== form.confirmPassword
         ) {
           return "As senhas não coincidem.";
         }
@@ -495,17 +475,11 @@ export default function ProfessionalOnboarding() {
     }
 
     if (currentStep === 3) {
-      if (
-        !form.online &&
-        !form.presencial
-      ) {
+      if (!form.online && !form.presencial) {
         return "Selecione pelo menos uma modalidade de atendimento.";
       }
 
-      if (
-        form.online &&
-        !form.ePsi
-      ) {
+      if (form.online && !form.ePsi) {
         return "Confirme que possui autorização e-Psi para atendimento online.";
       }
 
@@ -514,6 +488,20 @@ export default function ProfessionalOnboarding() {
         !form.address.trim()
       ) {
         return "Informe o endereço do consultório.";
+      }
+
+      if (
+        !form.sessionDuration ||
+        Number(form.sessionDuration) <= 0
+      ) {
+        return "Informe a duração da sessão.";
+      }
+
+      if (
+        !form.sessionPrice ||
+        Number(form.sessionPrice) <= 0
+      ) {
+        return "Informe o valor da sessão.";
       }
     }
 
@@ -525,8 +513,7 @@ export default function ProfessionalOnboarding() {
 
     if (currentStep === 5) {
       for (let i = 0; i < 5; i += 1) {
-        const validationError =
-          validateStep(i);
+        const validationError = validateStep(i);
 
         if (validationError) {
           return validationError;
@@ -539,8 +526,7 @@ export default function ProfessionalOnboarding() {
 
   const validateAllSteps = () => {
     for (let i = 0; i < 5; i += 1) {
-      const validationError =
-        validateStep(i);
+      const validationError = validateStep(i);
 
       if (validationError) {
         return {
@@ -553,11 +539,6 @@ export default function ProfessionalOnboarding() {
     return null;
   };
 
-  /*
-   * =========================================================
-   * METADADOS DO USUÁRIO
-   * =========================================================
-   */
   const updateProfessionalMetadata = async (
     authenticatedUser,
     name
@@ -574,7 +555,6 @@ export default function ProfessionalOnboarding() {
       data: {
         name,
         full_name: name,
-
         role: "professional",
         user_type: "professional",
         account_type: "professional",
@@ -587,11 +567,6 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * =========================================================
-   * CRIA CONTA
-   * =========================================================
-   */
   const createAccount = async () => {
     if (submitting) {
       return;
@@ -600,8 +575,7 @@ export default function ProfessionalOnboarding() {
     setError("");
     setSuccess("");
 
-    const validationError =
-      validateStep(0);
+    const validationError = validateStep(0);
 
     if (validationError) {
       setError(validationError);
@@ -611,15 +585,9 @@ export default function ProfessionalOnboarding() {
     setSubmitting(true);
 
     try {
-      const email = normalizeEmail(
-        form.email
-      );
-
+      const email = normalizeEmail(form.email);
       const name = form.name.trim();
 
-      /*
-       * Se já existe sessão, não cria outra conta.
-       */
       if (user?.id) {
         await updateProfessionalMetadata(
           user,
@@ -636,28 +604,23 @@ export default function ProfessionalOnboarding() {
         return;
       }
 
-      /*
-       * Criação da conta no Supabase Auth.
-       */
       const {
         data,
         error: signUpError,
-      } =
-        await supabase.auth.signUp({
-          email,
-          password: form.password,
-          options: {
-            data: {
-              name,
-              full_name: name,
-
-              role: "professional",
-              user_type: "professional",
-              account_type: "professional",
-              profile_type: "professional",
-            },
+      } = await supabase.auth.signUp({
+        email,
+        password: form.password,
+        options: {
+          data: {
+            name,
+            full_name: name,
+            role: "professional",
+            user_type: "professional",
+            account_type: "professional",
+            profile_type: "professional",
           },
-        });
+        },
+      });
 
       if (signUpError) {
         throw signUpError;
@@ -669,18 +632,11 @@ export default function ProfessionalOnboarding() {
         );
       }
 
-      /*
-       * O Supabase pode devolver uma sessão
-       * imediatamente ou exigir confirmação.
-       */
       const authenticatedUser =
         data.session?.user || data.user;
 
       setUser(authenticatedUser);
 
-      /*
-       * Se houver sessão, atualizamos os metadados.
-       */
       if (data.session?.user) {
         try {
           await updateProfessionalMetadata(
@@ -721,7 +677,7 @@ export default function ProfessionalOnboarding() {
         isAlreadyRegisteredError(err)
       ) {
         setError(
-          "Este e-mail já está cadastrado. Entre pela opção \"Já tenho uma conta\"."
+          'Este e-mail já está cadastrado. Entre pela opção "Já tenho uma conta".'
         );
       } else {
         setError(
@@ -736,37 +692,25 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * =========================================================
-   * OBTÉM USUÁRIO ATUAL
-   * =========================================================
-   */
-  const getAuthenticatedUser =
-    async () => {
-      const {
-        data,
-        error: authError,
-      } =
-        await supabase.auth.getUser();
+  const getAuthenticatedUser = async () => {
+    const {
+      data,
+      error: authError,
+    } = await supabase.auth.getUser();
 
-      if (authError) {
-        throw authError;
-      }
+    if (authError) {
+      throw authError;
+    }
 
-      if (!data?.user) {
-        throw new Error(
-          "Sua sessão expirou. Faça login novamente."
-        );
-      }
+    if (!data?.user) {
+      throw new Error(
+        "Sua sessão expirou. Faça login novamente."
+      );
+    }
 
-      return data.user;
-    };
+    return data.user;
+  };
 
-  /*
-   * =========================================================
-   * SALVA PSYCHOLOGIST
-   * =========================================================
-   */
   const saveProfessional = async (
     authenticatedUser
   ) => {
@@ -873,9 +817,6 @@ export default function ProfessionalOnboarding() {
       public_profile: false,
     };
 
-    /*
-     * Procura registro existente pelo user_id.
-     */
     const {
       data: existing,
       error: existingError,
@@ -892,17 +833,12 @@ export default function ProfessionalOnboarding() {
       throw existingError;
     }
 
-    /*
-     * Atualiza registro existente.
-     */
     if (existing?.id) {
       const {
         error: updateError,
       } = await supabase
         .from("psychologists")
-        .update(
-          psychologistData
-        )
+        .update(psychologistData)
         .eq(
           "id",
           existing.id
@@ -919,20 +855,14 @@ export default function ProfessionalOnboarding() {
       return existing.id;
     }
 
-    /*
-     * Cria novo registro.
-     */
     const {
       data: created,
       error: insertError,
-    } =
-      await supabase
-        .from("psychologists")
-        .insert(
-          psychologistData
-        )
-        .select("id")
-        .single();
+    } = await supabase
+      .from("psychologists")
+      .insert(psychologistData)
+      .select("id")
+      .single();
 
     if (insertError) {
       throw insertError;
@@ -941,11 +871,6 @@ export default function ProfessionalOnboarding() {
     return created?.id || null;
   };
 
-  /*
-   * =========================================================
-   * ENVIA CÓDIGO FINAL
-   * =========================================================
-   */
   const sendFinalEmailConfirmation =
     async () => {
       if (
@@ -961,9 +886,7 @@ export default function ProfessionalOnboarding() {
 
       try {
         const email =
-          normalizeEmail(
-            form.email
-          );
+          normalizeEmail(form.email);
 
         if (!email) {
           throw new Error(
@@ -973,11 +896,10 @@ export default function ProfessionalOnboarding() {
 
         const {
           error: resendError,
-        } =
-          await supabase.auth.resend({
-            type: "signup",
-            email,
-          });
+        } = await supabase.auth.resend({
+          type: "signup",
+          email,
+        });
 
         if (resendError) {
           throw resendError;
@@ -1017,14 +939,7 @@ export default function ProfessionalOnboarding() {
       }
     };
 
-  /*
-   * =========================================================
-   * VERIFICA OTP
-   * =========================================================
-   */
-  const verifyEmailCode = async (
-    event
-  ) => {
+  const verifyEmailCode = async (event) => {
     event.preventDefault();
 
     if (verifyingOtp) {
@@ -1047,33 +962,21 @@ export default function ProfessionalOnboarding() {
 
     try {
       const email =
-        normalizeEmail(
-          form.email
-        );
+        normalizeEmail(form.email);
 
-      /*
-       * Confirma o cadastro.
-       */
       const {
         data,
         error: verifyError,
-      } =
-        await supabase.auth.verifyOtp({
-          email,
-          token: code,
-          type: "signup",
-        });
+      } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: "signup",
+      });
 
       if (verifyError) {
         throw verifyError;
       }
 
-      /*
-       * Em alguns cenários o Supabase pode confirmar
-       * sem devolver session imediatamente.
-       *
-       * Nesse caso tentamos recuperar a sessão atual.
-       */
       let authenticatedUser =
         data?.user || null;
 
@@ -1084,8 +987,7 @@ export default function ProfessionalOnboarding() {
         const {
           data: sessionData,
           error: sessionError,
-        } =
-          await supabase.auth.getSession();
+        } = await supabase.auth.getSession();
 
         if (sessionError) {
           throw sessionError;
@@ -1104,32 +1006,23 @@ export default function ProfessionalOnboarding() {
         );
       }
 
-      /*
-       * Atualiza metadados.
-       */
       await updateProfessionalMetadata(
         authenticatedUser,
         form.name.trim()
       );
 
-      /*
-       * Busca novamente o usuário autenticado
-       * depois do update.
-       */
       const freshUser =
         await getAuthenticatedUser();
 
       setUser(freshUser);
 
-      /*
-       * Salva o perfil profissional somente agora.
-       */
       await saveProfessional(
         freshUser
       );
 
       setOtp("");
       setOtpSent(false);
+
       setSuccess(
         "E-mail confirmado! Abrindo seu painel profissional..."
       );
@@ -1186,11 +1079,6 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * =========================================================
-   * REENVIA CÓDIGO
-   * =========================================================
-   */
   const resendCode = async () => {
     if (
       resendCooldown > 0 ||
@@ -1206,9 +1094,7 @@ export default function ProfessionalOnboarding() {
 
     try {
       const email =
-        normalizeEmail(
-          form.email
-        );
+        normalizeEmail(form.email);
 
       if (!email) {
         throw new Error(
@@ -1218,11 +1104,10 @@ export default function ProfessionalOnboarding() {
 
       const {
         error: resendError,
-      } =
-        await supabase.auth.resend({
-          type: "signup",
-          email,
-        });
+      } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
 
       if (resendError) {
         throw resendError;
@@ -1257,11 +1142,6 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * =========================================================
-   * UPLOAD
-   * =========================================================
-   */
   const uploadFile = async (
     event,
     type
@@ -1278,21 +1158,15 @@ export default function ProfessionalOnboarding() {
     setUploading(true);
 
     try {
-      let authenticatedUser =
-        user;
+      let authenticatedUser = user;
 
       if (!authenticatedUser?.id) {
         authenticatedUser =
           await getAuthenticatedUser();
 
-        setUser(
-          authenticatedUser
-        );
+        setUser(authenticatedUser);
       }
 
-      /*
-       * FOTO
-       */
       if (type === "photo") {
         const allowedTypes = [
           "image/jpeg",
@@ -1301,9 +1175,7 @@ export default function ProfessionalOnboarding() {
         ];
 
         if (
-          !allowedTypes.includes(
-            file.type
-          )
+          !allowedTypes.includes(file.type)
         ) {
           throw new Error(
             "Envie uma foto JPG, PNG ou WEBP."
@@ -1320,9 +1192,6 @@ export default function ProfessionalOnboarding() {
         }
       }
 
-      /*
-       * VÍDEO
-       */
       if (type === "video") {
         const allowedTypes = [
           "video/mp4",
@@ -1331,9 +1200,7 @@ export default function ProfessionalOnboarding() {
         ];
 
         if (
-          !allowedTypes.includes(
-            file.type
-          )
+          !allowedTypes.includes(file.type)
         ) {
           throw new Error(
             "Envie um vídeo MP4, WEBM ou MOV."
@@ -1379,19 +1246,17 @@ export default function ProfessionalOnboarding() {
 
       const {
         error: uploadError,
-      } =
-        await supabase.storage
-          .from("profiles")
-          .upload(
-            path,
-            file,
-            {
-              cacheControl: "3600",
-              upsert: false,
-              contentType:
-                file.type,
-            }
-          );
+      } = await supabase.storage
+        .from("profiles")
+        .upload(
+          path,
+          file,
+          {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: file.type,
+          }
+        );
 
       if (uploadError) {
         throw uploadError;
@@ -1444,19 +1309,10 @@ export default function ProfessionalOnboarding() {
       );
     } finally {
       setUploading(false);
-
-      /*
-       * Permite selecionar novamente o mesmo arquivo.
-       */
       event.target.value = "";
     }
   };
 
-  /*
-   * =========================================================
-   * FINALIZA CADASTRO
-   * =========================================================
-   */
   const finishRegistration =
     async () => {
       if (
@@ -1470,20 +1326,13 @@ export default function ProfessionalOnboarding() {
       setError("");
       setSuccess("");
 
-      /*
-       * Valida tudo antes de enviar o código.
-       */
       const validation =
         validateAllSteps();
 
       if (validation) {
-        setStep(
-          validation.step
-        );
+        setStep(validation.step);
 
-        setError(
-          validation.error
-        );
+        setError(validation.error);
 
         window.scrollTo({
           top: 0,
@@ -1494,20 +1343,11 @@ export default function ProfessionalOnboarding() {
       }
 
       try {
-        /*
-         * Garante usuário autenticado.
-         */
         const authenticatedUser =
           await getAuthenticatedUser();
 
-        setUser(
-          authenticatedUser
-        );
+        setUser(authenticatedUser);
 
-        /*
-         * Atualiza metadados antes da confirmação,
-         * quando possível.
-         */
         try {
           await updateProfessionalMetadata(
             authenticatedUser,
@@ -1520,9 +1360,6 @@ export default function ProfessionalOnboarding() {
           );
         }
 
-        /*
-         * ENVIA O CÓDIGO SOMENTE AGORA.
-         */
         await sendFinalEmailConfirmation();
       } catch (err) {
         console.error(
@@ -1539,11 +1376,6 @@ export default function ProfessionalOnboarding() {
       }
     };
 
-  /*
-   * =========================================================
-   * PRÓXIMO PASSO
-   * =========================================================
-   */
   const nextStep = async () => {
     if (
       submitting ||
@@ -1560,18 +1392,10 @@ export default function ProfessionalOnboarding() {
       validateStep(step);
 
     if (validationError) {
-      setError(
-        validationError
-      );
+      setError(validationError);
       return;
     }
 
-    /*
-     * PRIMEIRO PASSO
-     *
-     * Se não existe usuário:
-     * cria a conta.
-     */
     if (
       step === 0 &&
       !user
@@ -1580,9 +1404,6 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    /*
-     * ETAPAS NORMAIS.
-     */
     if (
       step <
       STEPS.length - 1
@@ -1600,17 +1421,9 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    /*
-     * ÚLTIMA ETAPA.
-     */
     await finishRegistration();
   };
 
-  /*
-   * =========================================================
-   * PASSO ANTERIOR
-   * =========================================================
-   */
   const previousStep = () => {
     if (
       submitting ||
@@ -1636,11 +1449,6 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  /*
-   * =========================================================
-   * LOADING
-   * =========================================================
-   */
   if (loading) {
     return (
       <PageShell>
@@ -1651,11 +1459,6 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  /*
-   * =========================================================
-   * TELA DE CONFIRMAÇÃO DE E-MAIL
-   * =========================================================
-   */
   if (otpSent) {
     return (
       <PageShell>
@@ -1697,9 +1500,7 @@ export default function ProfessionalOnboarding() {
               )}
 
               <form
-                onSubmit={
-                  verifyEmailCode
-                }
+                onSubmit={verifyEmailCode}
                 className="mt-7 space-y-5"
               >
                 <div>
@@ -1723,22 +1524,14 @@ export default function ProfessionalOnboarding() {
                     onChange={(event) => {
                       const value =
                         event.target.value
-                          .replace(
-                            /\D/g,
-                            ""
-                          )
-                          .slice(
-                            0,
-                            8
-                          );
+                          .replace(/\D/g, "")
+                          .slice(0, 8);
 
                       setOtp(value);
                       setError("");
                     }}
                     placeholder="000000"
-                    disabled={
-                      verifyingOtp
-                    }
+                    disabled={verifyingOtp}
                     className="w-full h-14 rounded-xl border border-border bg-background px-4 text-center text-2xl font-bold tracking-[0.35em] outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
@@ -1781,9 +1574,7 @@ export default function ProfessionalOnboarding() {
                       submitting ||
                       verifyingOtp
                     }
-                    onClick={
-                      resendCode
-                    }
+                    onClick={resendCode}
                     className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
                   >
                     {submitting
@@ -1803,15 +1594,11 @@ export default function ProfessionalOnboarding() {
                     return;
                   }
 
-                  setOtpSent(
-                    false
-                  );
+                  setOtpSent(false);
                   setOtp("");
                   setError("");
                   setSuccess("");
-                  setResendCooldown(
-                    0
-                  );
+                  setResendCooldown(0);
                 }}
                 disabled={
                   verifyingOtp ||
@@ -1828,22 +1615,17 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  const StepIcon =
-    STEPS[step].icon;
+  const StepIcon = STEPS[step].icon;
 
   return (
     <PageShell>
       <div className="min-h-screen bg-background py-8 px-4">
         <div className="max-w-5xl mx-auto">
 
-          {/* HEADER */}
-
           <div className="flex items-center justify-between mb-8">
             <button
               type="button"
-              onClick={() =>
-                navigate("/")
-              }
+              onClick={() => navigate("/")}
               className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -1852,9 +1634,7 @@ export default function ProfessionalOnboarding() {
 
             <button
               type="button"
-              onClick={() =>
-                navigate("/login")
-              }
+              onClick={() => navigate("/login")}
               className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70"
             >
               <LogIn className="w-4 h-4" />
@@ -1862,112 +1642,83 @@ export default function ProfessionalOnboarding() {
             </button>
           </div>
 
-          {/* STEPPER */}
-
           <div className="mb-10">
             <div className="flex items-center justify-between gap-2">
-              {STEPS.map(
-                (
-                  item,
-                  index
-                ) => {
-                  const Icon =
-                    item.icon;
+              {STEPS.map((item, index) => {
+                const Icon = item.icon;
 
-                  const active =
-                    index ===
-                    step;
+                const active =
+                  index === step;
 
-                  const completed =
-                    index <
-                    step;
+                const completed =
+                  index < step;
 
-                  return (
-                    <React.Fragment
-                      key={
-                        item.key
-                      }
+                return (
+                  <React.Fragment
+                    key={item.key}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          index <= step
+                        ) {
+                          setError("");
+                          setSuccess("");
+                          setStep(index);
+
+                          window.scrollTo({
+                            top: 0,
+                            behavior:
+                              "smooth",
+                          });
+                        }
+                      }}
+                      className="flex flex-col items-center gap-2 min-w-0"
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            index <=
-                            step
-                          ) {
-                            setError(
-                              ""
-                            );
-                            setSuccess(
-                              ""
-                            );
-                            setStep(
-                              index
-                            );
-
-                            window.scrollTo(
-                              {
-                                top: 0,
-                                behavior:
-                                  "smooth",
-                              }
-                            );
-                          }
-                        }}
-                        className="flex flex-col items-center gap-2 min-w-0"
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
+                          active ||
+                          completed
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border text-muted-foreground"
+                        }`}
                       >
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
-                            active ||
-                            completed
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background border-border text-muted-foreground"
-                          }`}
-                        >
-                          {completed ? (
-                            <Check className="w-5 h-5" />
-                          ) : (
-                            <Icon className="w-5 h-5" />
-                          )}
-                        </div>
+                        {completed ? (
+                          <Check className="w-5 h-5" />
+                        ) : (
+                          <Icon className="w-5 h-5" />
+                        )}
+                      </div>
 
-                        <span
-                          className={`text-xs text-center hidden sm:block ${
-                            active
-                              ? "font-semibold text-foreground"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {
-                            item.title
-                          }
-                        </span>
-                      </button>
+                      <span
+                        className={`text-xs text-center hidden sm:block ${
+                          active
+                            ? "font-semibold text-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {item.title}
+                      </span>
+                    </button>
 
-                      {index <
-                        STEPS.length -
-                          1 && (
-                        <div
-                          className={`h-px flex-1 ${
-                            index <
-                            step
-                              ? "bg-primary"
-                              : "bg-border"
-                          }`}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                }
-              )}
+                    {index <
+                      STEPS.length - 1 && (
+                      <div
+                        className={`h-px flex-1 ${
+                          index < step
+                            ? "bg-primary"
+                            : "bg-border"
+                        }`}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
           </div>
 
-          {/* CARD */}
-
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-
-            {/* CARD HEADER */}
 
             <div className="p-6 sm:p-8 border-b border-border">
               <div className="flex items-center gap-3">
@@ -1977,27 +1728,18 @@ export default function ProfessionalOnboarding() {
 
                 <div>
                   <h1 className="text-2xl font-bold">
-                    {
-                      STEPS[step]
-                        .title
-                    }
+                    {STEPS[step].title}
                   </h1>
 
                   <p className="text-sm text-muted-foreground">
-                    Etapa{" "}
-                    {step + 1}{" "}
-                    de{" "}
-                    {
-                      STEPS.length
-                    }
+                    Etapa {step + 1} de{" "}
+                    {STEPS.length}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="p-6 sm:p-8">
-
-              {/* MENSAGENS */}
 
               {error && (
                 <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -2010,10 +1752,6 @@ export default function ProfessionalOnboarding() {
                   {success}
                 </div>
               )}
-
-              {/* =====================================================
-                  PASSO 0
-              ====================================================== */}
 
               {step === 0 && (
                 <div className="space-y-6">
@@ -2036,9 +1774,7 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="text"
-                        value={
-                          form.name
-                        }
+                        value={form.name}
                         onChange={(e) =>
                           updateForm(
                             "name",
@@ -2048,9 +1784,7 @@ export default function ProfessionalOnboarding() {
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Seu nome completo"
                         autoComplete="name"
-                        disabled={
-                          submitting
-                        }
+                        disabled={submitting}
                       />
                     </div>
 
@@ -2061,9 +1795,7 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="email"
-                        value={
-                          form.email
-                        }
+                        value={form.email}
                         onChange={(e) =>
                           updateForm(
                             "email",
@@ -2075,9 +1807,7 @@ export default function ProfessionalOnboarding() {
                         autoComplete="email"
                         disabled={
                           submitting ||
-                          Boolean(
-                            user
-                          )
+                          Boolean(user)
                         }
                       />
                     </div>
@@ -2089,9 +1819,7 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="tel"
-                        value={
-                          form.phone
-                        }
+                        value={form.phone}
                         onChange={(e) =>
                           updateForm(
                             "phone",
@@ -2113,9 +1841,7 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="text"
-                        value={
-                          form.cpf
-                        }
+                        value={form.cpf}
                         onChange={(e) =>
                           updateForm(
                             "cpf",
@@ -2137,9 +1863,7 @@ export default function ProfessionalOnboarding() {
 
                       <input
                         type="date"
-                        value={
-                          form.birthDate
-                        }
+                        value={form.birthDate}
                         onChange={(e) =>
                           updateForm(
                             "birthDate",
@@ -2163,3 +1887,1060 @@ export default function ProfessionalOnboarding() {
                             <input
                               type={
                                 showPassword
+                                  ? "text"
+                                  : "password"
+                              }
+                              value={
+                                form.password
+                              }
+                              onChange={(e) =>
+                                updateForm(
+                                  "password",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
+                              placeholder="Mínimo 6 caracteres"
+                              autoComplete="new-password"
+                              disabled={
+                                submitting
+                              }
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowPassword(
+                                  (value) =>
+                                    !value
+                                )
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              aria-label={
+                                showPassword
+                                  ? "Ocultar senha"
+                                  : "Mostrar senha"
+                              }
+                            >
+                              {showPassword ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">
+                            Confirmar senha
+                          </label>
+
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
+                            <input
+                              type={
+                                showConfirmPassword
+                                  ? "text"
+                                  : "password"
+                              }
+                              value={
+                                form.confirmPassword
+                              }
+                              onChange={(e) =>
+                                updateForm(
+                                  "confirmPassword",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
+                              placeholder="Repita sua senha"
+                              autoComplete="new-password"
+                              disabled={
+                                submitting
+                              }
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowConfirmPassword(
+                                  (value) =>
+                                    !value
+                                )
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              aria-label={
+                                showConfirmPassword
+                                  ? "Ocultar confirmação"
+                                  : "Mostrar confirmação"
+                              }
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Cidade
+                      </label>
+
+                      <input
+                        type="text"
+                        value={form.city}
+                        onChange={(e) =>
+                          updateForm(
+                            "city",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="Sua cidade"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Estado
+                      </label>
+
+                      <select
+                        value={form.state}
+                        onChange={(e) =>
+                          updateForm(
+                            "state",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">
+                          Selecione
+                        </option>
+
+                        {UF_OPTIONS.map(
+                          (uf) => (
+                            <option
+                              key={uf}
+                              value={uf}
+                            >
+                              {uf}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      Registro profissional
+                    </h2>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Informe os dados do seu registro profissional.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Número do CRP
+                      </label>
+
+                      <input
+                        type="text"
+                        value={form.crp}
+                        onChange={(e) =>
+                          updateForm(
+                            "crp",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="Ex.: 06/123456"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Estado do CRP
+                      </label>
+
+                      <select
+                        value={form.crpState}
+                        onChange={(e) =>
+                          updateForm(
+                            "crpState",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">
+                          Selecione
+                        </option>
+
+                        {UF_OPTIONS.map(
+                          (uf) => (
+                            <option
+                              key={uf}
+                              value={uf}
+                            >
+                              CRP - {uf}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Situação do registro
+                      </label>
+
+                      <select
+                        value={form.crpStatus}
+                        onChange={(e) =>
+                          updateForm(
+                            "crpStatus",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="ativo">
+                          Ativo
+                        </option>
+                        <option value="regular">
+                          Regular
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 text-sm text-muted-foreground">
+                    Seus dados profissionais serão enviados para análise e verificação.
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-7">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      Sua atuação
+                    </h2>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Conte um pouco sobre sua área de atuação.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Abordagem principal
+                    </label>
+
+                    <select
+                      value={form.approach}
+                      onChange={(e) =>
+                        updateForm(
+                          "approach",
+                          e.target.value
+                        )
+                      }
+                      className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">
+                        Selecione sua abordagem
+                      </option>
+
+                      {APPROACH_OPTIONS.map(
+                        (approach) => (
+                          <option
+                            key={approach}
+                            value={approach}
+                          >
+                            {approach}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Público atendido
+                    </label>
+
+                    <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {AUDIENCE_OPTIONS.map(
+                        (item) => {
+                          const selected =
+                            form.audience.includes(
+                              item
+                            );
+
+                          return (
+                            <button
+                              type="button"
+                              key={item}
+                              onClick={() =>
+                                toggleArrayValue(
+                                  "audience",
+                                  item
+                                )
+                              }
+                              className={`p-3 rounded-xl border text-sm text-left transition ${
+                                selected
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span
+                                  className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                                    selected
+                                      ? "bg-primary border-primary text-white"
+                                      : "border-border"
+                                  }`}
+                                >
+                                  {selected && (
+                                    <Check className="w-3.5 h-3.5" />
+                                  )}
+                                </span>
+
+                                {item}
+                              </span>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Temas de atuação
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      {THEME_OPTIONS.map(
+                        (item) => {
+                          const selected =
+                            form.themes.includes(
+                              item
+                            );
+
+                          return (
+                            <button
+                              type="button"
+                              key={item}
+                              onClick={() =>
+                                toggleArrayValue(
+                                  "themes",
+                                  item
+                                )
+                              }
+                              className={`px-4 py-2 rounded-full border text-sm transition ${
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border hover:border-primary/50"
+                              }`}
+                            >
+                              {item}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-7">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      Atendimento
+                    </h2>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Configure como você realiza seus atendimentos.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Modalidades
+                    </label>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateForm(
+                            "online",
+                            !form.online
+                          )
+                        }
+                        className={`rounded-xl border p-4 text-left transition ${
+                          form.online
+                            ? "border-primary bg-primary/10"
+                            : "border-border"
+                        }`}
+                      >
+                        <div className="font-semibold">
+                          Atendimento online
+                        </div>
+
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Consultas realizadas por vídeo.
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateForm(
+                            "presencial",
+                            !form.presencial
+                          )
+                        }
+                        className={`rounded-xl border p-4 text-left transition ${
+                          form.presencial
+                            ? "border-primary bg-primary/10"
+                            : "border-border"
+                        }`}
+                      >
+                        <div className="font-semibold">
+                          Atendimento presencial
+                        </div>
+
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Consultas realizadas em consultório.
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {form.online && (
+                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.ePsi}
+                        onChange={(e) =>
+                          updateForm(
+                            "ePsi",
+                            e.target.checked
+                          )
+                        }
+                        className="mt-1"
+                      />
+
+                      <span>
+                        <span className="block font-medium text-sm">
+                          Possuo autorização e-Psi
+                        </span>
+
+                        <span className="block text-xs text-muted-foreground mt-1">
+                          Confirmo que estou habilitado para realizar atendimento psicológico online.
+                        </span>
+                      </span>
+                    </label>
+                  )}
+
+                  {form.presencial && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Endereço do consultório
+                      </label>
+
+                      <input
+                        type="text"
+                        value={form.address}
+                        onChange={(e) =>
+                          updateForm(
+                            "address",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        placeholder="Rua, número, sala..."
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Duração da sessão
+                      </label>
+
+                      <select
+                        value={
+                          form.sessionDuration
+                        }
+                        onChange={(e) =>
+                          updateForm(
+                            "sessionDuration",
+                            e.target.value
+                          )
+                        }
+                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="30">
+                          30 minutos
+                        </option>
+                        <option value="40">
+                          40 minutos
+                        </option>
+                        <option value="50">
+                          50 minutos
+                        </option>
+                        <option value="60">
+                          60 minutos
+                        </option>
+                        <option value="90">
+                          90 minutos
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Valor da sessão
+                      </label>
+
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          R$
+                        </span>
+
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={
+                            form.sessionPrice
+                          }
+                          onChange={(e) =>
+                            updateForm(
+                              "sessionPrice",
+                              e.target.value
+                            )
+                          }
+                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-3 outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="150,00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 4 && (
+                <div className="space-y-7">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      Foto e vídeo
+                    </h2>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Adicione uma foto profissional e, se desejar, um vídeo de apresentação.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="rounded-2xl border border-border p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Camera className="w-5 h-5" />
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold">
+                            Foto profissional
+                          </h3>
+
+                          <p className="text-xs text-muted-foreground">
+                            JPG, PNG ou WEBP · até 5 MB
+                          </p>
+                        </div>
+                      </div>
+
+                      {form.photoUrl ? (
+                        <div className="space-y-4">
+                          <img
+                            src={form.photoUrl}
+                            alt="Foto profissional"
+                            className="w-full aspect-square object-cover rounded-xl"
+                          />
+
+                          <label className="block text-center cursor-pointer rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted">
+                            Trocar foto
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) =>
+                                uploadFile(
+                                  e,
+                                  "photo"
+                                )
+                              }
+                              className="hidden"
+                              disabled={
+                                uploading
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition">
+                          {uploading ? (
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          ) : (
+                            <>
+                              <Camera className="w-9 h-9 text-muted-foreground mb-3" />
+                              <span className="font-medium">
+                                Enviar foto
+                              </span>
+                              <span className="text-xs text-muted-foreground mt-1">
+                                Clique para selecionar
+                              </span>
+                            </>
+                          )}
+
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(e) =>
+                              uploadFile(
+                                e,
+                                "photo"
+                              )
+                            }
+                            className="hidden"
+                            disabled={
+                              uploading
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="rounded-2xl border border-border p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Video className="w-5 h-5" />
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold">
+                            Vídeo de apresentação
+                          </h3>
+
+                          <p className="text-xs text-muted-foreground">
+                            MP4, WEBM ou MOV · até 500 MB
+                          </p>
+                        </div>
+                      </div>
+
+                      {form.videoUrl ? (
+                        <div className="space-y-4">
+                          <video
+                            src={form.videoUrl}
+                            controls
+                            className="w-full rounded-xl bg-black aspect-video"
+                          />
+
+                          <label className="block text-center cursor-pointer rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted">
+                            Trocar vídeo
+                            <input
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime"
+                              onChange={(e) =>
+                                uploadFile(
+                                  e,
+                                  "video"
+                                )
+                              }
+                              className="hidden"
+                              disabled={
+                                uploading
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition">
+                          {uploading ? (
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          ) : (
+                            <>
+                              <Video className="w-9 h-9 text-muted-foreground mb-3" />
+                              <span className="font-medium">
+                                Enviar vídeo
+                              </span>
+                              <span className="text-xs text-muted-foreground mt-1">
+                                Opcional
+                              </span>
+                            </>
+                          )}
+
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime"
+                            onChange={(e) =>
+                              uploadFile(
+                                e,
+                                "video"
+                              )
+                            }
+                            className="hidden"
+                            disabled={
+                              uploading
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Apresentação profissional
+                    </label>
+
+                    <textarea
+                      value={
+                        form.presentation
+                      }
+                      onChange={(e) =>
+                        updateForm(
+                          "presentation",
+                          e.target.value
+                        )
+                      }
+                      rows={6}
+                      maxLength={1200}
+                      className="w-full rounded-xl border border-border bg-background px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                      placeholder="Conte brevemente sobre sua experiência, forma de trabalho e como você pode ajudar seus pacientes."
+                    />
+
+                    <p className="text-xs text-muted-foreground mt-1 text-right">
+                      {form.presentation.length}/1200
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {step === 5 && (
+                <div className="space-y-7">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      Revise seu cadastro
+                    </h2>
+
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Confira as informações antes de finalizar.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-5">
+                    <div className="rounded-xl border border-border p-5">
+                      <h3 className="font-semibold mb-3">
+                        Dados pessoais
+                      </h3>
+
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="text-muted-foreground">
+                            Nome:
+                          </span>{" "}
+                          {form.name || "-"}
+                        </p>
+
+                        <p className="break-all">
+                          <span className="text-muted-foreground">
+                            E-mail:
+                          </span>{" "}
+                          {form.email || "-"}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Telefone:
+                          </span>{" "}
+                          {form.phone || "-"}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Cidade:
+                          </span>{" "}
+                          {form.city || "-"} /{" "}
+                          {form.state || "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-5">
+                      <h3 className="font-semibold mb-3">
+                        Registro
+                      </h3>
+
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="text-muted-foreground">
+                            CRP:
+                          </span>{" "}
+                          {form.crp || "-"}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Região:
+                          </span>{" "}
+                          {form.crpState || "-"}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Situação:
+                          </span>{" "}
+                          {form.crpStatus}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-5">
+                      <h3 className="font-semibold mb-3">
+                        Atuação
+                      </h3>
+
+                      <div className="space-y-3 text-sm">
+                        <p>
+                          <span className="text-muted-foreground">
+                            Abordagem:
+                          </span>{" "}
+                          {form.approach || "-"}
+                        </p>
+
+                        <div>
+                          <span className="text-muted-foreground">
+                            Público:
+                          </span>
+
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {form.audience.length ? (
+                              form.audience.map(
+                                (item) => (
+                                  <span
+                                    key={item}
+                                    className="px-2.5 py-1 rounded-full bg-muted text-xs"
+                                  >
+                                    {item}
+                                  </span>
+                                )
+                              )
+                            ) : (
+                              <span>
+                                -
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-muted-foreground">
+                            Temas:
+                          </span>
+
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {form.themes.length ? (
+                              form.themes.map(
+                                (item) => (
+                                  <span
+                                    key={item}
+                                    className="px-2.5 py-1 rounded-full bg-muted text-xs"
+                                  >
+                                    {item}
+                                  </span>
+                                )
+                              )
+                            ) : (
+                              <span>
+                                -
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border p-5">
+                      <h3 className="font-semibold mb-3">
+                        Atendimento
+                      </h3>
+
+                      <div className="space-y-2 text-sm">
+                        <p>
+                          <span className="text-muted-foreground">
+                            Modalidades:
+                          </span>{" "}
+                          {[
+                            form.online &&
+                              "Online",
+                            form.presencial &&
+                              "Presencial",
+                          ]
+                            .filter(Boolean)
+                            .join(", ") ||
+                            "-"}
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Duração:
+                          </span>{" "}
+                          {form.sessionDuration} min
+                        </p>
+
+                        <p>
+                          <span className="text-muted-foreground">
+                            Valor:
+                          </span>{" "}
+                          {form.sessionPrice
+                            ? `R$ ${Number(
+                                form.sessionPrice
+                              ).toFixed(2)}`
+                            : "-"}
+                        </p>
+
+                        {form.online && (
+                          <p>
+                            <span className="text-muted-foreground">
+                              e-Psi:
+                            </span>{" "}
+                            {form.ePsi
+                              ? "Confirmado"
+                              : "Não confirmado"}
+                          </p>
+                        )}
+
+                        {form.presencial && (
+                          <p>
+                            <span className="text-muted-foreground">
+                              Endereço:
+                            </span>{" "}
+                            {form.address ||
+                              "-"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {form.photoUrl && (
+                    <div className="rounded-xl border border-border p-5">
+                      <h3 className="font-semibold mb-4">
+                        Foto de perfil
+                      </h3>
+
+                      <img
+                        src={form.photoUrl}
+                        alt="Foto profissional"
+                        className="w-28 h-28 object-cover rounded-xl"
+                      />
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                    <div className="flex gap-3">
+                      <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+
+                      <div className="text-sm">
+                        <p className="font-semibold">
+                          Finalização segura
+                        </p>
+
+                        <p className="text-muted-foreground mt-1">
+                          Ao finalizar, enviaremos um código para seu e-mail. Depois da confirmação, seu perfil profissional será salvo para análise.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-3 mt-10 pt-6 border-t border-border">
+                <button
+                  type="button"
+                  onClick={previousStep}
+                  disabled={
+                    step === 0 ||
+                    submitting ||
+                    uploading ||
+                    verifyingOtp
+                  }
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-border font-semibold text-sm disabled:opacity-40"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Anterior
+                </button>
+
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={
+                    submitting ||
+                    uploading ||
+                    verifyingOtp
+                  }
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processando...
+                    </>
+                  ) : uploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Enviando arquivo...
+                    </>
+                  ) : step ===
+                    STEPS.length - 1 ? (
+                    <>
+                      Finalizar cadastro
+                      <ShieldCheck className="w-5 h-5" />
+                    </>
+                  ) : (
+                    <>
+                      Continuar
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
+}
