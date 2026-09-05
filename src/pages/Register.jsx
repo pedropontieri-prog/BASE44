@@ -31,22 +31,16 @@ export default function Register() {
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
-  // Tempo de espera para reenviar o código
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Contador regressivo do reenvio
+  // Contador do botão "Reenviar"
   useEffect(() => {
     if (resendCooldown <= 0) return;
 
     const timer = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-
-        return prev - 1;
-      });
+      setResendCooldown((prev) =>
+        prev <= 1 ? 0 : prev - 1
+      );
     }, 1000);
 
     return () => clearInterval(timer);
@@ -65,7 +59,9 @@ export default function Register() {
     }
 
     if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+      setError(
+        "A senha deve ter pelo menos 6 caracteres."
+      );
       return;
     }
 
@@ -94,37 +90,26 @@ export default function Register() {
       }
 
       /*
-       * Quando a confirmação de e-mail está ativada no Supabase,
-       * o usuário recebe um código por e-mail.
+       * IMPORTANTE:
+       *
+       * Depois do cadastro, mostramos a tela do código.
+       *
+       * Isso funciona tanto quando o Supabase exige
+       * confirmação de e-mail quanto quando ele retorna
+       * uma sessão.
        */
-      if (data.user && !data.session) {
-        setEmail(normalizedEmail);
-        setShowOtp(true);
-
-        // Começa o contador após o primeiro envio
-        setResendCooldown(60);
-
-        toast({
-          title: "Código enviado",
-          description:
-            "Confira seu e-mail para confirmar sua conta.",
-        });
-
-        return;
-      }
-
-      /*
-       * Se a confirmação de e-mail estiver desativada,
-       * o Supabase já cria a sessão.
-       */
-      if (data.session) {
-        window.location.href = safeReturnTo();
-        return;
-      }
-
       setEmail(normalizedEmail);
+      setOtpCode("");
       setShowOtp(true);
+
+      // O primeiro código já foi enviado pelo signUp.
       setResendCooldown(60);
+
+      toast({
+        title: "Código enviado",
+        description:
+          "Confira seu e-mail e digite o código de 6 dígitos.",
+      });
     } catch (err) {
       console.error("Erro ao cadastrar:", err);
 
@@ -140,8 +125,15 @@ export default function Register() {
   const handleVerify = async () => {
     setError("");
 
-    if (otpCode.length !== 6) {
-      setError("Digite o código de 6 dígitos.");
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    const normalizedOtp = otpCode.trim();
+
+    if (normalizedOtp.length !== 6) {
+      setError(
+        "Digite o código de 6 dígitos enviado para seu e-mail."
+      );
       return;
     }
 
@@ -150,8 +142,8 @@ export default function Register() {
     try {
       const { data, error: verifyError } =
         await supabase.auth.verifyOtp({
-          email: email.trim().toLowerCase(),
-          token: otpCode,
+          email: normalizedEmail,
+          token: normalizedOtp,
           type: "signup",
         });
 
@@ -159,10 +151,20 @@ export default function Register() {
         throw verifyError;
       }
 
+      /*
+       * Depois da confirmação, o Supabase normalmente
+       * retorna uma sessão.
+       */
       if (!data.session) {
-        throw new Error(
-          "E-mail confirmado, mas não foi possível iniciar sua sessão."
-        );
+        // Mesmo sem sessão, o e-mail pode ter sido confirmado.
+        toast({
+          title: "E-mail confirmado!",
+          description:
+            "Sua conta foi confirmada. Faça login para continuar.",
+        });
+
+        window.location.href = safeReturnTo();
+        return;
       }
 
       toast({
@@ -188,8 +190,7 @@ export default function Register() {
   };
 
   const handleResend = async () => {
-    // Impede novas solicitações durante o cooldown
-    if (resendCooldown > 0 || loading) {
+    if (loading || resendCooldown > 0) {
       return;
     }
 
@@ -197,17 +198,19 @@ export default function Register() {
     setLoading(true);
 
     try {
+      const normalizedEmail =
+        email.trim().toLowerCase();
+
       const { error: resendError } =
         await supabase.auth.resend({
           type: "signup",
-          email: email.trim().toLowerCase(),
+          email: normalizedEmail,
         });
 
       if (resendError) {
         throw resendError;
       }
 
-      // Começa novamente o contador de 60 segundos
       setResendCooldown(60);
 
       toast({
@@ -221,17 +224,17 @@ export default function Register() {
         err
       );
 
-      /*
-       * Se o Supabase ainda estiver aplicando o limite,
-       * mostra uma mensagem mais amigável.
-       */
+      const message =
+        err?.message?.toLowerCase() || "";
+
       if (
-        err?.message?.toLowerCase().includes("security") ||
-        err?.message?.toLowerCase().includes("after") ||
-        err?.message?.toLowerCase().includes("rate limit")
+        message.includes("security") ||
+        message.includes("after") ||
+        message.includes("rate limit") ||
+        message.includes("too many")
       ) {
         setError(
-          "Aguarde alguns segundos antes de solicitar um novo código."
+          "Aguarde alguns segundos antes de solicitar outro código."
         );
       } else {
         setError(
@@ -253,7 +256,9 @@ export default function Register() {
       const redirectUrl =
         `${window.location.origin}/login` +
         (returnTo !== "/"
-          ? `?returnTo=${encodeURIComponent(returnTo)}`
+          ? `?returnTo=${encodeURIComponent(
+              returnTo
+            )}`
           : "");
 
       const { error: oauthError } =
@@ -280,12 +285,15 @@ export default function Register() {
     }
   };
 
+  /*
+   * TELA DE CONFIRMAÇÃO DO E-MAIL
+   */
   if (showOtp) {
     return (
       <AuthLayout
         icon={Mail}
         title="Confirme seu e-mail"
-        subtitle={`Enviamos um código para ${email}`}
+        subtitle={`Enviamos um código de 6 dígitos para ${email}`}
       >
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
@@ -297,7 +305,10 @@ export default function Register() {
           <InputOTP
             maxLength={6}
             value={otpCode}
-            onChange={setOtpCode}
+            onChange={(value) => {
+              setOtpCode(value);
+              setError("");
+            }}
             autoFocus
             autoComplete="one-time-code"
           >
@@ -363,6 +374,9 @@ export default function Register() {
     );
   }
 
+  /*
+   * TELA DE CADASTRO
+   */
   return (
     <AuthLayout
       icon={UserPlus}
