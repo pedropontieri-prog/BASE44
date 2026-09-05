@@ -11,7 +11,6 @@ import {
   Video,
   ShieldCheck,
   Loader2,
-  X,
   LogIn,
   Lock,
   Eye,
@@ -120,11 +119,7 @@ function formatPhone(value) {
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
   }
 
-  if (numbers.length <= 11) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
-  }
-
-  return numbers;
+  return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
 }
 
 function formatCpf(value) {
@@ -264,11 +259,7 @@ export default function ProfessionalOnboarding() {
         return "Informe seu e-mail.";
       }
 
-      if (
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          form.email.trim()
-        )
-      ) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
         return "Informe um e-mail válido.";
       }
 
@@ -276,10 +267,7 @@ export default function ProfessionalOnboarding() {
         return "A senha deve ter pelo menos 6 caracteres.";
       }
 
-      if (
-        !user &&
-        form.password !== form.confirmPassword
-      ) {
+      if (!user && form.password !== form.confirmPassword) {
         return "As senhas não coincidem.";
       }
 
@@ -384,9 +372,7 @@ export default function ProfessionalOnboarding() {
         }
 
         if (!data?.user) {
-          throw new Error(
-            "Não foi possível criar sua conta."
-          );
+          throw new Error("Não foi possível criar sua conta.");
         }
 
         if (!data.session) {
@@ -394,7 +380,7 @@ export default function ProfessionalOnboarding() {
           setOtpSent(true);
           setResendCooldown(60);
           setSuccess(
-            "Código enviado! Digite os 6 números recebidos no seu e-mail."
+            "Código enviado! Digite os 8 números recebidos no seu e-mail."
           );
           return;
         }
@@ -402,9 +388,9 @@ export default function ProfessionalOnboarding() {
         setUser(data.user);
       }
 
-      const currentUser = user;
+      const authenticatedUser = user || null;
 
-      if (currentUser?.id) {
+      if (authenticatedUser?.id) {
         await supabase.auth.updateUser({
           data: {
             name,
@@ -420,8 +406,7 @@ export default function ProfessionalOnboarding() {
       setStep(1);
     } catch (err) {
       const message =
-        err?.message ||
-        "Não foi possível criar sua conta.";
+        err?.message || "Não foi possível criar sua conta.";
 
       const lower = message.toLowerCase();
 
@@ -448,9 +433,7 @@ export default function ProfessionalOnboarding() {
   };
 
   const verifyEmailCode = async (event) => {
-    if (event) {
-      event.preventDefault();
-    }
+    event.preventDefault();
 
     if (verifyingOtp) {
       return;
@@ -461,9 +444,9 @@ export default function ProfessionalOnboarding() {
     setError("");
     setSuccess("");
 
-    if (!/^\d{6}$/.test(code)) {
+    if (!/^\d{6,8}$/.test(code)) {
       setError(
-        "Digite o código de 6 dígitos recebido por e-mail."
+        "Digite o código de 6 ou 8 dígitos recebido por e-mail."
       );
       return;
     }
@@ -512,18 +495,15 @@ export default function ProfessionalOnboarding() {
       setStep(1);
     } catch (err) {
       const message =
-        err?.message ||
-        "Código inválido ou expirado.";
+        err?.message || "Código inválido ou expirado.";
 
       const lower = message.toLowerCase();
 
       if (lower.includes("expired")) {
-        setError(
-          "Esse código expirou. Solicite um novo código."
-        );
+        setError("Esse código expirou. Solicite um novo código.");
       } else if (lower.includes("invalid")) {
         setError(
-          "Código inválido. Confira os 6 números e tente novamente."
+          "Código inválido. Confira os números recebidos e tente novamente."
         );
       } else {
         setError(message);
@@ -562,12 +542,9 @@ export default function ProfessionalOnboarding() {
         "Um novo código foi enviado para seu e-mail."
       );
     } catch (err) {
-      const message =
-        err?.message ||
-        "Não foi possível reenviar o código.";
-
-      setError(message);
-
+      setError(
+        err?.message || "Não foi possível reenviar o código."
+      );
       setResendCooldown(60);
     } finally {
       setSubmitting(false);
@@ -644,8 +621,7 @@ export default function ProfessionalOnboarding() {
       }
 
       const extension =
-        file.name.split(".").pop()?.toLowerCase() ||
-        "file";
+        file.name.split(".").pop()?.toLowerCase() || "file";
 
       const path =
         type === "photo"
@@ -672,8 +648,7 @@ export default function ProfessionalOnboarding() {
         .from("profiles")
         .getPublicUrl(path);
 
-      const publicUrl =
-        publicUrlData?.publicUrl;
+      const publicUrl = publicUrlData?.publicUrl;
 
       if (!publicUrl) {
         throw new Error(
@@ -761,9 +736,7 @@ export default function ProfessionalOnboarding() {
         institution: null,
         graduation_year: null,
         specializations: form.themes,
-        approaches: form.approach
-          ? [form.approach]
-          : [],
+        approaches: form.approach ? [form.approach] : [],
         experience: null,
         topics: form.themes,
         modalities,
@@ -773,24 +746,18 @@ export default function ProfessionalOnboarding() {
         state: form.state.trim().toUpperCase(),
         phone: form.phone.trim() || null,
         gender: null,
-        session_price:
-          Number(form.sessionPrice) || 0,
-        session_duration:
-          Number(form.sessionDuration) || 50,
+        session_price: Number(form.sessionPrice) || 0,
+        session_duration: Number(form.sessionDuration) || 50,
         available_days: [],
         available_slots: [],
         cancellation_policy: null,
-        address:
-          form.address.trim() || null,
-        bio:
-          form.presentation.trim() || null,
+        address: form.address.trim() || null,
+        bio: form.presentation.trim() || null,
         profile_photo_url: form.photoUrl,
-        presentation_video_url:
-          form.videoUrl || null,
-        presentation_video_status:
-          form.videoUrl
-            ? "pending"
-            : "approved",
+        presentation_video_url: form.videoUrl || null,
+        presentation_video_status: form.videoUrl
+          ? "pending"
+          : "approved",
         verification_status: "pending",
         public_profile: false,
       };
@@ -815,10 +782,7 @@ export default function ProfessionalOnboarding() {
           .from("psychologists")
           .update(psychologistData)
           .eq("id", existing.id)
-          .eq(
-            "user_id",
-            authenticatedUser.id
-          );
+          .eq("user_id", authenticatedUser.id);
 
         if (updateError) {
           throw updateError;
@@ -886,6 +850,7 @@ export default function ProfessionalOnboarding() {
 
     if (step < STEPS.length - 1) {
       setStep((current) => current + 1);
+
       window.scrollTo({
         top: 0,
         behavior: "smooth",
@@ -905,9 +870,7 @@ export default function ProfessionalOnboarding() {
     return (
       <PageShell>
         <div className="min-h-[70vh] flex items-center justify-center">
-          <Loader2
-            className="w-8 h-8 animate-spin"
-          />
+          <Loader2 className="w-8 h-8 animate-spin" />
         </div>
       </PageShell>
     );
@@ -929,11 +892,15 @@ export default function ProfessionalOnboarding() {
                 </h1>
 
                 <p className="text-sm text-muted-foreground mt-3">
-                  Enviamos um código de 6 dígitos para:
+                  Enviamos um código de confirmação para:
                 </p>
 
                 <p className="font-semibold mt-2 break-all">
                   {form.email}
+                </p>
+
+                <p className="text-xs text-muted-foreground mt-2">
+                  Digite os 8 números exibidos no e-mail.
                 </p>
               </div>
 
@@ -966,7 +933,8 @@ export default function ProfessionalOnboarding() {
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    maxLength={6}
+                    maxLength={8}
+                    minLength={6}
                     autoComplete="one-time-code"
                     autoFocus
                     value={otp}
@@ -974,13 +942,13 @@ export default function ProfessionalOnboarding() {
                       setOtp(
                         event.target.value
                           .replace(/\D/g, "")
-                          .slice(0, 6)
+                          .slice(0, 8)
                       );
                       setError("");
                     }}
-                    placeholder="000000"
+                    placeholder="00000000"
                     disabled={verifyingOtp}
-                    className="w-full h-14 rounded-xl border border-border bg-background px-4 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full h-14 rounded-xl border border-border bg-background px-4 text-center text-2xl font-bold tracking-[0.35em] outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
 
@@ -988,7 +956,8 @@ export default function ProfessionalOnboarding() {
                   type="submit"
                   disabled={
                     verifyingOtp ||
-                    otp.length !== 6
+                    otp.length < 6 ||
+                    otp.length > 8
                   }
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full gradient-brand text-white font-semibold shadow-soft disabled:opacity-50"
                 >
@@ -1010,9 +979,7 @@ export default function ProfessionalOnboarding() {
                 {resendCooldown > 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Você poderá solicitar outro código em{" "}
-                    <strong>
-                      {resendCooldown}s
-                    </strong>
+                    <strong>{resendCooldown}s</strong>
                   </p>
                 ) : (
                   <button
@@ -1068,9 +1035,8 @@ export default function ProfessionalOnboarding() {
           </h1>
 
           <p className="text-muted-foreground mt-3">
-            Recebemos seu perfil. Nossa equipe
-            vai revisar seu CRP e suas informações
-            profissionais. Você receberá uma
+            Recebemos seu perfil. Nossa equipe vai revisar seu CRP
+            e suas informações profissionais. Você receberá uma
             notificação quando for aprovado(a).
           </p>
 
@@ -1233,10 +1199,7 @@ export default function ProfessionalOnboarding() {
                         type="text"
                         value={form.name}
                         onChange={(e) =>
-                          updateForm(
-                            "name",
-                            e.target.value
-                          )
+                          updateForm("name", e.target.value)
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Seu nome completo"
@@ -1253,15 +1216,14 @@ export default function ProfessionalOnboarding() {
                         type="email"
                         value={form.email}
                         onChange={(e) =>
-                          updateForm(
-                            "email",
-                            e.target.value
-                          )
+                          updateForm("email", e.target.value)
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="voce@email.com"
                         autoComplete="email"
-                        disabled={submitting || Boolean(user)}
+                        disabled={
+                          submitting || Boolean(user)
+                        }
                       />
                     </div>
 
@@ -1276,9 +1238,7 @@ export default function ProfessionalOnboarding() {
                         onChange={(e) =>
                           updateForm(
                             "phone",
-                            formatPhone(
-                              e.target.value
-                            )
+                            formatPhone(e.target.value)
                           )
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
@@ -1297,9 +1257,7 @@ export default function ProfessionalOnboarding() {
                         onChange={(e) =>
                           updateForm(
                             "cpf",
-                            formatCpf(
-                              e.target.value
-                            )
+                            formatCpf(e.target.value)
                           )
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
@@ -1357,8 +1315,7 @@ export default function ProfessionalOnboarding() {
                               type="button"
                               onClick={() =>
                                 setShowPassword(
-                                  (value) =>
-                                    !value
+                                  (value) => !value
                                 )
                               }
                               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1386,9 +1343,7 @@ export default function ProfessionalOnboarding() {
                                   ? "text"
                                   : "password"
                               }
-                              value={
-                                form.confirmPassword
-                              }
+                              value={form.confirmPassword}
                               onChange={(e) =>
                                 updateForm(
                                   "confirmPassword",
@@ -1404,8 +1359,7 @@ export default function ProfessionalOnboarding() {
                               type="button"
                               onClick={() =>
                                 setShowConfirmPassword(
-                                  (value) =>
-                                    !value
+                                  (value) => !value
                                 )
                               }
                               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1430,10 +1384,7 @@ export default function ProfessionalOnboarding() {
                         type="text"
                         value={form.city}
                         onChange={(e) =>
-                          updateForm(
-                            "city",
-                            e.target.value
-                          )
+                          updateForm("city", e.target.value)
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Sua cidade"
@@ -1448,22 +1399,14 @@ export default function ProfessionalOnboarding() {
                       <select
                         value={form.state}
                         onChange={(e) =>
-                          updateForm(
-                            "state",
-                            e.target.value
-                          )
+                          updateForm("state", e.target.value)
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                       >
-                        <option value="">
-                          Selecione
-                        </option>
+                        <option value="">Selecione</option>
 
                         {UF_OPTIONS.map((uf) => (
-                          <option
-                            key={uf}
-                            value={uf}
-                          >
+                          <option key={uf} value={uf}>
                             {uf}
                           </option>
                         ))}
@@ -1511,10 +1454,7 @@ export default function ProfessionalOnboarding() {
                         type="text"
                         value={form.crp}
                         onChange={(e) =>
-                          updateForm(
-                            "crp",
-                            e.target.value
-                          )
+                          updateForm("crp", e.target.value)
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Ex.: 06/000000"
@@ -1536,15 +1476,10 @@ export default function ProfessionalOnboarding() {
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                       >
-                        <option value="">
-                          Selecione
-                        </option>
+                        <option value="">Selecione</option>
 
                         {UF_OPTIONS.map((uf) => (
-                          <option
-                            key={uf}
-                            value={uf}
-                          >
+                          <option key={uf} value={uf}>
                             {uf}
                           </option>
                         ))}
@@ -1566,15 +1501,9 @@ export default function ProfessionalOnboarding() {
                         }
                         className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                       >
-                        <option value="ativo">
-                          Ativo
-                        </option>
-                        <option value="regular">
-                          Regular
-                        </option>
-                        <option value="outro">
-                          Outro
-                        </option>
+                        <option value="ativo">Ativo</option>
+                        <option value="regular">Regular</option>
+                        <option value="outro">Outro</option>
                       </select>
                     </div>
                   </div>
@@ -1634,32 +1563,28 @@ export default function ProfessionalOnboarding() {
                     </label>
 
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {AUDIENCE_OPTIONS.map(
-                        (item) => (
-                          <label
-                            key={item}
-                            className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={form.audience.includes(
+                      {AUDIENCE_OPTIONS.map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.audience.includes(item)}
+                            onChange={() =>
+                              toggleArrayValue(
+                                "audience",
                                 item
-                              )}
-                              onChange={() =>
-                                toggleArrayValue(
-                                  "audience",
-                                  item
-                                )
-                              }
-                              className="w-4 h-4"
-                            />
+                              )
+                            }
+                            className="w-4 h-4"
+                          />
 
-                            <span className="text-sm">
-                              {item}
-                            </span>
-                          </label>
-                        )
-                      )}
+                          <span className="text-sm">
+                            {item}
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   </div>
 
@@ -1669,32 +1594,28 @@ export default function ProfessionalOnboarding() {
                     </label>
 
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {THEME_OPTIONS.map(
-                        (item) => (
-                          <label
-                            key={item}
-                            className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={form.themes.includes(
+                      {THEME_OPTIONS.map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-3 border border-border rounded-lg p-3 cursor-pointer hover:bg-muted/40"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.themes.includes(item)}
+                            onChange={() =>
+                              toggleArrayValue(
+                                "themes",
                                 item
-                              )}
-                              onChange={() =>
-                                toggleArrayValue(
-                                  "themes",
-                                  item
-                                )
-                              }
-                              className="w-4 h-4"
-                            />
+                              )
+                            }
+                            className="w-4 h-4"
+                          />
 
-                            <span className="text-sm">
-                              {item}
-                            </span>
-                          </label>
-                        )
-                      )}
+                          <span className="text-sm">
+                            {item}
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1728,9 +1649,7 @@ export default function ProfessionalOnboarding() {
                         />
 
                         <div>
-                          <p className="font-medium">
-                            Online
-                          </p>
+                          <p className="font-medium">Online</p>
 
                           <p className="text-sm text-muted-foreground mt-1">
                             Atendimento por videochamada.
@@ -1848,20 +1767,13 @@ export default function ProfessionalOnboarding() {
                             }
                             className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                           >
-                            <option value="">
-                              Selecione
-                            </option>
+                            <option value="">Selecione</option>
 
-                            {UF_OPTIONS.map(
-                              (uf) => (
-                                <option
-                                  key={uf}
-                                  value={uf}
-                                >
-                                  {uf}
-                                </option>
-                              )
-                            )}
+                            {UF_OPTIONS.map((uf) => (
+                              <option key={uf} value={uf}>
+                                {uf}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
@@ -1974,10 +1886,7 @@ export default function ProfessionalOnboarding() {
                           accept="image/jpeg,image/png,image/webp"
                           className="hidden"
                           onChange={(e) =>
-                            uploadFile(
-                              e,
-                              "photo"
-                            )
+                            uploadFile(e, "photo")
                           }
                           disabled={uploading}
                         />
@@ -2019,10 +1928,7 @@ export default function ProfessionalOnboarding() {
                           accept="video/mp4,video/webm,video/quicktime"
                           className="hidden"
                           onChange={(e) =>
-                            uploadFile(
-                              e,
-                              "video"
-                            )
+                            uploadFile(e, "video")
                           }
                           disabled={uploading}
                         />
@@ -2107,8 +2013,7 @@ export default function ProfessionalOnboarding() {
                       </p>
 
                       <p className="font-medium mt-1">
-                        {form.approach ||
-                          "Não informado"}
+                        {form.approach || "Não informado"}
                       </p>
                     </div>
 
@@ -2143,9 +2048,7 @@ export default function ProfessionalOnboarding() {
 
                       <p className="font-medium mt-1">
                         {[
-                          form.online
-                            ? "Online"
-                            : "",
+                          form.online ? "Online" : "",
                           form.presencial
                             ? "Presencial"
                             : "",
