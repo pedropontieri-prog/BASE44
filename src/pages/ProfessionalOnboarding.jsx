@@ -155,9 +155,7 @@ const UF_OPTIONS = [
 ];
 
 function formatPhone(value) {
-  const digits = value
-    .replace(/\D/g, "")
-    .slice(0, 11);
+  const digits = value.replace(/\D/g, "").slice(0, 11);
 
   if (digits.length <= 2) {
     return digits;
@@ -181,9 +179,7 @@ function formatPhone(value) {
 }
 
 function formatCpf(value) {
-  const digits = value
-    .replace(/\D/g, "")
-    .slice(0, 11);
+  const digits = value.replace(/\D/g, "").slice(0, 11);
 
   if (digits.length <= 3) {
     return digits;
@@ -293,42 +289,39 @@ export default function ProfessionalOnboarding() {
 
   const [step, setStep] = useState(0);
 
-  const [form, setForm] =
-    useState(DEFAULT_FORM);
+  const [form, setForm] = useState(DEFAULT_FORM);
 
-  /*
-   * Usuário que eventualmente já possui uma sessão.
-   */
   const [user, setUser] = useState(null);
 
   /*
-   * IMPORTANTE:
-   * Quando a confirmação de e-mail está habilitada,
-   * o Supabase pode retornar o user, mas NÃO retornar
-   * uma session no signUp().
+   * ID criado pelo Supabase.
    *
-   * Por isso guardamos o ID separadamente.
+   * Pode existir mesmo quando ainda não existe
+   * uma sessão por causa da confirmação de e-mail.
    */
-  const [createdUserId, setCreatedUserId] =
-    useState(null);
+  const [createdUserId, setCreatedUserId] = useState(null);
+
+  /*
+   * Arquivos ficam SOMENTE no navegador até
+   * o e-mail ser confirmado.
+   */
+  const [photoFile, setPhotoFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
+
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [videoPreview, setVideoPreview] = useState("");
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] =
-    useState(false);
-  const [verifyingOtp, setVerifyingOtp] =
-    useState(false);
-  const [uploading, setUploading] =
-    useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const [showPassword, setShowPassword] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
   const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [resendCooldown, setResendCooldown] =
-    useState(0);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -421,6 +414,34 @@ export default function ProfessionalOnboarding() {
 
   /*
    * =====================================================
+   * LIMPAR PRÉVIAS LOCAIS
+   * =====================================================
+   */
+
+  useEffect(() => {
+    return () => {
+      if (
+        photoPreview &&
+        photoPreview.startsWith("blob:")
+      ) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (
+        videoPreview &&
+        videoPreview.startsWith("blob:")
+      ) {
+        URL.revokeObjectURL(videoPreview);
+      }
+    };
+  }, [videoPreview]);
+
+  /*
+   * =====================================================
    * CONTADOR DE REENVIO
    * =====================================================
    */
@@ -441,8 +462,7 @@ export default function ProfessionalOnboarding() {
       });
     }, 1000);
 
-    return () =>
-      window.clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [resendCooldown]);
 
   /*
@@ -463,8 +483,7 @@ export default function ProfessionalOnboarding() {
 
   function toggleArrayValue(field, value) {
     setForm((current) => {
-      const exists =
-        current[field].includes(value);
+      const exists = current[field].includes(value);
 
       return {
         ...current,
@@ -532,10 +551,9 @@ export default function ProfessionalOnboarding() {
       }
 
       /*
-       * Só exige senha quando ainda não existe
-       * uma conta criada.
+       * A senha só é necessária para uma nova conta.
        */
-      if (!user && !createdUserId) {
+      if (!user) {
         if (!form.password) {
           return "Crie uma senha.";
         }
@@ -621,7 +639,11 @@ export default function ProfessionalOnboarding() {
     }
 
     if (stepNumber === 4) {
-      if (!form.photoUrl) {
+      /*
+       * Agora verificamos o arquivo local,
+       * e não uma URL do Storage.
+       */
+      if (!photoFile && !form.photoUrl) {
         return "Adicione uma foto profissional.";
       }
 
@@ -635,8 +657,7 @@ export default function ProfessionalOnboarding() {
 
     if (stepNumber === 5) {
       for (let i = 0; i < 5; i++) {
-        const validation =
-          validateStep(i);
+        const validation = validateStep(i);
 
         if (validation) {
           return validation;
@@ -649,11 +670,325 @@ export default function ProfessionalOnboarding() {
 
   /*
    * =====================================================
-   * METADADOS DO AUTH
+   * SELECIONAR FOTO
    *
-   * Só deve ser chamado quando existe sessão.
-   * Portanto, NÃO chamamos isso durante o signUp
-   * sem sessão.
+   * NÃO FAZ UPLOAD.
+   * =====================================================
+   */
+
+  function handlePhotoSelected(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError(
+        "A foto deve estar em JPG, PNG ou WEBP."
+      );
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError(
+        "A foto deve ter no máximo 5 MB."
+      );
+      return;
+    }
+
+    setPhotoFile(file);
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setPhotoPreview(previewUrl);
+
+    /*
+     * Não colocamos a URL no form porque
+     * ainda não existe uma URL do Storage.
+     */
+    setForm((current) => ({
+      ...current,
+      photoUrl: "",
+    }));
+
+    setSuccess(
+      "Foto selecionada. Ela será enviada após a confirmação do e-mail."
+    );
+  }
+
+  /*
+   * =====================================================
+   * SELECIONAR VÍDEO
+   *
+   * NÃO FAZ UPLOAD.
+   * =====================================================
+   */
+
+  function handleVideoSelected(event) {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const allowedTypes = [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError(
+        "O vídeo deve estar em MP4, WEBM ou MOV."
+      );
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setError(
+        "O vídeo deve ter no máximo 100 MB."
+      );
+      return;
+    }
+
+    setVideoFile(file);
+
+    const previewUrl =
+      URL.createObjectURL(file);
+
+    setVideoPreview(previewUrl);
+
+    setForm((current) => ({
+      ...current,
+      videoUrl: "",
+    }));
+
+    setSuccess(
+      "Vídeo selecionado. Ele será enviado após a confirmação do e-mail."
+    );
+  }
+
+  /*
+   * =====================================================
+   * CRIAR CONTA
+   *
+   * ISSO SÓ ACONTECE NO FINAL.
+   * =====================================================
+   */
+
+  async function createAccountAtFinalStep() {
+    if (user?.id) {
+      return user;
+    }
+
+    const email = normalizeEmail(form.email);
+
+    const { data, error: signupError } =
+      await supabase.auth.signUp({
+        email,
+        password: form.password,
+        options: {
+          data: {
+            name: form.name.trim(),
+            full_name: form.name.trim(),
+            role: "professional",
+            user_type: "professional",
+            account_type: "professional",
+            profile_type: "professional",
+          },
+        },
+      });
+
+    if (signupError) {
+      if (isRateLimitError(signupError)) {
+        throw new Error(
+          "Muitas tentativas de envio de e-mail. Aguarde alguns minutos e tente novamente."
+        );
+      }
+
+      if (
+        isAlreadyRegisteredError(
+          signupError
+        )
+      ) {
+        throw new Error(
+          "Este e-mail já possui uma conta. Entre na sua conta para continuar."
+        );
+      }
+
+      throw signupError;
+    }
+
+    if (!data?.user?.id) {
+      throw new Error(
+        "Não foi possível criar sua conta."
+      );
+    }
+
+    setCreatedUserId(data.user.id);
+
+    /*
+     * Em um projeto com confirmação de e-mail
+     * ativada, normalmente será null.
+     *
+     * Se houver sessão, significa que a confirmação
+     * de e-mail está desativada ou não é exigida.
+     */
+    if (data.session?.user) {
+      setUser(data.session.user);
+      return data.session.user;
+    }
+
+    return data.user;
+  }
+
+  /*
+   * =====================================================
+   * REENVIAR CÓDIGO
+   * =====================================================
+   */
+
+  async function resendCode() {
+    if (resendCooldown > 0) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const email =
+        normalizeEmail(form.email);
+
+      const { error: resendError } =
+        await supabase.auth.resend({
+          type: "signup",
+          email,
+        });
+
+      if (resendError) {
+        if (
+          isRateLimitError(resendError)
+        ) {
+          throw new Error(
+            "Aguarde alguns instantes antes de solicitar outro código."
+          );
+        }
+
+        throw resendError;
+      }
+
+      setOtp("");
+      setResendCooldown(60);
+
+      setSuccess(
+        `Um novo código foi enviado para ${email}.`
+      );
+    } catch (err) {
+      setError(
+        getErrorMessage(err)
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /*
+   * =====================================================
+   * UPLOAD APÓS CONFIRMAÇÃO
+   * =====================================================
+   */
+
+  async function uploadFileToStorage(
+    file,
+    type,
+    userId
+  ) {
+    if (!file) {
+      return null;
+    }
+
+    if (!userId) {
+      throw new Error(
+        "Usuário não identificado para o upload."
+      );
+    }
+
+    const extension =
+      file.name
+        .split(".")
+        .pop()
+        ?.toLowerCase() ||
+      (type === "photo" ? "jpg" : "mp4");
+
+    const randomId =
+      typeof crypto !== "undefined" &&
+      crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}`;
+
+    const bucket =
+      type === "photo"
+        ? "avatars"
+        : "videos";
+
+    const path =
+      `professionals/${userId}/${randomId}.${extension}`;
+
+    const {
+      error: uploadError,
+    } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data: publicData } =
+      supabase.storage
+        .from(bucket)
+        .getPublicUrl(path);
+
+    if (!publicData?.publicUrl) {
+      throw new Error(
+        "Não foi possível obter o endereço do arquivo."
+      );
+    }
+
+    return publicData.publicUrl;
+  }
+
+  /*
+   * =====================================================
+   * SALVAR METADADOS DO AUTH
+   *
+   * Só depois da confirmação.
    * =====================================================
    */
 
@@ -662,7 +997,9 @@ export default function ProfessionalOnboarding() {
       await supabase.auth.getUser();
 
     if (userError || !data?.user) {
-      return;
+      throw new Error(
+        "A sessão do usuário não está disponível."
+      );
     }
 
     const { error: metadataError } =
@@ -678,347 +1015,7 @@ export default function ProfessionalOnboarding() {
       });
 
     if (metadataError) {
-      console.error(
-        "Erro ao atualizar metadados:",
-        metadataError
-      );
-    }
-  }
-
-  /*
-   * =====================================================
-   * CRIAR CONTA
-   * =====================================================
-   */
-
-  async function createAccount() {
-    const validation = validateStep(0);
-
-    if (validation) {
-      setError(validation);
-      return false;
-    }
-
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      /*
-       * Se já temos usuário, não criamos outra conta.
-       */
-      if (user?.id || createdUserId) {
-        setCreatedUserId(
-          user?.id || createdUserId
-        );
-
-        setSuccess(
-          "Conta identificada. Continue o preenchimento."
-        );
-
-        return true;
-      }
-
-      const email = normalizeEmail(
-        form.email
-      );
-
-      const { data, error: signupError } =
-        await supabase.auth.signUp({
-          email,
-          password: form.password,
-
-          options: {
-            data: {
-              name: form.name.trim(),
-              full_name: form.name.trim(),
-              role: "professional",
-              user_type: "professional",
-              account_type: "professional",
-              profile_type: "professional",
-            },
-          },
-        });
-
-      if (signupError) {
-        if (isRateLimitError(signupError)) {
-          throw new Error(
-            "Muitas tentativas de envio de e-mail. Aguarde alguns minutos e tente novamente."
-          );
-        }
-
-        if (
-          isAlreadyRegisteredError(
-            signupError
-          )
-        ) {
-          throw new Error(
-            "Este e-mail já possui uma conta. Entre na sua conta para continuar."
-          );
-        }
-
-        throw signupError;
-      }
-
-      if (!data?.user?.id) {
-        throw new Error(
-          "Não foi possível criar sua conta."
-        );
-      }
-
-      /*
-       * ESTA É A CORREÇÃO PRINCIPAL.
-       *
-       * Guardamos o ID mesmo que:
-       *
-       * data.session === null
-       *
-       * Isso acontece normalmente quando a confirmação
-       * de e-mail está habilitada.
-       */
-      setCreatedUserId(data.user.id);
-
-      /*
-       * Se o Supabase criou sessão imediatamente,
-       * também podemos guardar o usuário.
-       */
-      if (data.session?.user) {
-        setUser(data.session.user);
-      }
-
-      setSuccess(
-        "Conta criada. Continue preenchendo seu cadastro."
-      );
-
-      return true;
-    } catch (err) {
-      setError(getErrorMessage(err));
-      return false;
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  /*
-   * =====================================================
-   * ENVIAR CONFIRMAÇÃO
-   * =====================================================
-   */
-
-  async function sendSignupConfirmation(
-    emailValue = form.email
-  ) {
-    const email =
-      normalizeEmail(emailValue);
-
-    if (!email) {
-      throw new Error(
-        "Informe seu e-mail."
-      );
-    }
-
-    const { error: resendError } =
-      await supabase.auth.resend({
-        type: "signup",
-        email,
-      });
-
-    if (resendError) {
-      if (
-        isRateLimitError(resendError)
-      ) {
-        throw new Error(
-          "Aguarde alguns instantes antes de solicitar outro código."
-        );
-      }
-
-      throw resendError;
-    }
-
-    setOtp("");
-    setOtpSent(true);
-    setResendCooldown(60);
-
-    setSuccess(
-      `Enviamos um código de confirmação para ${email}.`
-    );
-  }
-
-  /*
-   * =====================================================
-   * UPLOAD
-   * =====================================================
-   */
-
-  async function uploadFile(event, type) {
-    const file =
-      event.target.files?.[0];
-
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    if (type === "photo") {
-      const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-      ];
-
-      if (!allowedTypes.includes(file.type)) {
-        setError(
-          "A foto deve estar em JPG, PNG ou WEBP."
-        );
-        return;
-      }
-
-      if (
-        file.size >
-        5 * 1024 * 1024
-      ) {
-        setError(
-          "A foto deve ter no máximo 5 MB."
-        );
-        return;
-      }
-    }
-
-    if (type === "video") {
-      const allowedTypes = [
-        "video/mp4",
-        "video/webm",
-        "video/quicktime",
-      ];
-
-      if (!allowedTypes.includes(file.type)) {
-        setError(
-          "O vídeo deve estar em MP4, WEBM ou MOV."
-        );
-        return;
-      }
-
-      if (
-        file.size >
-        100 * 1024 * 1024
-      ) {
-        setError(
-          "O vídeo deve ter no máximo 100 MB."
-        );
-        return;
-      }
-    }
-
-    /*
-     * Para Storage, precisamos de uma sessão.
-     *
-     * Como o cadastro foi criado sem sessão,
-     * o ideal é que o upload aconteça depois que
-     * o usuário esteja autenticado.
-     *
-     * Se o Supabase estiver retornando sessão após
-     * o signUp, funciona normalmente.
-     */
-    let storageUser = user;
-
-    if (!storageUser) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      storageUser = session?.user || null;
-    }
-
-    if (!storageUser) {
-      setError(
-        "Sua conta ainda não possui uma sessão ativa. Para enviar foto ou vídeo antes da confirmação do e-mail, é necessário permitir a sessão durante o cadastro no Supabase."
-      );
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const extension =
-        file.name
-          .split(".")
-          .pop()
-          ?.toLowerCase() ||
-        (type === "photo"
-          ? "jpg"
-          : "mp4");
-
-      const randomId =
-        typeof crypto !==
-          "undefined" &&
-        crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()
-              .toString(36)
-              .slice(2)}`;
-
-      const bucket =
-        type === "photo"
-          ? "avatars"
-          : "videos";
-
-      const path =
-        `professionals/${storageUser.id}/${randomId}.${extension}`;
-
-      const {
-        error: uploadError,
-      } = await supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicData } =
-        supabase.storage
-          .from(bucket)
-          .getPublicUrl(path);
-
-      if (!publicData?.publicUrl) {
-        throw new Error(
-          "Não foi possível obter o endereço do arquivo."
-        );
-      }
-
-      if (type === "photo") {
-        updateForm(
-          "photoUrl",
-          publicData.publicUrl
-        );
-
-        setSuccess(
-          "Foto enviada com sucesso."
-        );
-      } else {
-        updateForm(
-          "videoUrl",
-          publicData.publicUrl
-        );
-
-        setSuccess(
-          "Vídeo enviado com sucesso."
-        );
-      }
-    } catch (err) {
-      setError(
-        getErrorMessage(err)
-      );
-    } finally {
-      setUploading(false);
+      throw metadataError;
     }
   }
 
@@ -1026,17 +1023,18 @@ export default function ProfessionalOnboarding() {
    * =====================================================
    * SALVAR PSICÓLOGO
    *
-   * IMPORTANTE:
-   * Não usamos auth.getUser() aqui.
-   *
-   * Usamos o createdUserId.
+   * Só acontece depois da confirmação.
    * =====================================================
    */
 
-  async function saveProfessional(userId) {
+  async function saveProfessional(
+    userId,
+    photoUrl,
+    videoUrl
+  ) {
     if (!userId) {
       throw new Error(
-        "Não foi possível identificar o usuário do cadastro."
+        "Não foi possível identificar o usuário."
       );
     }
 
@@ -1139,33 +1137,23 @@ export default function ProfessionalOnboarding() {
         null,
 
       profile_photo_url:
-        form.photoUrl,
+        photoUrl || null,
 
       presentation_video_url:
-        form.videoUrl || null,
+        videoUrl || null,
 
       presentation_video_status:
-        form.videoUrl
+        videoUrl
           ? "pending"
           : null,
 
-      /*
-       * O cadastro ainda não foi confirmado.
-       */
       verification_status:
         "pending",
 
-      /*
-       * Nunca fica público antes
-       * da confirmação/análise.
-       */
       public_profile:
         false,
     };
 
-    /*
-     * Procuramos o profissional pelo user_id.
-     */
     const {
       data: existing,
       error: findError,
@@ -1179,9 +1167,6 @@ export default function ProfessionalOnboarding() {
       throw findError;
     }
 
-    /*
-     * Se já existe, atualiza.
-     */
     if (existing?.id) {
       const {
         error: updateError,
@@ -1197,9 +1182,6 @@ export default function ProfessionalOnboarding() {
       return existing.id;
     }
 
-    /*
-     * Caso contrário, cria.
-     */
     const {
       data: inserted,
       error: insertError,
@@ -1219,6 +1201,15 @@ export default function ProfessionalOnboarding() {
   /*
    * =====================================================
    * FINALIZAR CADASTRO
+   *
+   * AQUI:
+   *
+   * 1. valida tudo
+   * 2. cria a conta
+   * 3. envia confirmação automaticamente pelo signUp
+   * 4. NÃO faz upload
+   * 5. NÃO salva psychologists
+   * 6. mostra tela do código
    * =====================================================
    */
 
@@ -1237,78 +1228,196 @@ export default function ProfessionalOnboarding() {
 
     try {
       /*
-       * Primeiro tentamos descobrir o ID.
-       *
-       * NÃO usamos getUser(), porque ele pode gerar
-       * "Auth session missing!".
+       * Se já existe sessão, podemos concluir.
        */
-      let userId =
-        createdUserId ||
-        user?.id ||
-        null;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        setUser(session.user);
+        setCreatedUserId(
+          session.user.id
+        );
+
+        await completeAfterConfirmation(
+          session.user
+        );
+
+        return;
+      }
 
       /*
-       * Se não temos ID localmente, verificamos
-       * se existe uma sessão.
+       * Cria a conta somente agora.
        */
-      if (!userId) {
+      const createdUser =
+        await createAccountAtFinalStep();
+
+      /*
+       * Se o Supabase já retornou uma sessão,
+       * podemos concluir diretamente.
+       *
+       * Com "Confirm email" ativado isso normalmente
+       * NÃO acontecerá.
+       */
+      if (createdUser?.id) {
         const {
-          data: { session },
+          data: {
+            session: newSession,
+          },
         } = await supabase.auth.getSession();
 
-        if (session?.user?.id) {
-          userId =
-            session.user.id;
-
-          setUser(session.user);
-          setCreatedUserId(
-            session.user.id
+        if (newSession?.user) {
+          await completeAfterConfirmation(
+            newSession.user
           );
+
+          return;
         }
       }
 
-      if (!userId) {
-        throw new Error(
-          "Não foi possível identificar sua conta. Volte à primeira etapa e tente novamente."
-        );
-      }
-
       /*
-       * ================================================
-       * 1. SALVA O CADASTRO
-       * ================================================
-       */
-
-      await saveProfessional(userId);
-
-      /*
-       * ================================================
-       * 2. ENVIA O CÓDIGO
+       * Sem sessão:
+       * aguardamos a confirmação do e-mail.
        *
-       * Só acontece agora, depois da revisão.
-       * ================================================
+       * O signUp já enviou o e-mail.
        */
+      setOtp("");
+      setResendCooldown(60);
 
-      await sendSignupConfirmation(
-        form.email
+      setSuccess(
+        `Enviamos um código de confirmação para ${normalizeEmail(
+          form.email
+        )}.`
       );
 
-      /*
-       * ================================================
-       * 3. ABRE A ÚLTIMA TELA:
-       * CONFIRMAÇÃO DO E-MAIL
-       * ================================================
-       */
-
-      setStep(
-        STEPS.length
-      );
+      setStep(STEPS.length);
     } catch (err) {
       setError(
         getErrorMessage(err)
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  /*
+   * =====================================================
+   * CONCLUIR DEPOIS DA CONFIRMAÇÃO
+   *
+   * Aqui já existe sessão.
+   * =====================================================
+   */
+
+  async function completeAfterConfirmation(
+    confirmedUser
+  ) {
+    if (!confirmedUser?.id) {
+      throw new Error(
+        "Usuário não identificado após a confirmação."
+      );
+    }
+
+    setUploading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      /*
+       * Garantimos que existe sessão.
+       */
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        throw new Error(
+          "A sessão ainda não foi criada. Tente confirmar o e-mail novamente."
+        );
+      }
+
+      const userId =
+        session.user.id;
+
+      setUser(session.user);
+      setCreatedUserId(userId);
+
+      /*
+       * 1. Atualiza metadados.
+       */
+      await updateProfessionalMetadata();
+
+      /*
+       * 2. Faz upload da FOTO.
+       *
+       * Agora existe sessão, portanto o Storage
+       * pode autorizar o upload.
+       */
+      let photoUrl =
+        form.photoUrl || null;
+
+      if (photoFile) {
+        photoUrl =
+          await uploadFileToStorage(
+            photoFile,
+            "photo",
+            userId
+          );
+      }
+
+      /*
+       * 3. Faz upload do VÍDEO.
+       */
+      let videoUrl =
+        form.videoUrl || null;
+
+      if (videoFile) {
+        videoUrl =
+          await uploadFileToStorage(
+            videoFile,
+            "video",
+            userId
+          );
+      }
+
+      /*
+       * 4. Salva o perfil no banco.
+       */
+      await saveProfessional(
+        userId,
+        photoUrl,
+        videoUrl
+      );
+
+      /*
+       * 5. Atualiza o estado local.
+       */
+      setForm((current) => ({
+        ...current,
+        photoUrl: photoUrl || "",
+        videoUrl: videoUrl || "",
+      }));
+
+      setPhotoFile(null);
+      setVideoFile(null);
+
+      setSuccess(
+        "Cadastro concluído com sucesso! Redirecionando..."
+      );
+
+      /*
+       * 6. Painel profissional.
+       */
+      window.setTimeout(() => {
+        navigate(
+          "/painel-profissional",
+          {
+            replace: true,
+          }
+        );
+      }, 1000);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -1338,7 +1447,8 @@ export default function ProfessionalOnboarding() {
         normalizeEmail(form.email);
 
       /*
-       * CORRETO PARA CONFIRMAÇÃO DO SIGNUP:
+       * CORRETO PARA SIGNUP:
+       *
        * type: "signup"
        */
       const {
@@ -1375,71 +1485,41 @@ export default function ProfessionalOnboarding() {
       }
 
       /*
-       * Agora SIM existe sessão.
+       * Depois do verifyOtp deve existir uma sessão.
        */
-      setUser(data.user);
-      setCreatedUserId(
-        data.user.id
-      );
+      const {
+        data: {
+          session,
+        },
+      } = await supabase.auth.getSession();
 
-      /*
-       * Agora podemos atualizar os metadados
-       * com segurança.
-       */
-      await updateProfessionalMetadata();
-
-      setOtp("");
-      setOtpSent(false);
-
-      setSuccess(
-        "E-mail confirmado com sucesso! Redirecionando para o painel..."
-      );
-
-      /*
-       * Só agora entra no painel.
-       */
-      window.setTimeout(() => {
-        navigate(
-          "/painel-profissional",
-          {
-            replace: true,
-          }
+      if (!session?.user) {
+        throw new Error(
+          "O e-mail foi confirmado, mas a sessão não foi criada. Verifique a configuração de autenticação do Supabase."
         );
-      }, 1000);
+      }
+
+      setUser(session.user);
+      setCreatedUserId(
+        session.user.id
+      );
+
+      /*
+       * AGORA:
+       *
+       * upload da foto
+       * upload do vídeo
+       * salvar psychologists
+       */
+      await completeAfterConfirmation(
+        session.user
+      );
     } catch (err) {
       setError(
         getErrorMessage(err)
       );
     } finally {
       setVerifyingOtp(false);
-    }
-  }
-
-  /*
-   * =====================================================
-   * REENVIAR CÓDIGO
-   * =====================================================
-   */
-
-  async function resendCode() {
-    if (resendCooldown > 0) {
-      return;
-    }
-
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      await sendSignupConfirmation(
-        form.email
-      );
-    } catch (err) {
-      setError(
-        getErrorMessage(err)
-      );
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -1470,29 +1550,7 @@ export default function ProfessionalOnboarding() {
     }
 
     /*
-     * PRIMEIRO PASSO:
-     * cria a conta.
-     */
-    if (
-      step === 0 &&
-      !user &&
-      !createdUserId
-    ) {
-      const accountCreated =
-        await createAccount();
-
-      if (!accountCreated) {
-        return;
-      }
-
-      setStep(1);
-
-      return;
-    }
-
-    /*
-     * ÚLTIMO PASSO:
-     * revisão → salvar → confirmação.
+     * NÃO CRIA MAIS A CONTA NO PASSO 0.
      */
     if (
       step === STEPS.length - 1
@@ -1599,14 +1657,11 @@ export default function ProfessionalOnboarding() {
 
   /*
    * =====================================================
-   * ÚLTIMA ETAPA:
    * CONFIRMAÇÃO DO E-MAIL
    * =====================================================
    */
 
-  if (
-    step === STEPS.length
-  ) {
+  if (step === STEPS.length) {
     return (
       <PageShell>
         <div className="min-h-screen bg-slate-50 py-10 px-4">
@@ -1625,9 +1680,9 @@ export default function ProfessionalOnboarding() {
 
                 <p className="mt-3 text-slate-600 leading-relaxed">
                   Seu cadastro foi
-                  preenchido e salvo.
-                  Enviamos um código
-                  de confirmação para:
+                  preenchido. Agora falta
+                  apenas confirmar seu
+                  endereço de e-mail.
                 </p>
 
                 <p className="mt-3 font-semibold text-slate-900 break-all">
@@ -1681,6 +1736,7 @@ export default function ProfessionalOnboarding() {
                 }
                 disabled={
                   verifyingOtp ||
+                  uploading ||
                   otp.replace(
                     /\D/g,
                     ""
@@ -1688,11 +1744,14 @@ export default function ProfessionalOnboarding() {
                 }
                 className="w-full mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {verifyingOtp ? (
+                {verifyingOtp ||
+                uploading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
 
-                    Confirmando...
+                    {uploading
+                      ? "Finalizando cadastro..."
+                      : "Confirmando..."}
                   </>
                 ) : (
                   <>
@@ -1711,6 +1770,8 @@ export default function ProfessionalOnboarding() {
                   }
                   disabled={
                     submitting ||
+                    verifyingOtp ||
+                    uploading ||
                     resendCooldown > 0
                   }
                   className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:text-slate-400"
@@ -1748,7 +1809,9 @@ export default function ProfessionalOnboarding() {
     <PageShell>
       <div className="min-h-screen bg-slate-50 py-8 px-4">
         <div className="max-w-5xl mx-auto">
+
           {/* CABEÇALHO */}
+
           <div className="mb-8">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -1779,6 +1842,7 @@ export default function ProfessionalOnboarding() {
           </div>
 
           {/* STEPPER */}
+
           <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6 mb-6 overflow-x-auto">
             <div className="flex min-w-[700px] items-center">
               {STEPS.map(
@@ -1864,6 +1928,7 @@ export default function ProfessionalOnboarding() {
           </div>
 
           {/* MENSAGENS */}
+
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
               {error}
@@ -1877,11 +1942,11 @@ export default function ProfessionalOnboarding() {
           )}
 
           {/* CARD PRINCIPAL */}
+
           <div className="bg-white border border-slate-200 rounded-3xl shadow-sm">
             <div className="p-6 md:p-8">
-              {/* =================================================
-                  PASSO 0
-              ================================================= */}
+
+              {/* PASSO 0 */}
 
               {step === 0 && (
                 <div>
@@ -1896,6 +1961,7 @@ export default function ProfessionalOnboarding() {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-5">
+
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Nome completo *
@@ -2002,108 +2068,107 @@ export default function ProfessionalOnboarding() {
                       />
                     </div>
 
-                    {!user &&
-                      !createdUserId && (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                              Senha *
-                            </label>
+                    {!user && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Senha *
+                          </label>
 
-                            <div className="relative">
-                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
-                              <input
-                                type={
-                                  showPassword
-                                    ? "text"
-                                    : "password"
-                                }
-                                value={
-                                  form.password
-                                }
-                                onChange={(
-                                  event
-                                ) =>
-                                  updateForm(
-                                    "password",
-                                    event.target
-                                      .value
-                                  )
-                                }
-                                placeholder="Mínimo de 6 caracteres"
-                                className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
+                            <input
+                              type={
+                                showPassword
+                                  ? "text"
+                                  : "password"
+                              }
+                              value={
+                                form.password
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateForm(
+                                  "password",
+                                  event.target
+                                    .value
+                                )
+                              }
+                              placeholder="Mínimo de 6 caracteres"
+                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setShowPassword(
-                                    (value) =>
-                                      !value
-                                  )
-                                }
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                              >
-                                {showPassword ? (
-                                  <EyeOff className="w-5 h-5" />
-                                ) : (
-                                  <Eye className="w-5 h-5" />
-                                )}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowPassword(
+                                  (value) =>
+                                    !value
+                                )
+                              }
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+                            >
+                              {showPassword ? (
+                                <EyeOff className="w-5 h-5" />
+                              ) : (
+                                <Eye className="w-5 h-5" />
+                              )}
+                            </button>
                           </div>
+                        </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                              Confirmar senha *
-                            </label>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Confirmar senha *
+                          </label>
 
-                            <div className="relative">
-                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
-                              <input
-                                type={
-                                  showConfirmPassword
-                                    ? "text"
-                                    : "password"
-                                }
-                                value={
-                                  form.confirmPassword
-                                }
-                                onChange={(
-                                  event
-                                ) =>
-                                  updateForm(
-                                    "confirmPassword",
-                                    event.target
-                                      .value
-                                  )
-                                }
-                                placeholder="Repita sua senha"
-                                className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
+                            <input
+                              type={
+                                showConfirmPassword
+                                  ? "text"
+                                  : "password"
+                              }
+                              value={
+                                form.confirmPassword
+                              }
+                              onChange={(
+                                event
+                              ) =>
+                                updateForm(
+                                  "confirmPassword",
+                                  event.target
+                                    .value
+                                )
+                              }
+                              placeholder="Repita sua senha"
+                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setShowConfirmPassword(
-                                    (value) =>
-                                      !value
-                                  )
-                                }
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                              >
-                                {showConfirmPassword ? (
-                                  <EyeOff className="w-5 h-5" />
-                                ) : (
-                                  <Eye className="w-5 h-5" />
-                                )}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowConfirmPassword(
+                                  (value) =>
+                                    !value
+                                )
+                              }
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+                            >
+                              {showConfirmPassword ? (
+                                <EyeOff className="w-5 h-5" />
+                              ) : (
+                                <Eye className="w-5 h-5" />
+                              )}
+                            </button>
                           </div>
-                        </>
-                      )}
+                        </div>
+                      </>
+                    )}
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -2169,9 +2234,7 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              {/* =================================================
-                  PASSO 1
-              ================================================= */}
+              {/* PASSO 1 */}
 
               {step === 1 && (
                 <div>
@@ -2187,6 +2250,7 @@ export default function ProfessionalOnboarding() {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-5">
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Número do CRP *
@@ -2281,9 +2345,7 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              {/* =================================================
-                  PASSO 2
-              ================================================= */}
+              {/* PASSO 2 */}
 
               {step === 2 && (
                 <div>
@@ -2421,9 +2483,7 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              {/* =================================================
-                  PASSO 3
-              ================================================= */}
+              {/* PASSO 3 */}
 
               {step === 3 && (
                 <div>
@@ -2438,6 +2498,7 @@ export default function ProfessionalOnboarding() {
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-4">
+
                     <button
                       type="button"
                       onClick={() =>
@@ -2592,6 +2653,7 @@ export default function ProfessionalOnboarding() {
                   )}
 
                   <div className="grid md:grid-cols-2 gap-5 mt-6">
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Duração da sessão *
@@ -2665,9 +2727,7 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              {/* =================================================
-                  PASSO 4
-              ================================================= */}
+              {/* PASSO 4 */}
 
               {step === 4 && (
                 <div>
@@ -2682,7 +2742,9 @@ export default function ProfessionalOnboarding() {
                   </div>
 
                   <div className="grid lg:grid-cols-2 gap-6">
+
                     {/* FOTO */}
+
                     <div className="rounded-2xl border border-slate-200 p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -2701,11 +2763,13 @@ export default function ProfessionalOnboarding() {
                         </div>
                       </div>
 
-                      {form.photoUrl ? (
+                      {photoPreview ||
+                      form.photoUrl ? (
                         <div>
                           <div className="aspect-square max-w-xs mx-auto overflow-hidden rounded-2xl bg-slate-100">
                             <img
                               src={
+                                photoPreview ||
                                 form.photoUrl
                               }
                               alt="Foto profissional"
@@ -2722,16 +2786,19 @@ export default function ProfessionalOnboarding() {
                               type="file"
                               accept="image/jpeg,image/png,image/webp"
                               className="hidden"
-                              onChange={(
-                                event
-                              ) =>
-                                uploadFile(
-                                  event,
-                                  "photo"
-                                )
+                              onChange={
+                                handlePhotoSelected
                               }
                             />
                           </label>
+
+                          {photoFile && (
+                            <p className="mt-2 text-xs text-center text-slate-500">
+                              Foto selecionada. O
+                              envio ocorrerá após
+                              confirmar o e-mail.
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <label className="cursor-pointer block">
@@ -2754,13 +2821,8 @@ export default function ProfessionalOnboarding() {
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
                             className="hidden"
-                            onChange={(
-                              event
-                            ) =>
-                              uploadFile(
-                                event,
-                                "photo"
-                              )
+                            onChange={
+                              handlePhotoSelected
                             }
                           />
                         </label>
@@ -2768,6 +2830,7 @@ export default function ProfessionalOnboarding() {
                     </div>
 
                     {/* VÍDEO */}
+
                     <div className="rounded-2xl border border-slate-200 p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
@@ -2786,10 +2849,12 @@ export default function ProfessionalOnboarding() {
                         </div>
                       </div>
 
-                      {form.videoUrl ? (
+                      {videoPreview ||
+                      form.videoUrl ? (
                         <div>
                           <video
                             src={
+                              videoPreview ||
                               form.videoUrl
                             }
                             controls
@@ -2805,16 +2870,19 @@ export default function ProfessionalOnboarding() {
                               type="file"
                               accept="video/mp4,video/webm,video/quicktime"
                               className="hidden"
-                              onChange={(
-                                event
-                              ) =>
-                                uploadFile(
-                                  event,
-                                  "video"
-                                )
+                              onChange={
+                                handleVideoSelected
                               }
                             />
                           </label>
+
+                          {videoFile && (
+                            <p className="mt-2 text-xs text-center text-slate-500">
+                              Vídeo selecionado. O
+                              envio ocorrerá após
+                              confirmar o e-mail.
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <label className="cursor-pointer block">
@@ -2836,13 +2904,8 @@ export default function ProfessionalOnboarding() {
                             type="file"
                             accept="video/mp4,video/webm,video/quicktime"
                             className="hidden"
-                            onChange={(
-                              event
-                            ) =>
-                              uploadFile(
-                                event,
-                                "video"
-                              )
+                            onChange={
+                              handleVideoSelected
                             }
                           />
                         </label>
@@ -2896,9 +2959,7 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
-              {/* =================================================
-                  PASSO 5 - REVISÃO
-              ================================================= */}
+              {/* PASSO 5 - REVISÃO */}
 
               {step === 5 && (
                 <div>
@@ -2914,6 +2975,7 @@ export default function ProfessionalOnboarding() {
                   </div>
 
                   <div className="space-y-5">
+
                     <ReviewSection
                       title="Dados pessoais"
                       onEdit={() =>
@@ -3102,9 +3164,12 @@ export default function ProfessionalOnboarding() {
                       }
                     >
                       <div className="md:col-span-2 flex items-center gap-4">
-                        {form.photoUrl ? (
+
+                        {photoPreview ||
+                        form.photoUrl ? (
                           <img
                             src={
+                              photoPreview ||
                               form.photoUrl
                             }
                             alt="Foto profissional"
@@ -3122,15 +3187,17 @@ export default function ProfessionalOnboarding() {
                           </p>
 
                           <p className="text-sm text-slate-500">
-                            {form.photoUrl
-                              ? "Adicionada"
+                            {photoFile ||
+                            form.photoUrl
+                              ? "Selecionada"
                               : "Não adicionada"}
                           </p>
 
                           <p className="text-sm text-slate-500 mt-1">
                             Vídeo:{" "}
-                            {form.videoUrl
-                              ? "Adicionado"
+                            {videoFile ||
+                            form.videoUrl
+                              ? "Selecionado"
                               : "Não adicionado"}
                           </p>
                         </div>
@@ -3167,17 +3234,21 @@ export default function ProfessionalOnboarding() {
                             {" "}
                             "Finalizar cadastro"
                           </strong>
-                          , seus dados serão
-                          salvos. Em seguida,
-                          enviaremos um código
-                          para seu e-mail.
+                          , criaremos sua conta
+                          e enviaremos um código
+                          de confirmação para seu
+                          e-mail.
                         </p>
 
                         <p className="mt-2 text-sm text-blue-800 leading-relaxed">
                           A confirmação do
                           e-mail será a última
                           etapa antes do acesso
-                          ao painel profissional.
+                          ao painel. Após a
+                          confirmação, sua foto,
+                          vídeo e demais dados
+                          serão enviados e salvos
+                          no seu perfil profissional.
                         </p>
                       </div>
                     </div>
@@ -3186,11 +3257,10 @@ export default function ProfessionalOnboarding() {
               )}
             </div>
 
-            {/* =================================================
-                RODAPÉ
-            ================================================= */}
+            {/* RODAPÉ */}
 
             <div className="border-t border-slate-200 px-6 md:px-8 py-5 flex items-center justify-between gap-4">
+
               <button
                 type="button"
                 onClick={
@@ -3231,8 +3301,14 @@ export default function ProfessionalOnboarding() {
                     <Loader2 className="w-4 h-4 animate-spin" />
 
                     {step === 5
-                      ? "Salvando..."
+                      ? "Criando conta..."
                       : "Processando..."}
+                  </>
+                ) : uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+
+                    Enviando arquivos...
                   </>
                 ) : step === 5 ? (
                   <>
