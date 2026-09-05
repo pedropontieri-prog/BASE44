@@ -1829,7 +1829,7 @@ export default function ProfessionalOnboarding() {
                 type="button"
                 onClick={() =>
                   navigate(
-                    "/login-profissional"
+                    "/login"
                   )
                 }
                 className="hidden md:inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
