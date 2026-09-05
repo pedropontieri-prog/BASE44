@@ -14,18 +14,95 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
+/**
+ * Descobre para qual painel o usuário deve ir.
+ *
+ * Profissional:
+ *   /painel-profissional
+ *
+ * Paciente:
+ *   /painel-paciente
+ *
+ * Se não encontrar o tipo, usa /painel como fallback.
+ */
+const getUserDestination = (user, returnTo) => {
+  if (!user) {
+    return "/login";
+  }
+
+  /*
+   * Se existe um returnTo válido e específico,
+   * podemos respeitá-lo.
+   *
+   * Mas NÃO deixamos um /painel genérico sobrescrever
+   * a decisão de profissional/paciente.
+   */
+  const metadata = user.user_metadata || {};
+
+  const role = String(
+    metadata.role ||
+      metadata.account_type ||
+      metadata.user_type ||
+      ""
+  ).toLowerCase();
+
+  /*
+   * PROFISSIONAL
+   */
+  if (
+    role === "professional" ||
+    role === "profissional" ||
+    role === "psychologist" ||
+    role === "psicologo" ||
+    role === "psicóloga" ||
+    role === "psicologo"
+  ) {
+    return "/painel-profissional";
+  }
+
+  /*
+   * PACIENTE
+   */
+  if (
+    role === "patient" ||
+    role === "paciente" ||
+    role === "user"
+  ) {
+    return "/painel-paciente";
+  }
+
+  /*
+   * Se não houver role no metadata,
+   * usa returnTo somente se ele não for um
+   * painel genérico.
+   */
+  if (
+    returnTo &&
+    returnTo !== "/" &&
+    returnTo !== "/painel"
+  ) {
+    return returnTo;
+  }
+
+  /*
+   * Fallback.
+   */
+  return "/painel";
+};
+
 export default function Login() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const returnTo = safeReturnTo();
 
   // ============================================================
-  // VERIFICAR SESSÃO EXISTENTE
+  // REDIRECIONAR USUÁRIO JÁ LOGADO
   // ============================================================
 
   useEffect(() => {
@@ -50,10 +127,21 @@ export default function Login() {
           return;
         }
 
-        const destination =
-          returnTo && returnTo !== "/"
-            ? returnTo
-            : "/painel";
+        const destination = getUserDestination(
+          session.user,
+          returnTo
+        );
+
+        console.log(
+          "Usuário já possui sessão.",
+          {
+            role:
+              session.user.user_metadata?.role,
+            accountType:
+              session.user.user_metadata?.account_type,
+            destination,
+          }
+        );
 
         navigate(destination, {
           replace: true,
@@ -88,9 +176,23 @@ export default function Login() {
           session?.user
         ) {
           const destination =
-            returnTo && returnTo !== "/"
-              ? returnTo
-              : "/painel";
+            getUserDestination(
+              session.user,
+              returnTo
+            );
+
+          console.log(
+            "Alteração de autenticação.",
+            {
+              event,
+              role:
+                session.user.user_metadata?.role,
+              accountType:
+                session.user.user_metadata
+                  ?.account_type,
+              destination,
+            }
+          );
 
           navigate(destination, {
             replace: true,
@@ -131,7 +233,7 @@ export default function Login() {
       }
 
       // ========================================================
-      // FAZER LOGIN
+      // LOGIN
       // ========================================================
 
       const {
@@ -173,27 +275,51 @@ export default function Login() {
         );
       }
 
+      const user =
+        sessionData.session.user;
+
+      // ========================================================
+      // IDENTIFICAR TIPO DA CONTA
+      // ========================================================
+
+      const metadata =
+        user.user_metadata || {};
+
+      const role = String(
+        metadata.role ||
+          metadata.account_type ||
+          metadata.user_type ||
+          ""
+      ).toLowerCase();
+
+      // ========================================================
+      // DEFINIR DESTINO
+      // ========================================================
+
+      const destination =
+        getUserDestination(
+          user,
+          returnTo
+        );
+
       console.log(
         "Login realizado com sucesso.",
         {
-          userId:
-            sessionData.session.user.id,
+          userId: user.id,
+          email: user.email,
+          role,
+          metadata,
+          destination,
         }
       );
 
       // ========================================================
-      // DESTINO
+      // REDIRECIONAR
       // ========================================================
-
-      const destination =
-        returnTo && returnTo !== "/"
-          ? returnTo
-          : "/painel";
 
       navigate(destination, {
         replace: true,
       });
-
     } catch (err) {
       console.error(
         "Erro no login:",
@@ -216,7 +342,6 @@ export default function Login() {
         setError(
           "E-mail ou senha incorretos."
         );
-
       } else if (
         message.includes(
           "email not confirmed"
@@ -226,9 +351,8 @@ export default function Login() {
         )
       ) {
         setError(
-          "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
+          "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada e confirme o código."
         );
-
       } else if (
         message.includes(
           "too many requests"
@@ -237,7 +361,6 @@ export default function Login() {
         setError(
           "Muitas tentativas. Aguarde alguns minutos e tente novamente."
         );
-
       } else if (
         message.includes(
           "network"
@@ -246,14 +369,12 @@ export default function Login() {
         setError(
           "Erro de conexão. Verifique sua internet e tente novamente."
         );
-
       } else {
         setError(
           err?.message ||
-          "Não foi possível entrar. Tente novamente."
+            "Não foi possível entrar. Tente novamente."
         );
       }
-
     } finally {
       setLoading(false);
     }
@@ -296,7 +417,6 @@ export default function Login() {
       if (googleError) {
         throw googleError;
       }
-
     } catch (err) {
       console.error(
         "Erro no login com Google:",
@@ -305,7 +425,7 @@ export default function Login() {
 
       setError(
         err?.message ||
-        "Não foi possível entrar com o Google."
+          "Não foi possível entrar com o Google."
       );
 
       setLoading(false);
