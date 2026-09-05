@@ -15,42 +15,22 @@ import {
   Eye,
   EyeOff,
   Video,
+  MapPin,
+  Mail,
+  RefreshCw,
+  Edit3,
 } from "lucide-react";
 
 import PageShell from "@/components/PageShell";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
-  {
-    key: "personal",
-    title: "Pessoal",
-    icon: User,
-  },
-  {
-    key: "professional",
-    title: "Registro profissional",
-    icon: Briefcase,
-  },
-  {
-    key: "approach",
-    title: "Atuação",
-    icon: Briefcase,
-  },
-  {
-    key: "service",
-    title: "Atendimento",
-    icon: Calendar,
-  },
-  {
-    key: "media",
-    title: "Foto e vídeo",
-    icon: Camera,
-  },
-  {
-    key: "review",
-    title: "Revisão",
-    icon: ShieldCheck,
-  },
+  { id: "personal", label: "Pessoal", icon: User },
+  { id: "professional", label: "Registro profissional", icon: Briefcase },
+  { id: "approach", label: "Atuação", icon: Briefcase },
+  { id: "service", label: "Atendimento", icon: Calendar },
+  { id: "media", label: "Foto e vídeo", icon: Camera },
+  { id: "review", label: "Revisão", icon: ShieldCheck },
 ];
 
 const DEFAULT_FORM = {
@@ -59,7 +39,6 @@ const DEFAULT_FORM = {
   phone: "",
   cpf: "",
   birthDate: "",
-
   password: "",
   confirmPassword: "",
 
@@ -109,6 +88,17 @@ const THEME_OPTIONS = [
   "Autoconhecimento",
 ];
 
+const APPROACH_OPTIONS = [
+  "Terapia Cognitivo-Comportamental (TCC)",
+  "Psicanálise",
+  "Gestalt-terapia",
+  "Abordagem humanista",
+  "Terapia sistêmica",
+  "EMDR",
+  "Terapia comportamental",
+  "Outra",
+];
+
 const UF_OPTIONS = [
   "AC",
   "AL",
@@ -139,94 +129,119 @@ const UF_OPTIONS = [
   "TO",
 ];
 
-const APPROACH_OPTIONS = [
-  "Terapia Cognitivo-Comportamental (TCC)",
-  "Psicanálise",
-  "Gestalt-terapia",
-  "Abordagem humanista",
-  "Terapia sistêmica",
-  "EMDR",
-  "Terapia comportamental",
-  "Outra",
-];
+function formatPhone(value) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
 
-function formatPhone(value = "") {
-  const numbers = String(value)
-    .replace(/\D/g, "")
-    .slice(0, 11);
-
-  if (numbers.length <= 2) {
-    return numbers;
+  if (digits.length <= 2) {
+    return digits;
   }
 
-  if (numbers.length <= 7) {
-    return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  if (digits.length <= 7) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
   }
 
-  return `(${numbers.slice(0, 2)}) ${numbers.slice(
-    2,
-    7
-  )}-${numbers.slice(7)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
-function formatCpf(value = "") {
-  const numbers = String(value)
-    .replace(/\D/g, "")
-    .slice(0, 11);
+function formatCpf(value) {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
 
-  if (numbers.length <= 3) {
-    return numbers;
+  if (digits.length <= 3) {
+    return digits;
   }
 
-  if (numbers.length <= 6) {
-    return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+  if (digits.length <= 6) {
+    return `${digits.slice(0, 3)}.${digits.slice(3)}`;
   }
 
-  if (numbers.length <= 9) {
-    return `${numbers.slice(0, 3)}.${numbers.slice(
-      3,
-      6
-    )}.${numbers.slice(6)}`;
+  if (digits.length <= 9) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
   }
 
-  return `${numbers.slice(0, 3)}.${numbers.slice(
-    3,
-    6
-  )}.${numbers.slice(6, 9)}-${numbers.slice(9)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(
+    6,
+    9
+  )}-${digits.slice(9)}`;
 }
 
-function normalizeEmail(value = "") {
-  return String(value).trim().toLowerCase();
+function normalizeEmail(email) {
+  return email.trim().toLowerCase();
 }
 
-function getErrorMessage(error, fallback) {
+function isValidCpf(value) {
+  const cpf = value.replace(/\D/g, "");
+
+  if (!cpf) {
+    return true;
+  }
+
+  if (cpf.length !== 11) {
+    return false;
+  }
+
+  if (/^(\d)\1+$/.test(cpf)) {
+    return false;
+  }
+
+  let sum = 0;
+
+  for (let i = 0; i < 9; i++) {
+    sum += Number(cpf[i]) * (10 - i);
+  }
+
+  let remainder = (sum * 10) % 11;
+
+  if (remainder === 10) {
+    remainder = 0;
+  }
+
+  if (remainder !== Number(cpf[9])) {
+    return false;
+  }
+
+  sum = 0;
+
+  for (let i = 0; i < 10; i++) {
+    sum += Number(cpf[i]) * (11 - i);
+  }
+
+  remainder = (sum * 10) % 11;
+
+  if (remainder === 10) {
+    remainder = 0;
+  }
+
+  return remainder === Number(cpf[10]);
+}
+
+function getErrorMessage(error) {
   if (!error) {
-    return fallback;
-  }
-
-  if (typeof error === "string") {
-    return error;
+    return "Ocorreu um erro. Tente novamente.";
   }
 
   return (
     error.message ||
     error.error_description ||
-    fallback
+    "Ocorreu um erro. Tente novamente."
   );
 }
 
 function isRateLimitError(error) {
-  const message = getErrorMessage(error, "").toLowerCase();
+  const message = getErrorMessage(error).toLowerCase();
 
   return (
     message.includes("rate limit") ||
     message.includes("too many requests") ||
-    message.includes("429")
+    message.includes("email rate limit")
   );
 }
 
 function isAlreadyRegisteredError(error) {
-  const message = getErrorMessage(error, "").toLowerCase();
+  const message = getErrorMessage(error).toLowerCase();
 
   return (
     message.includes("already registered") ||
@@ -236,12 +251,11 @@ function isAlreadyRegisteredError(error) {
 }
 
 function isEmailConfirmationError(error) {
-  const message = getErrorMessage(error, "").toLowerCase();
+  const message = getErrorMessage(error).toLowerCase();
 
   return (
     message.includes("email not confirmed") ||
-    message.includes("email_not_confirmed") ||
-    message.includes("email confirmation")
+    message.includes("email_not_confirmed")
   );
 }
 
@@ -257,8 +271,7 @@ export default function ProfessionalOnboarding() {
   const [uploading, setUploading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
@@ -272,25 +285,15 @@ export default function ProfessionalOnboarding() {
   useEffect(() => {
     let mounted = true;
 
-    const loadSession = async () => {
+    async function loadSession() {
       try {
         const {
-          data,
-          error: sessionError,
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!mounted) {
           return;
         }
-
-        if (sessionError) {
-          console.error(
-            "Erro ao carregar sessão:",
-            sessionError
-          );
-        }
-
-        const session = data?.session;
 
         if (session?.user) {
           setUser(session.user);
@@ -298,61 +301,57 @@ export default function ProfessionalOnboarding() {
           setForm((current) => ({
             ...current,
             email:
+              current.email ||
               session.user.email ||
-              current.email,
+              "",
             name:
-              session.user.user_metadata?.full_name ||
+              current.name ||
               session.user.user_metadata?.name ||
-              current.name,
+              session.user.user_metadata?.full_name ||
+              "",
           }));
         }
       } catch (err) {
-        console.error(
-          "Erro ao carregar sessão:",
-          err
-        );
+        console.error("Erro ao carregar sessão:", err);
       } finally {
         if (mounted) {
           setLoading(false);
         }
       }
-    };
+    }
 
     loadSession();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (session?.user) {
+        setUser(session.user);
+
+        setForm((current) => ({
+          ...current,
+          email:
+            current.email ||
+            session.user.email ||
+            "",
+          name:
+            current.name ||
+            session.user.user_metadata?.name ||
+            session.user.user_metadata?.full_name ||
+            "",
+        }));
+      } else {
+        setUser(null);
+      }
+    });
+
     return () => {
       mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const {
-      data: subscriptionData,
-    } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        const authenticatedUser =
-          session?.user || null;
-
-        setUser(authenticatedUser);
-
-        if (authenticatedUser) {
-          setForm((current) => ({
-            ...current,
-            email:
-              authenticatedUser.email ||
-              current.email,
-            name:
-              authenticatedUser.user_metadata
-                ?.full_name ||
-              authenticatedUser.user_metadata?.name ||
-              current.name,
-          }));
-        }
-      }
-    );
-
-    return () => {
-      subscriptionData?.subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -372,43 +371,53 @@ export default function ProfessionalOnboarding() {
       });
     }, 1000);
 
-    return () => {
-      window.clearInterval(timer);
-    };
+    return () => window.clearInterval(timer);
   }, [resendCooldown]);
 
-  const updateForm = (key, value) => {
+  function updateForm(field, value) {
     setForm((current) => ({
       ...current,
-      [key]: value,
+      [field]: value,
     }));
 
     setError("");
-  };
+    setSuccess("");
+  }
 
-  const toggleArrayValue = (key, value) => {
+  function toggleArrayValue(field, value) {
     setForm((current) => {
-      const currentValues = Array.isArray(current[key])
-        ? current[key]
-        : [];
-
-      const exists = currentValues.includes(value);
+      const exists = current[field].includes(value);
 
       return {
         ...current,
-        [key]: exists
-          ? currentValues.filter(
-              (item) => item !== value
-            )
-          : [...currentValues, value],
+        [field]: exists
+          ? current[field].filter((item) => item !== value)
+          : [...current[field], value],
       };
     });
 
     setError("");
-  };
+  }
 
-  const validateStep = (currentStep = step) => {
-    if (currentStep === 0) {
+  function validateBirthDate() {
+    if (!form.birthDate) {
+      return true;
+    }
+
+    const birthDate = new Date(`${form.birthDate}T00:00:00`);
+    const today = new Date();
+
+    if (Number.isNaN(birthDate.getTime())) {
+      return false;
+    }
+
+    return birthDate <= today;
+  }
+
+  function validateStep(stepNumber) {
+    setError("");
+
+    if (stepNumber === 0) {
       if (!form.name.trim()) {
         return "Informe seu nome completo.";
       }
@@ -417,12 +426,16 @@ export default function ProfessionalOnboarding() {
         return "Informe seu e-mail.";
       }
 
-      if (
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          normalizeEmail(form.email)
-        )
-      ) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
         return "Informe um e-mail válido.";
+      }
+
+      if (!isValidCpf(form.cpf)) {
+        return "Informe um CPF válido.";
+      }
+
+      if (!validateBirthDate()) {
+        return "Informe uma data de nascimento válida.";
       }
 
       if (!user) {
@@ -434,9 +447,7 @@ export default function ProfessionalOnboarding() {
           return "A senha deve ter pelo menos 6 caracteres.";
         }
 
-        if (
-          form.password !== form.confirmPassword
-        ) {
+        if (form.password !== form.confirmPassword) {
           return "As senhas não coincidem.";
         }
       }
@@ -450,111 +461,88 @@ export default function ProfessionalOnboarding() {
       }
     }
 
-    if (currentStep === 1) {
+    if (stepNumber === 1) {
       if (!form.crp.trim()) {
-        return "Informe seu número do CRP.";
+        return "Informe seu número de CRP.";
       }
 
       if (!form.crpState) {
         return "Selecione o estado do CRP.";
       }
-    }
 
-    if (currentStep === 2) {
-      if (!form.approach.trim()) {
-        return "Informe sua abordagem.";
-      }
-
-      if (!form.audience.length) {
-        return "Selecione pelo menos um público.";
-      }
-
-      if (!form.themes.length) {
-        return "Selecione pelo menos um tema de atuação.";
+      if (!form.crpStatus) {
+        return "Informe a situação do CRP.";
       }
     }
 
-    if (currentStep === 3) {
+    if (stepNumber === 2) {
+      if (!form.approach) {
+        return "Selecione sua principal abordagem.";
+      }
+
+      if (form.audience.length === 0) {
+        return "Selecione pelo menos um público atendido.";
+      }
+
+      if (form.themes.length === 0) {
+        return "Selecione pelo menos uma área de atuação.";
+      }
+    }
+
+    if (stepNumber === 3) {
       if (!form.online && !form.presencial) {
         return "Selecione pelo menos uma modalidade de atendimento.";
       }
 
       if (form.online && !form.ePsi) {
-        return "Confirme que possui autorização e-Psi para atendimento online.";
+        return "Confirme que possui cadastro/autorização e-Psi para atendimento on-line.";
       }
 
-      if (
-        form.presencial &&
-        !form.address.trim()
-      ) {
-        return "Informe o endereço do consultório.";
+      if (form.presencial && !form.address.trim()) {
+        return "Informe o endereço para atendimento presencial.";
       }
 
-      if (
-        !form.sessionDuration ||
-        Number(form.sessionDuration) <= 0
-      ) {
+      if (!form.sessionDuration || Number(form.sessionDuration) <= 0) {
         return "Informe a duração da sessão.";
       }
 
-      if (
-        !form.sessionPrice ||
-        Number(form.sessionPrice) <= 0
-      ) {
+      if (!form.sessionPrice || Number(form.sessionPrice) <= 0) {
         return "Informe o valor da sessão.";
       }
     }
 
-    if (currentStep === 4) {
+    if (stepNumber === 4) {
       if (!form.photoUrl) {
-        return "Envie uma foto profissional.";
+        return "Adicione uma foto profissional.";
+      }
+
+      if (form.presentation.trim().length > 800) {
+        return "A apresentação deve ter no máximo 800 caracteres.";
       }
     }
 
-    if (currentStep === 5) {
-      for (let i = 0; i < 5; i += 1) {
-        const validationError = validateStep(i);
+    if (stepNumber === 5) {
+      for (let i = 0; i < 5; i++) {
+        const validation = validateStep(i);
 
-        if (validationError) {
-          return validationError;
+        if (validation) {
+          return validation;
         }
       }
     }
 
     return "";
-  };
+  }
 
-  const validateAllSteps = () => {
-    for (let i = 0; i < 5; i += 1) {
-      const validationError = validateStep(i);
-
-      if (validationError) {
-        return {
-          step: i,
-          error: validationError,
-        };
-      }
+  async function updateProfessionalMetadata(authenticatedUser) {
+    if (!authenticatedUser) {
+      return;
     }
 
-    return null;
-  };
-
-  const updateProfessionalMetadata = async (
-    authenticatedUser,
-    name
-  ) => {
-    if (!authenticatedUser?.id) {
-      throw new Error(
-        "Usuário autenticado não encontrado."
-      );
-    }
-
-    const {
-      error: metadataError,
-    } = await supabase.auth.updateUser({
+    const { error: metadataError } = await supabase.auth.updateUser({
       data: {
-        name,
-        full_name: name,
+        name: form.name.trim(),
+        full_name: form.name.trim(),
         role: "professional",
         user_type: "professional",
         account_type: "professional",
@@ -563,115 +551,93 @@ export default function ProfessionalOnboarding() {
     });
 
     if (metadataError) {
-      throw metadataError;
+      console.error(
+        "Não foi possível atualizar os metadados:",
+        metadataError
+      );
     }
-  };
+  }
 
-  const getAuthenticatedUser = async () => {
+  async function getAuthenticatedUser() {
     const {
-      data,
+      data: { user: authenticatedUser },
       error: authError,
     } = await supabase.auth.getUser();
 
     if (authError) {
       if (isEmailConfirmationError(authError)) {
         throw new Error(
-          "Confirme seu e-mail antes de continuar."
+          "Seu e-mail ainda não foi confirmado."
         );
       }
 
       throw authError;
     }
 
-    if (!data?.user) {
+    if (!authenticatedUser) {
       throw new Error(
-        "Sua sessão expirou. Faça login novamente."
+        "Sua sessão não está ativa. Entre novamente para continuar."
       );
     }
 
-    return data.user;
-  };
+    return authenticatedUser;
+  }
 
-  const sendSignupConfirmation = async (
-    email
-  ) => {
-    const {
-      error: resendError,
-    } = await supabase.auth.resend({
-      type: "signup",
-      email,
-    });
+  async function createAccount() {
+    const validation = validateStep(0);
 
-    if (resendError) {
-      throw resendError;
-    }
-
-    setOtp("");
-    setOtpSent(true);
-    setResendCooldown(60);
-
-    setSuccess(
-      "Código enviado. Confira seu e-mail para continuar."
-    );
-  };
-
-  const createAccount = async () => {
-    if (submitting) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    const validationError = validateStep(0);
-
-    if (validationError) {
-      setError(validationError);
-      return;
+    if (validation) {
+      setError(validation);
+      return false;
     }
 
     setSubmitting(true);
+    setError("");
+    setSuccess("");
 
     try {
-      const email = normalizeEmail(form.email);
-      const name = form.name.trim();
+      if (user) {
+        await updateProfessionalMetadata(user);
 
-      if (user?.id) {
-        await updateProfessionalMetadata(
-          user,
-          name
+        setSuccess(
+          "Conta identificada. Continue o preenchimento do cadastro."
         );
 
-        setStep(1);
-
-        window.scrollTo({
-          top: 0,
-          behavior: "smooth",
-        });
-
-        return;
+        return true;
       }
 
-      const {
-        data,
-        error: signUpError,
-      } = await supabase.auth.signUp({
-        email,
-        password: form.password,
-        options: {
-          data: {
-            name,
-            full_name: name,
-            role: "professional",
-            user_type: "professional",
-            account_type: "professional",
-            profile_type: "professional",
-          },
-        },
-      });
+      const email = normalizeEmail(form.email);
 
-      if (signUpError) {
-        throw signUpError;
+      const { data, error: signupError } =
+        await supabase.auth.signUp({
+          email,
+          password: form.password,
+          options: {
+            data: {
+              name: form.name.trim(),
+              full_name: form.name.trim(),
+              role: "professional",
+              user_type: "professional",
+              account_type: "professional",
+              profile_type: "professional",
+            },
+          },
+        });
+
+      if (signupError) {
+        if (isRateLimitError(signupError)) {
+          throw new Error(
+            "Muitas tentativas de envio de e-mail. Aguarde alguns minutos e tente novamente."
+          );
+        }
+
+        if (isAlreadyRegisteredError(signupError)) {
+          throw new Error(
+            "Este e-mail já possui uma conta. Entre na sua conta para continuar."
+          );
+        }
+
+        throw signupError;
       }
 
       if (!data?.user) {
@@ -680,218 +646,168 @@ export default function ProfessionalOnboarding() {
         );
       }
 
-      const authenticatedUser =
-        data.session?.user || null;
+      if (data.session?.user) {
+        setUser(data.session.user);
 
-      if (authenticatedUser?.id) {
-        setUser(authenticatedUser);
-
-        await updateProfessionalMetadata(
-          authenticatedUser,
-          name
-        );
+        await updateProfessionalMetadata(data.session.user);
 
         setSuccess(
-          "Conta criada. Continue preenchendo seu perfil profissional."
+          "Conta criada. Continue preenchendo seu cadastro."
         );
 
-        setStep(1);
-
-        window.scrollTo({
-          top: 0,
-          behavior: "smooth",
-        });
-
-        return;
+        return true;
       }
 
-      await sendSignupConfirmation(email);
-    } catch (err) {
-      console.error(
-        "Erro ao criar conta:",
-        err
+      /*
+       * IMPORTANTE:
+       * Não enviamos o código de confirmação aqui.
+       *
+       * A confirmação do e-mail será feita somente
+       * depois que todo o cadastro estiver preenchido
+       * e revisado.
+       */
+
+      setSuccess(
+        "Conta criada. Continue preenchendo o cadastro."
       );
 
-      if (isRateLimitError(err)) {
-        setError(
-          "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente."
-        );
-      } else if (
-        isAlreadyRegisteredError(err)
-      ) {
-        setError(
-          'Este e-mail já está cadastrado. Entre pela opção "Já tenho uma conta".'
-        );
-      } else {
-        setError(
-          getErrorMessage(
-            err,
-            "Não foi possível criar sua conta."
-          )
-        );
-      }
+      return true;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      return false;
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const verifyEmailCode = async (event) => {
-    event.preventDefault();
+  async function sendSignupConfirmation(emailValue = form.email) {
+    const email = normalizeEmail(emailValue);
 
-    if (verifyingOtp) {
-      return;
+    if (!email) {
+      throw new Error("Informe seu e-mail.");
     }
 
-    setError("");
-    setSuccess("");
+    const { error: resendError } =
+      await supabase.auth.resend({
+        type: "signup",
+        email,
+      });
 
-    const code = otp.trim();
+    if (resendError) {
+      if (isRateLimitError(resendError)) {
+        throw new Error(
+          "Aguarde alguns instantes antes de solicitar outro código."
+        );
+      }
 
-    if (!/^\d{6,8}$/.test(code)) {
-      setError(
-        "Digite o código de 6 a 8 dígitos recebido por e-mail."
-      );
+      throw resendError;
+    }
+
+    setOtp("");
+    setOtpSent(true);
+    setResendCooldown(60);
+
+    setSuccess(
+      `Enviamos um código de confirmação para ${email}.`
+    );
+  }
+
+  async function verifyEmailCode() {
+    const code = otp.replace(/\D/g, "");
+
+    if (code.length < 6) {
+      setError("Digite o código de confirmação recebido por e-mail.");
       return;
     }
 
     setVerifyingOtp(true);
+    setError("");
+    setSuccess("");
 
     try {
-      const email =
-        normalizeEmail(form.email);
+      const email = normalizeEmail(form.email);
 
-      const {
-        data,
-        error: verifyError,
-      } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: "email",
-      });
+      /*
+       * Para confirmação de cadastro por e-mail no Supabase,
+       * o type correto é "signup".
+       */
+      const { data, error: verifyError } =
+        await supabase.auth.verifyOtp({
+          email,
+          token: code,
+          type: "signup",
+        });
 
       if (verifyError) {
+        const message = getErrorMessage(verifyError).toLowerCase();
+
+        if (
+          message.includes("expired") ||
+          message.includes("invalid")
+        ) {
+          throw new Error(
+            "Código inválido ou expirado. Solicite um novo código."
+          );
+        }
+
         throw verifyError;
       }
 
-      let authenticatedUser =
-        data?.user || null;
-
-      if (!authenticatedUser?.id) {
-        authenticatedUser =
-          await getAuthenticatedUser();
+      if (!data?.user) {
+        throw new Error(
+          "Não foi possível confirmar o e-mail."
+        );
       }
 
-      await updateProfessionalMetadata(
-        authenticatedUser,
-        form.name.trim()
-      );
+      setUser(data.user);
 
-      setUser(authenticatedUser);
-      setOtp("");
+      await updateProfessionalMetadata(data.user);
+
       setOtpSent(false);
-      setResendCooldown(0);
+      setOtp("");
 
       setSuccess(
-        "E-mail confirmado! Agora continue preenchendo seu perfil profissional."
+        "E-mail confirmado com sucesso! Redirecionando para o painel..."
       );
 
-      setStep(1);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+      window.setTimeout(() => {
+        navigate("/painel-profissional", {
+          replace: true,
+        });
+      }, 900);
     } catch (err) {
-      console.error(
-        "Erro ao confirmar e-mail:",
-        err
-      );
-
-      const message =
-        getErrorMessage(
-          err,
-          "Código inválido ou expirado."
-        );
-
-      const lower =
-        message.toLowerCase();
-
-      if (
-        lower.includes("expired") ||
-        lower.includes("expir")
-      ) {
-        setError(
-          "Esse código expirou. Solicite um novo código."
-        );
-      } else if (
-        lower.includes("invalid") ||
-        lower.includes("token") ||
-        lower.includes("otp")
-      ) {
-        setError(
-          "Código inválido. Confira os números recebidos e tente novamente."
-        );
-      } else {
-        setError(message);
-      }
+      setError(getErrorMessage(err));
     } finally {
       setVerifyingOtp(false);
     }
-  };
+  }
 
-  const resendCode = async () => {
-    if (
-      resendCooldown > 0 ||
-      submitting ||
-      verifyingOtp
-    ) {
+  async function resendCode() {
+    if (resendCooldown > 0) {
       return;
     }
 
+    setSubmitting(true);
     setError("");
     setSuccess("");
-    setSubmitting(true);
 
     try {
-      const email =
-        normalizeEmail(form.email);
-
-      if (!email) {
-        throw new Error(
-          "E-mail não informado."
-        );
-      }
-
-      await sendSignupConfirmation(email);
+      await sendSignupConfirmation(form.email);
     } catch (err) {
-      console.error(
-        "Erro ao reenviar código:",
-        err
-      );
-
-      if (isRateLimitError(err)) {
-        setError(
-          "Muitas tentativas. Aguarde alguns minutos antes de solicitar outro código."
-        );
-      } else {
-        setError(
-          getErrorMessage(
-            err,
-            "Não foi possível reenviar o código."
-          )
-        );
-      }
+      setError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const uploadFile = async (
-    event,
-    type
-  ) => {
-    const file =
-      event.target.files?.[0];
+  async function uploadFile(event, type) {
+    const file = event.target.files?.[0];
+
+    /*
+     * Permite selecionar o mesmo arquivo novamente
+     * caso tenha ocorrido algum problema.
+     */
+    event.target.value = "";
 
     if (!file) {
       return;
@@ -899,202 +815,165 @@ export default function ProfessionalOnboarding() {
 
     setError("");
     setSuccess("");
+
+    if (type === "photo") {
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        setError(
+          "A foto deve estar em JPG, PNG ou WEBP."
+        );
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError(
+          "A foto deve ter no máximo 5 MB."
+        );
+        return;
+      }
+    }
+
+    if (type === "video") {
+      const allowedTypes = [
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        setError(
+          "O vídeo deve estar em MP4, WEBM ou MOV."
+        );
+        return;
+      }
+
+      if (file.size > 100 * 1024 * 1024) {
+        setError(
+          "O vídeo deve ter no máximo 100 MB."
+        );
+        return;
+      }
+    }
+
     setUploading(true);
 
     try {
       const authenticatedUser =
         await getAuthenticatedUser();
 
-      setUser(authenticatedUser);
-
-      if (type === "photo") {
-        const allowedTypes = [
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-        ];
-
-        if (
-          !allowedTypes.includes(file.type)
-        ) {
-          throw new Error(
-            "Envie uma foto JPG, PNG ou WEBP."
-          );
-        }
-
-        if (
-          file.size >
-          5 * 1024 * 1024
-        ) {
-          throw new Error(
-            "A foto deve ter no máximo 5 MB."
-          );
-        }
-      }
-
-      if (type === "video") {
-        const allowedTypes = [
-          "video/mp4",
-          "video/webm",
-          "video/quicktime",
-        ];
-
-        if (
-          !allowedTypes.includes(file.type)
-        ) {
-          throw new Error(
-            "Envie um vídeo MP4, WEBM ou MOV."
-          );
-        }
-
-        if (
-          file.size >
-          100 * 1024 * 1024
-        ) {
-          throw new Error(
-            "O vídeo deve ter no máximo 100 MB."
-          );
-        }
-      }
-
-      const originalExtension =
-        file.name
-          .split(".")
-          .pop()
-          ?.toLowerCase();
-
       const extension =
-        originalExtension ||
-        (type === "photo"
-          ? "jpg"
-          : "mp4");
+        file.name.split(".").pop()?.toLowerCase() ||
+        (type === "photo" ? "jpg" : "mp4");
 
       const randomId =
         typeof crypto !== "undefined" &&
-        typeof crypto.randomUUID ===
-          "function"
+        crypto.randomUUID
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()
               .toString(36)
               .slice(2)}`;
 
       const bucket =
-        type === "photo"
-          ? "avatars"
-          : "videos";
+        type === "photo" ? "avatars" : "videos";
 
-      const path =
-        `professionals/${authenticatedUser.id}/${randomId}.${extension}`;
+      const path = `professionals/${authenticatedUser.id}/${randomId}.${extension}`;
 
-      const {
-        error: uploadError,
-      } = await supabase.storage
-        .from(bucket)
-        .upload(
-          path,
-          file,
-          {
+      const { error: uploadError } =
+        await supabase.storage
+          .from(bucket)
+          .upload(path, file, {
             cacheControl: "3600",
             upsert: false,
             contentType: file.type,
-          }
-        );
+          });
 
       if (uploadError) {
         throw uploadError;
       }
 
-      const {
-        data: publicUrlData,
-      } =
+      const { data: publicData } =
         supabase.storage
           .from(bucket)
           .getPublicUrl(path);
 
-      const publicUrl =
-        publicUrlData?.publicUrl;
-
-      if (!publicUrl) {
+      if (!publicData?.publicUrl) {
         throw new Error(
-          "Não foi possível obter a URL do arquivo."
+          "Não foi possível obter o endereço do arquivo."
         );
       }
 
       if (type === "photo") {
-        setForm((current) => ({
-          ...current,
-          photoUrl: publicUrl,
-        }));
+        updateForm(
+          "photoUrl",
+          publicData.publicUrl
+        );
+
+        setSuccess(
+          "Foto enviada com sucesso."
+        );
       } else {
-        setForm((current) => ({
-          ...current,
-          videoUrl: publicUrl,
-        }));
+        updateForm(
+          "videoUrl",
+          publicData.publicUrl
+        );
+
+        setSuccess(
+          "Vídeo enviado com sucesso."
+        );
       }
-
-      setSuccess(
-        type === "photo"
-          ? "Foto enviada com sucesso."
-          : "Vídeo enviado com sucesso."
-      );
     } catch (err) {
-      console.error(
-        "Erro no upload:",
-        err
-      );
-
-      setError(
-        getErrorMessage(
-          err,
-          "Não foi possível enviar o arquivo."
-        )
-      );
+      setError(getErrorMessage(err));
     } finally {
       setUploading(false);
-
-      if (event.target) {
-        event.target.value = "";
-      }
     }
-  };
+  }
 
-  const saveProfessional = async (
-    authenticatedUser
-  ) => {
-    if (!authenticatedUser?.id) {
+  async function saveProfessional(authenticatedUser) {
+    if (!authenticatedUser) {
       throw new Error(
-        "Não foi possível identificar sua conta."
+        "Usuário não autenticado."
       );
     }
 
     const modalities = [];
 
     if (form.online) {
-      modalities.push("Online");
+      modalities.push("online");
     }
 
     if (form.presencial) {
-      modalities.push("Presencial");
+      modalities.push("presencial");
     }
 
-    const psychologistData = {
+    const professionalData = {
       user_id: authenticatedUser.id,
 
-      professional_name:
-        form.name.trim(),
+      professional_name: form.name.trim(),
 
-      crp_number:
-        form.crp.trim(),
+      /*
+       * Estes três campos precisam existir na tabela
+       * public.psychologists.
+       */
+      cpf: form.cpf
+        ? form.cpf.replace(/\D/g, "")
+        : null,
 
-      crp_region:
-        form.crpState,
+      birth_date: form.birthDate || null,
+
+      crp_number: form.crp.trim(),
+      crp_region: form.crpState,
+      crp_status: form.crpStatus,
 
       education: null,
       institution: null,
       graduation_year: null,
 
-      specializations:
-        form.themes,
+      specializations: form.themes,
 
       approaches: form.approach
         ? [form.approach.trim()]
@@ -1102,27 +981,21 @@ export default function ProfessionalOnboarding() {
 
       experience: null,
 
-      topics:
-        form.themes,
+      topics: form.themes,
 
       modalities,
 
       languages: ["Português"],
 
-      audience:
-        form.audience,
+      audience: form.audience,
 
-      city:
-        form.city.trim(),
+      city: form.city.trim(),
 
-      state:
-        form.state
-          .trim()
-          .toUpperCase(),
+      state: form.state
+        .trim()
+        .toUpperCase(),
 
-      phone:
-        form.phone.trim() ||
-        null,
+      phone: form.phone.trim() || null,
 
       gender: null,
 
@@ -1144,8 +1017,7 @@ export default function ProfessionalOnboarding() {
           : null,
 
       bio:
-        form.presentation.trim() ||
-        null,
+        form.presentation.trim() || null,
 
       profile_photo_url:
         form.photoUrl,
@@ -1156,44 +1028,35 @@ export default function ProfessionalOnboarding() {
       presentation_video_status:
         form.videoUrl
           ? "pending"
-          : "approved",
+          : null,
 
-      verification_status:
-        "pending",
+      /*
+       * O cadastro fica pendente.
+       * O perfil não será público antes da
+       * confirmação/análise.
+       */
+      verification_status: "pending",
 
       public_profile: false,
     };
 
-    const {
-      data: existing,
-      error: existingError,
-    } = await supabase
-      .from("psychologists")
-      .select("id")
-      .eq(
-        "user_id",
-        authenticatedUser.id
-      )
-      .maybeSingle();
+    const { data: existing, error: findError } =
+      await supabase
+        .from("psychologists")
+        .select("id")
+        .eq("user_id", authenticatedUser.id)
+        .maybeSingle();
 
-    if (existingError) {
-      throw existingError;
+    if (findError) {
+      throw findError;
     }
 
     if (existing?.id) {
-      const {
-        error: updateError,
-      } = await supabase
-        .from("psychologists")
-        .update(psychologistData)
-        .eq(
-          "id",
-          existing.id
-        )
-        .eq(
-          "user_id",
-          authenticatedUser.id
-        );
+      const { error: updateError } =
+        await supabase
+          .from("psychologists")
+          .update(professionalData)
+          .eq("id", existing.id);
 
       if (updateError) {
         throw updateError;
@@ -1202,104 +1065,130 @@ export default function ProfessionalOnboarding() {
       return existing.id;
     }
 
-    const {
-      data: created,
-      error: insertError,
-    } = await supabase
-      .from("psychologists")
-      .insert(psychologistData)
-      .select("id")
-      .single();
+    const { data: inserted, error: insertError } =
+      await supabase
+        .from("psychologists")
+        .insert(professionalData)
+        .select("id")
+        .single();
 
     if (insertError) {
       throw insertError;
     }
 
-    return created?.id || null;
-  };
+    return inserted.id;
+  }
 
-  const finishRegistration = async () => {
-    if (
-      submitting ||
-      uploading ||
-      verifyingOtp
-    ) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    const validation =
-      validateAllSteps();
+  async function finishRegistration() {
+    const validation = validateStep(5);
 
     if (validation) {
-      setStep(validation.step);
-
-      setError(validation.error);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-
+      setError(validation);
       return;
     }
 
     setSubmitting(true);
+    setError("");
+    setSuccess("");
 
     try {
       const authenticatedUser =
         await getAuthenticatedUser();
 
-      setUser(authenticatedUser);
-
       await updateProfessionalMetadata(
-        authenticatedUser,
-        form.name.trim()
+        authenticatedUser
       );
 
+      /*
+       * Primeiro salva todo o cadastro.
+       */
       await saveProfessional(
         authenticatedUser
       );
 
-      setSuccess(
-        "Cadastro enviado com sucesso! Abrindo seu painel profissional..."
+      /*
+       * Só agora enviamos o código de confirmação.
+       *
+       * A tela de confirmação é a última etapa
+       * antes do painel.
+       */
+      await sendSignupConfirmation(
+        form.email
       );
 
-      window.setTimeout(() => {
-        navigate(
-          "/painel-profissional",
-          {
-            replace: true,
-          }
-        );
-      }, 700);
+      setStep(STEPS.length);
     } catch (err) {
-      console.error(
-        "Erro ao finalizar cadastro:",
-        err
-      );
-
-      if (isEmailConfirmationError(err)) {
-        setError(
-          "Confirme seu e-mail antes de finalizar o cadastro."
-        );
-        return;
-      }
-
-      setError(
-        getErrorMessage(
-          err,
-          "Não foi possível finalizar seu cadastro."
-        )
-      );
+      setError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
-  const nextStep = async () => {
+  async function nextStep() {
+    if (submitting || uploading || verifyingOtp) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const validation = validateStep(step);
+
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    /*
+     * A conta é criada no primeiro passo,
+     * mas a confirmação do e-mail só acontece
+     * depois da revisão.
+     */
+    if (step === 0 && !user) {
+      const accountCreated =
+        await createAccount();
+
+      if (!accountCreated) {
+        return;
+      }
+
+      setStep(1);
+      return;
+    }
+
+    /*
+     * Última etapa normal: revisão.
+     */
+    if (step === STEPS.length - 1) {
+      await finishRegistration();
+      return;
+    }
+
+    setStep((current) => current + 1);
+  }
+
+  function previousStep() {
+    if (
+      submitting ||
+      uploading ||
+      verifyingOtp ||
+      step <= 0
+    ) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    setStep((current) => current - 1);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function goToStep(index) {
     if (
       submitting ||
       uploading ||
@@ -1308,229 +1197,159 @@ export default function ProfessionalOnboarding() {
       return;
     }
 
-    setError("");
-    setSuccess("");
-
-    const validationError =
-      validateStep(step);
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    if (
-      step === 0 &&
-      !user
-    ) {
-      await createAccount();
-      return;
-    }
-
-    if (
-      step <
-      STEPS.length - 1
-    ) {
-      setStep(
-        (current) =>
-          current + 1
-      );
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
-
-      return;
-    }
-
-    await finishRegistration();
-  };
-
-  const previousStep = () => {
-    if (
-      submitting ||
-      verifyingOtp ||
-      uploading
-    ) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    if (step > 0) {
-      setStep(
-        (current) =>
-          current - 1
-      );
+    if (index <= step) {
+      setError("");
+      setSuccess("");
+      setStep(index);
 
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
     }
-  };
+  }
+
+  function maskedCpf() {
+    const digits = form.cpf.replace(/\D/g, "");
+
+    if (digits.length !== 11) {
+      return form.cpf || "Não informado";
+    }
+
+    return `***.***.${digits.slice(
+      6,
+      9
+    )}-${digits.slice(9)}`;
+  }
 
   if (loading) {
     return (
       <PageShell>
         <div className="min-h-[70vh] flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center gap-3 text-slate-600">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            <span>Carregando...</span>
+          </div>
         </div>
       </PageShell>
     );
   }
 
-  if (otpSent) {
+  /*
+   * =====================================================
+   * CONFIRMAÇÃO DO E-MAIL
+   * =====================================================
+   */
+
+  if (step === STEPS.length) {
     return (
       <PageShell>
-        <div className="min-h-screen bg-background py-12 px-4">
-          <div className="max-w-md mx-auto">
-            <div className="bg-card border border-border rounded-2xl shadow-sm p-6 sm:p-8">
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-5">
-                  <ShieldCheck className="w-8 h-8" />
+        <div className="min-h-screen bg-slate-50 py-10 px-4">
+          <div className="max-w-xl mx-auto">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 md:p-10">
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                  <Mail className="w-8 h-8 text-blue-600" />
                 </div>
+              </div>
 
-                <h1 className="text-2xl font-bold">
+              <div className="text-center">
+                <h1 className="text-2xl font-bold text-slate-900">
                   Confirme seu e-mail
                 </h1>
 
-                <p className="text-sm text-muted-foreground mt-3">
-                  Enviamos um código para confirmar sua conta profissional.
+                <p className="mt-3 text-slate-600 leading-relaxed">
+                  Seu cadastro foi preenchido e salvo.
+                  Enviamos um código de confirmação para:
                 </p>
 
-                <p className="font-semibold mt-3 break-all">
+                <p className="mt-3 font-semibold text-slate-900 break-all">
                   {form.email}
-                </p>
-
-                <p className="text-xs text-muted-foreground mt-2">
-                  Depois da confirmação, você continuará o cadastro normalmente.
                 </p>
               </div>
 
+              <div className="mt-8">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Código de confirmação
+                </label>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={(event) => {
+                    const value =
+                      event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 8);
+
+                    setOtp(value);
+                    setError("");
+                  }}
+                  placeholder="Digite o código"
+                  className="w-full rounded-xl border border-slate-300 px-4 py-4 text-center text-2xl tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
               {error && (
-                <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
                   {error}
                 </div>
               )}
 
               {success && (
-                <div className="mt-6 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
+                <div className="mt-4 rounded-xl bg-green-50 border border-green-200 p-4 text-sm text-green-700">
                   {success}
                 </div>
               )}
 
-              <form
-                onSubmit={verifyEmailCode}
-                className="mt-7 space-y-5"
-              >
-                <div>
-                  <label
-                    htmlFor="email-code"
-                    className="block text-sm font-medium mb-2"
-                  >
-                    Código de confirmação
-                  </label>
-
-                  <input
-                    id="email-code"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={8}
-                    minLength={6}
-                    autoComplete="one-time-code"
-                    autoFocus
-                    value={otp}
-                    onChange={(event) => {
-                      const value =
-                        event.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 8);
-
-                      setOtp(value);
-                      setError("");
-                    }}
-                    placeholder="00000000"
-                    disabled={verifyingOtp}
-                    className="w-full h-14 rounded-xl border border-border bg-background px-4 text-center text-2xl font-bold tracking-[0.35em] outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={
-                    verifyingOtp ||
-                    otp.length < 6 ||
-                    otp.length > 8
-                  }
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full gradient-brand text-white font-semibold shadow-soft disabled:opacity-50"
-                >
-                  {verifyingOtp ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Confirmando...
-                    </>
-                  ) : (
-                    <>
-                      Confirmar e continuar
-                      <ArrowRight className="w-5 h-5" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div className="text-center mt-6">
-                {resendCooldown > 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Você poderá solicitar outro código em{" "}
-                    <strong>
-                      {resendCooldown}s
-                    </strong>
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={
-                      submitting ||
-                      verifyingOtp
-                    }
-                    onClick={resendCode}
-                    className="text-sm font-semibold text-primary hover:underline disabled:opacity-50"
-                  >
-                    {submitting
-                      ? "Enviando..."
-                      : "Reenviar código"}
-                  </button>
-                )}
-              </div>
-
               <button
                 type="button"
-                onClick={() => {
-                  if (
-                    verifyingOtp ||
-                    submitting
-                  ) {
-                    return;
-                  }
-
-                  setOtpSent(false);
-                  setOtp("");
-                  setError("");
-                  setSuccess("");
-                  setResendCooldown(0);
-                }}
+                onClick={verifyEmailCode}
                 disabled={
                   verifyingOtp ||
-                  submitting
+                  otp.replace(/\D/g, "").length < 6
                 }
-                className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                className="w-full mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-4 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Voltar para o cadastro
+                {verifyingOtp ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Confirmando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-5 h-5" />
+                    Confirmar e-mail
+                  </>
+                )}
               </button>
+
+              <div className="mt-5 text-center">
+                <button
+                  type="button"
+                  onClick={resendCode}
+                  disabled={
+                    submitting ||
+                    resendCooldown > 0
+                  }
+                  className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:text-slate-400"
+                >
+                  <RefreshCw className="w-4 h-4" />
+
+                  {resendCooldown > 0
+                    ? `Enviar novamente em ${resendCooldown}s`
+                    : "Não recebi o código"}
+                </button>
+              </div>
+
+              <div className="mt-8 rounded-xl bg-slate-50 border border-slate-200 p-4">
+                <p className="text-sm text-slate-600 text-center">
+                  Verifique também a pasta de spam,
+                  lixo eletrônico ou promoções.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1538,100 +1357,92 @@ export default function ProfessionalOnboarding() {
     );
   }
 
-  const StepIcon = STEPS[step].icon;
-
   return (
     <PageShell>
-      <div className="min-h-screen bg-background py-8 px-4">
+      <div className="min-h-screen bg-slate-50 py-8 px-4">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Voltar
-            </button>
+          {/* CABEÇALHO */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+                  Cadastro profissional
+                </h1>
 
-            <button
-              type="button"
-              onClick={() => navigate("/login")}
-              className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70"
-            >
-              <LogIn className="w-4 h-4" />
-              Já tenho uma conta
-            </button>
+                <p className="mt-2 text-slate-600">
+                  Preencha seus dados para criar seu
+                  perfil profissional.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/login-profissional")
+                }
+                className="hidden md:inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <LogIn className="w-4 h-4" />
+                Já tenho uma conta
+              </button>
+            </div>
           </div>
 
-          <div className="mb-10">
-            <div className="flex items-center justify-between gap-2">
+          {/* STEPPER */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6 mb-6 overflow-x-auto">
+            <div className="flex min-w-[700px] items-center">
               {STEPS.map((item, index) => {
                 const Icon = item.icon;
-
-                const active =
-                  index === step;
-
-                const completed =
-                  index < step;
+                const active = index === step;
+                const completed = index < step;
 
                 return (
-                  <React.Fragment
-                    key={item.key}
-                  >
+                  <React.Fragment key={item.id}>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (
-                          index <= step
-                        ) {
-                          setError("");
-                          setSuccess("");
-                          setStep(index);
-
-                          window.scrollTo({
-                            top: 0,
-                            behavior:
-                              "smooth",
-                          });
-                        }
-                      }}
-                      className="flex flex-col items-center gap-2 min-w-0"
+                      onClick={() =>
+                        goToStep(index)
+                      }
+                      disabled={index > step}
+                      className="flex items-center gap-2 group disabled:cursor-default"
                     >
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${
-                          active ||
+                        className={[
+                          "w-9 h-9 rounded-full flex items-center justify-center border-2 transition",
                           completed
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background border-border text-muted-foreground"
-                        }`}
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : active
+                            ? "border-blue-600 text-blue-600 bg-blue-50"
+                            : "border-slate-300 text-slate-400",
+                        ].join(" ")}
                       >
                         {completed ? (
-                          <Check className="w-5 h-5" />
+                          <Check className="w-4 h-4" />
                         ) : (
-                          <Icon className="w-5 h-5" />
+                          <Icon className="w-4 h-4" />
                         )}
                       </div>
 
                       <span
-                        className={`text-xs text-center hidden sm:block ${
-                          active
-                            ? "font-semibold text-foreground"
-                            : "text-muted-foreground"
-                        }`}
+                        className={[
+                          "hidden lg:block text-sm font-medium whitespace-nowrap",
+                          active || completed
+                            ? "text-slate-900"
+                            : "text-slate-400",
+                        ].join(" ")}
                       >
-                        {item.title}
+                        {item.label}
                       </span>
                     </button>
 
-                    {index <
-                      STEPS.length - 1 && (
+                    {index < STEPS.length - 1 && (
                       <div
-                        className={`h-px flex-1 ${
+                        className={[
+                          "h-px flex-1 mx-3",
                           index < step
-                            ? "bg-primary"
-                            : "bg-border"
-                        }`}
+                            ? "bg-blue-600"
+                            : "bg-slate-200",
+                        ].join(" ")}
                       />
                     )}
                   </React.Fragment>
@@ -1640,168 +1451,146 @@ export default function ProfessionalOnboarding() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6 sm:p-8 border-b border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <StepIcon className="w-5 h-5" />
-                </div>
-
-                <div>
-                  <h1 className="text-2xl font-bold">
-                    {STEPS[step].title}
-                  </h1>
-
-                  <p className="text-sm text-muted-foreground">
-                    Etapa {step + 1} de{" "}
-                    {STEPS.length}
-                  </p>
-                </div>
-              </div>
+          {/* MENSAGENS */}
+          {error && (
+            <div className="mb-5 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+              {error}
             </div>
+          )}
 
-            <div className="p-6 sm:p-8">
-              {error && (
-                <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
+          {success && (
+            <div className="mb-5 rounded-xl bg-green-50 border border-green-200 p-4 text-sm text-green-700">
+              {success}
+            </div>
+          )}
 
-              {success && (
-                <div className="mb-6 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-                  {success}
-                </div>
-              )}
-
+          {/* CONTEÚDO */}
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm">
+            <div className="p-6 md:p-8">
+              {/* =================================================
+                  PASSO 0 - PESSOAL
+              ================================================= */}
               {step === 0 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      Vamos começar
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Dados pessoais
                     </h2>
 
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Crie sua conta profissional para começar seu cadastro.
+                    <p className="mt-1 text-slate-500">
+                      Informe seus dados básicos.
                     </p>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-5">
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-2">
-                        Nome completo
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Nome completo *
                       </label>
 
                       <input
                         type="text"
                         value={form.name}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "name",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Seu nome completo"
-                        autoComplete="name"
-                        disabled={submitting}
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        E-mail
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        E-mail *
                       </label>
 
                       <input
                         type="email"
                         value={form.email}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "email",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="voce@email.com"
-                        autoComplete="email"
-                        disabled={
-                          submitting ||
-                          Boolean(user)
-                        }
+                        disabled={Boolean(user)}
+                        placeholder="seu@email.com"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         Telefone
                       </label>
 
                       <input
                         type="tel"
                         value={form.phone}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "phone",
                             formatPhone(
-                              e.target.value
+                              event.target.value
                             )
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="(00) 00000-0000"
-                        autoComplete="tel"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         CPF
                       </label>
 
                       <input
                         type="text"
                         value={form.cpf}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "cpf",
                             formatCpf(
-                              e.target.value
+                              event.target.value
                             )
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="000.000.000-00"
-                        inputMode="numeric"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         Data de nascimento
                       </label>
 
                       <input
                         type="date"
                         value={form.birthDate}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "birthDate",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     {!user && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Senha
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Senha *
                           </label>
 
                           <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
                             <input
                               type={
@@ -1809,54 +1598,42 @@ export default function ProfessionalOnboarding() {
                                   ? "text"
                                   : "password"
                               }
-                              value={
-                                form.password
-                              }
-                              onChange={(e) =>
+                              value={form.password}
+                              onChange={(event) =>
                                 updateForm(
                                   "password",
-                                  e.target.value
+                                  event.target.value
                                 )
                               }
-                              className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
-                              placeholder="Mínimo 6 caracteres"
-                              autoComplete="new-password"
-                              disabled={
-                                submitting
-                              }
+                              placeholder="Mínimo de 6 caracteres"
+                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
 
                             <button
                               type="button"
                               onClick={() =>
                                 setShowPassword(
-                                  (value) =>
-                                    !value
+                                  (value) => !value
                                 )
                               }
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                              aria-label={
-                                showPassword
-                                  ? "Ocultar senha"
-                                  : "Mostrar senha"
-                              }
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                             >
                               {showPassword ? (
-                                <EyeOff className="w-4 h-4" />
+                                <EyeOff className="w-5 h-5" />
                               ) : (
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-5 h-5" />
                               )}
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Confirmar senha
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Confirmar senha *
                           </label>
 
                           <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 
                             <input
                               type={
@@ -1867,39 +1644,29 @@ export default function ProfessionalOnboarding() {
                               value={
                                 form.confirmPassword
                               }
-                              onChange={(e) =>
+                              onChange={(event) =>
                                 updateForm(
                                   "confirmPassword",
-                                  e.target.value
+                                  event.target.value
                                 )
                               }
-                              className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-11 outline-none focus:ring-2 focus:ring-primary/30"
                               placeholder="Repita sua senha"
-                              autoComplete="new-password"
-                              disabled={
-                                submitting
-                              }
+                              className="w-full rounded-xl border border-slate-300 pl-11 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
 
                             <button
                               type="button"
                               onClick={() =>
                                 setShowConfirmPassword(
-                                  (value) =>
-                                    !value
+                                  (value) => !value
                                 )
                               }
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                              aria-label={
-                                showConfirmPassword
-                                  ? "Ocultar confirmação"
-                                  : "Mostrar confirmação"
-                              }
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                             >
                               {showConfirmPassword ? (
-                                <EyeOff className="w-4 h-4" />
+                                <EyeOff className="w-5 h-5" />
                               ) : (
-                                <Eye className="w-4 h-4" />
+                                <Eye className="w-5 h-5" />
                               )}
                             </button>
                           </div>
@@ -1908,141 +1675,140 @@ export default function ProfessionalOnboarding() {
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Cidade
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Cidade *
                       </label>
 
-                      <input
-                        type="text"
-                        value={form.city}
-                        onChange={(e) =>
-                          updateForm(
-                            "city",
-                            e.target.value
-                          )
-                        }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="Sua cidade"
-                      />
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+
+                        <input
+                          type="text"
+                          value={form.city}
+                          onChange={(event) =>
+                            updateForm(
+                              "city",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Sua cidade"
+                          className="w-full rounded-xl border border-slate-300 pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Estado
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Estado *
                       </label>
 
                       <select
                         value={form.state}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "state",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">
                           Selecione
                         </option>
 
-                        {UF_OPTIONS.map(
-                          (uf) => (
-                            <option
-                              key={uf}
-                              value={uf}
-                            >
-                              {uf}
-                            </option>
-                          )
-                        )}
+                        {UF_OPTIONS.map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
                 </div>
               )}
 
+              {/* =================================================
+                  PASSO 1 - PROFISSIONAL
+              ================================================= */}
               {step === 1 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-semibold">
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
                       Registro profissional
                     </h2>
 
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Informe os dados do seu registro profissional.
+                    <p className="mt-1 text-slate-500">
+                      Informe os dados do seu registro
+                      profissional.
                     </p>
                   </div>
 
                   <div className="grid md:grid-cols-2 gap-5">
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Número do CRP
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Número do CRP *
                       </label>
 
                       <input
                         type="text"
                         value={form.crp}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "crp",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder="Ex.: 06/123456"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Estado do CRP
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Região do CRP *
                       </label>
 
                       <select
                         value={form.crpState}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "crpState",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">
                           Selecione
                         </option>
 
-                        {UF_OPTIONS.map(
-                          (uf) => (
-                            <option
-                              key={uf}
-                              value={uf}
-                            >
-                              CRP - {uf}
-                            </option>
-                          )
-                        )}
+                        {UF_OPTIONS.map((uf) => (
+                          <option key={uf} value={uf}>
+                            {uf}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Situação do registro
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Situação do CRP *
                       </label>
 
                       <select
                         value={form.crpStatus}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "crpStatus",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="ativo">
                           Ativo
                         </option>
+
                         <option value="regular">
                           Regular
                         </option>
@@ -2050,62 +1816,75 @@ export default function ProfessionalOnboarding() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 text-sm text-muted-foreground">
-                    Seus dados profissionais serão enviados para análise e verificação.
+                  <div className="mt-6 rounded-xl bg-blue-50 border border-blue-100 p-4">
+                    <p className="text-sm text-blue-800">
+                      Os dados profissionais poderão passar
+                      por análise antes da publicação do
+                      perfil.
+                    </p>
                   </div>
                 </div>
               )}
 
+              {/* =================================================
+                  PASSO 2 - ATUAÇÃO
+              ================================================= */}
               {step === 2 && (
-                <div className="space-y-7">
-                  <div>
-                    <h2 className="text-lg font-semibold">
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
                       Sua atuação
                     </h2>
 
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Conte um pouco sobre sua área de atuação.
+                    <p className="mt-1 text-slate-500">
+                      Conte aos pacientes com quais públicos
+                      e temas você trabalha.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Abordagem principal
+                    <label className="block text-sm font-medium text-slate-700 mb-3">
+                      Principal abordagem *
                     </label>
 
-                    <select
-                      value={form.approach}
-                      onChange={(e) =>
-                        updateForm(
-                          "approach",
-                          e.target.value
-                        )
-                      }
-                      className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                    >
-                      <option value="">
-                        Selecione sua abordagem
-                      </option>
-
+                    <div className="grid sm:grid-cols-2 gap-3">
                       {APPROACH_OPTIONS.map(
-                        (approach) => (
-                          <option
-                            key={approach}
-                            value={approach}
-                          >
-                            {approach}
-                          </option>
-                        )
+                        (approach) => {
+                          const selected =
+                            form.approach ===
+                            approach;
+
+                          return (
+                            <button
+                              type="button"
+                              key={approach}
+                              onClick={() =>
+                                updateForm(
+                                  "approach",
+                                  approach
+                                )
+                              }
+                              className={[
+                                "text-left rounded-xl border px-4 py-3 transition",
+                                selected
+                                  ? "border-blue-600 bg-blue-50 text-blue-800"
+                                  : "border-slate-200 hover:border-slate-300",
+                              ].join(" ")}
+                            >
+                              {approach}
+                            </button>
+                          );
+                        }
                       )}
-                    </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Público atendido
+                  <div className="mt-7">
+                    <label className="block text-sm font-medium text-slate-700 mb-3">
+                      Público atendido *
                     </label>
 
-                    <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="flex flex-wrap gap-2">
                       {AUDIENCE_OPTIONS.map(
                         (item) => {
                           const selected =
@@ -2123,62 +1902,12 @@ export default function ProfessionalOnboarding() {
                                   item
                                 )
                               }
-                              className={`p-3 rounded-xl border text-sm text-left transition ${
+                              className={[
+                                "rounded-full px-4 py-2 text-sm border transition",
                                 selected
-                                  ? "border-primary bg-primary/10 text-primary font-medium"
-                                  : "border-border hover:border-primary/50"
-                              }`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className={`w-5 h-5 rounded-md border flex items-center justify-center ${
-                                    selected
-                                      ? "bg-primary border-primary text-white"
-                                      : "border-border"
-                                  }`}
-                                >
-                                  {selected && (
-                                    <Check className="w-3.5 h-3.5" />
-                                  )}
-                                </span>
-
-                                {item}
-                              </span>
-                            </button>
-                          );
-                        }
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Temas de atuação
-                    </label>
-
-                    <div className="flex flex-wrap gap-2">
-                      {THEME_OPTIONS.map(
-                        (item) => {
-                          const selected =
-                            form.themes.includes(
-                              item
-                            );
-
-                          return (
-                            <button
-                              type="button"
-                              key={item}
-                              onClick={() =>
-                                toggleArrayValue(
-                                  "themes",
-                                  item
-                                )
-                              }
-                              className={`px-4 py-2 rounded-full border text-sm transition ${
-                                selected
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border hover:border-primary/50"
-                              }`}
+                                  ? "bg-blue-600 border-blue-600 text-white"
+                                  : "bg-white border-slate-300 text-slate-700 hover:border-blue-400",
+                              ].join(" ")}
                             >
                               {item}
                             </button>
@@ -2187,152 +1916,224 @@ export default function ProfessionalOnboarding() {
                       )}
                     </div>
                   </div>
+
+                  <div className="mt-7">
+                    <label className="block text-sm font-medium text-slate-700 mb-3">
+                      Principais temas de atuação *
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      {THEME_OPTIONS.map((item) => {
+                        const selected =
+                          form.themes.includes(item);
+
+                        return (
+                          <button
+                            type="button"
+                            key={item}
+                            onClick={() =>
+                              toggleArrayValue(
+                                "themes",
+                                item
+                              )
+                            }
+                            className={[
+                              "rounded-full px-4 py-2 text-sm border transition",
+                              selected
+                                ? "bg-blue-600 border-blue-600 text-white"
+                                : "bg-white border-slate-300 text-slate-700 hover:border-blue-400",
+                            ].join(" ")}
+                          >
+                            {item}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
 
+              {/* =================================================
+                  PASSO 3 - ATENDIMENTO
+              ================================================= */}
               {step === 3 && (
-                <div className="space-y-7">
-                  <div>
-                    <h2 className="text-lg font-semibold">
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
                       Atendimento
                     </h2>
 
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Configure como você realiza seus atendimentos.
+                    <p className="mt-1 text-slate-500">
+                      Configure como você atende.
                     </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Modalidades
-                    </label>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateForm(
+                          "online",
+                          !form.online
+                        )
+                      }
+                      className={[
+                        "text-left rounded-2xl border p-5 transition",
+                        form.online
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-slate-200",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-slate-900">
+                            Atendimento on-line
+                          </h3>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateForm(
-                            "online",
-                            !form.online
-                          )
-                        }
-                        className={`rounded-xl border p-4 text-left transition ${
-                          form.online
-                            ? "border-primary bg-primary/10"
-                            : "border-border"
-                        }`}
-                      >
-                        <div className="font-semibold">
-                          Atendimento online
+                          <p className="text-sm text-slate-500 mt-1">
+                            Atenda seus pacientes por
+                            videochamada.
+                          </p>
                         </div>
 
-                        <div className="text-sm text-muted-foreground mt-1">
-                          Consultas realizadas por vídeo.
+                        <div
+                          className={[
+                            "w-6 h-6 rounded-full border flex items-center justify-center",
+                            form.online
+                              ? "bg-blue-600 border-blue-600 text-white"
+                              : "border-slate-300",
+                          ].join(" ")}
+                        >
+                          {form.online && (
+                            <Check className="w-4 h-4" />
+                          )}
                         </div>
-                      </button>
+                      </div>
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateForm(
-                            "presencial",
-                            !form.presencial
-                          )
-                        }
-                        className={`rounded-xl border p-4 text-left transition ${
-                          form.presencial
-                            ? "border-primary bg-primary/10"
-                            : "border-border"
-                        }`}
-                      >
-                        <div className="font-semibold">
-                          Atendimento presencial
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateForm(
+                          "presencial",
+                          !form.presencial
+                        )
+                      }
+                      className={[
+                        "text-left rounded-2xl border p-5 transition",
+                        form.presencial
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-slate-200",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-slate-900">
+                            Atendimento presencial
+                          </h3>
+
+                          <p className="text-sm text-slate-500 mt-1">
+                            Atenda em consultório.
+                          </p>
                         </div>
 
-                        <div className="text-sm text-muted-foreground mt-1">
-                          Consultas realizadas em consultório.
+                        <div
+                          className={[
+                            "w-6 h-6 rounded-full border flex items-center justify-center",
+                            form.presencial
+                              ? "bg-blue-600 border-blue-600 text-white"
+                              : "border-slate-300",
+                          ].join(" ")}
+                        >
+                          {form.presencial && (
+                            <Check className="w-4 h-4" />
+                          )}
                         </div>
-                      </button>
-                    </div>
+                      </div>
+                    </button>
                   </div>
 
                   {form.online && (
-                    <label className="flex items-start gap-3 rounded-xl border border-border p-4 cursor-pointer">
+                    <label className="mt-5 flex items-start gap-3 rounded-xl border border-slate-200 p-4 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={form.ePsi}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "ePsi",
-                            e.target.checked
+                            event.target.checked
                           )
                         }
-                        className="mt-1"
+                        className="mt-1 w-4 h-4"
                       />
 
                       <span>
-                        <span className="block font-medium text-sm">
-                          Possuo autorização e-Psi
+                        <span className="block font-medium text-slate-800">
+                          Cadastro/autorização e-Psi
                         </span>
 
-                        <span className="block text-xs text-muted-foreground mt-1">
-                          Confirmo que estou habilitado para realizar atendimento psicológico online.
+                        <span className="block text-sm text-slate-500 mt-1">
+                          Confirmo que possuo a autorização
+                          necessária para atendimento
+                          psicológico on-line.
                         </span>
                       </span>
                     </label>
                   )}
 
                   {form.presencial && (
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Endereço do consultório
+                    <div className="mt-5">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Endereço de atendimento *
                       </label>
 
                       <input
                         type="text"
                         value={form.address}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateForm(
                             "address",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
-                        placeholder="Rua, número, sala..."
+                        placeholder="Rua, número, bairro..."
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   )}
 
-                  <div className="grid md:grid-cols-2 gap-5">
+                  <div className="grid md:grid-cols-2 gap-5 mt-6">
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Duração da sessão
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Duração da sessão *
                       </label>
 
                       <select
-                        value={
-                          form.sessionDuration
-                        }
-                        onChange={(e) =>
+                        value={form.sessionDuration}
+                        onChange={(event) =>
                           updateForm(
                             "sessionDuration",
-                            e.target.value
+                            event.target.value
                           )
                         }
-                        className="w-full h-11 rounded-lg border border-border bg-background px-3 outline-none focus:ring-2 focus:ring-primary/30"
+                        className="w-full rounded-xl border border-slate-300 px-4 py-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="30">
                           30 minutos
                         </option>
+
                         <option value="40">
                           40 minutos
                         </option>
+
                         <option value="50">
                           50 minutos
                         </option>
+
                         <option value="60">
                           60 minutos
                         </option>
+
                         <option value="90">
                           90 minutos
                         </option>
@@ -2340,12 +2141,12 @@ export default function ProfessionalOnboarding() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Valor da sessão
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Valor da sessão *
                       </label>
 
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
                           R$
                         </span>
 
@@ -2353,17 +2154,15 @@ export default function ProfessionalOnboarding() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={
-                            form.sessionPrice
-                          }
-                          onChange={(e) =>
+                          value={form.sessionPrice}
+                          onChange={(event) =>
                             updateForm(
                               "sessionPrice",
-                              e.target.value
+                              event.target.value
                             )
                           }
-                          className="w-full h-11 rounded-lg border border-border bg-background pl-10 pr-3 outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="150,00"
+                          placeholder="0,00"
+                          className="w-full rounded-xl border border-slate-300 pl-11 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     </div>
@@ -2371,66 +2170,584 @@ export default function ProfessionalOnboarding() {
                 </div>
               )}
 
+              {/* =================================================
+                  PASSO 4 - FOTO E VÍDEO
+              ================================================= */}
               {step === 4 && (
-                <div className="space-y-7">
-                  <div>
-                    <h2 className="text-lg font-semibold">
-                      Foto e vídeo
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Foto e apresentação
                     </h2>
 
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Adicione uma foto profissional e, se desejar, um vídeo de apresentação.
+                    <p className="mt-1 text-slate-500">
+                      Apresente-se aos pacientes.
                     </p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="rounded-2xl border border-border p-5">
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    {/* FOTO */}
+                    <div className="rounded-2xl border border-slate-200 p-5">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                          <Camera className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                          <Camera className="w-5 h-5 text-blue-600" />
                         </div>
 
                         <div>
-                          <h3 className="font-semibold">
-                            Foto profissional
+                          <h3 className="font-semibold text-slate-900">
+                            Foto profissional *
                           </h3>
 
-                          <p className="text-xs text-muted-foreground">
-                            JPG, PNG ou WEBP · até 5 MB
+                          <p className="text-sm text-slate-500">
+                            JPG, PNG ou WEBP — até 5 MB
                           </p>
                         </div>
                       </div>
 
                       {form.photoUrl ? (
-                        <div className="space-y-4">
-                          <img
-                            src={form.photoUrl}
-                            alt="Foto profissional"
-                            className="w-full aspect-square object-cover rounded-xl"
-                          />
+                        <div>
+                          <div className="aspect-square max-w-xs mx-auto overflow-hidden rounded-2xl bg-slate-100">
+                            <img
+                              src={form.photoUrl}
+                              alt="Foto profissional"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
 
-                          <label className="block text-center cursor-pointer rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted">
-                            Trocar foto
+                          <label className="mt-4 w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-700 hover:bg-slate-50">
+                            <Camera className="w-4 h-4" />
+                            Alterar foto
+
                             <input
                               type="file"
                               accept="image/jpeg,image/png,image/webp"
-                              onChange={(e) =>
+                              className="hidden"
+                              onChange={(event) =>
                                 uploadFile(
-                                  e,
+                                  event,
                                   "photo"
                                 )
-                              }
-                              className="hidden"
-                              disabled={
-                                uploading
                               }
                             />
                           </label>
                         </div>
                       ) : (
-                        <label className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition">
-                          {uploading ? (
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                          ) : (
-                            <>
-                              <Camera className="w-9 h-9 text-muted-foreground mb-3" />
+                        <label className="cursor-pointer block">
+                          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center hover:border-blue-400 hover:bg-blue-50/30 transition">
+                            <Camera className="w-10 h-10 mx-auto text-slate-400" />
+
+                            <p className="mt-3 font-medium text-slate-700">
+                              Clique para adicionar sua foto
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              Escolha uma foto profissional
+                            </p>
+                          </div>
+
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(event) =>
+                              uploadFile(
+                                event,
+                                "photo"
+                              )
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* VÍDEO */}
+                    <div className="rounded-2xl border border-slate-200 p-5">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                          <Video className="w-5 h-5 text-purple-600" />
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold text-slate-900">
+                            Vídeo de apresentação
+                          </h3>
+
+                          <p className="text-sm text-slate-500">
+                            Opcional — até 100 MB
+                          </p>
+                        </div>
+                      </div>
+
+                      {form.videoUrl ? (
+                        <div>
+                          <video
+                            src={form.videoUrl}
+                            controls
+                            className="w-full aspect-video rounded-xl bg-black"
+                          />
+
+                          <label className="mt-4 w-full cursor-pointer inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-700 hover:bg-slate-50">
+                            <Video className="w-4 h-4" />
+                            Alterar vídeo
+
+                            <input
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime"
+                              className="hidden"
+                              onChange={(event) =>
+                                uploadFile(
+                                  event,
+                                  "video"
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer block">
+                          <div className="border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center hover:border-purple-400 hover:bg-purple-50/30 transition">
+                            <Video className="w-10 h-10 mx-auto text-slate-400" />
+
+                            <p className="mt-3 font-medium text-slate-700">
+                              Adicionar vídeo
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              Mostre um pouco sobre seu trabalho
+                            </p>
+                          </div>
+
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime"
+                            className="hidden"
+                            onChange={(event) =>
+                              uploadFile(
+                                event,
+                                "video"
+                              )
+                            }
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Apresentação profissional
+                      </label>
+
+                      <span
+                        className={[
+                          "text-xs",
+                          form.presentation.length >
+                          800
+                            ? "text-red-600"
+                            : "text-slate-400",
+                        ].join(" ")}
+                      >
+                        {form.presentation.length}/800
+                      </span>
+                    </div>
+
+                    <textarea
+                      value={form.presentation}
+                      onChange={(event) =>
+                        updateForm(
+                          "presentation",
+                          event.target.value
+                        )
+                      }
+                      maxLength={800}
+                      rows={6}
+                      placeholder="Conte brevemente sobre sua experiência, sua forma de trabalho e como pode ajudar seus pacientes."
+                      className="w-full rounded-xl border border-slate-300 px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* =================================================
+                  PASSO 5 - REVISÃO
+              ================================================= */}
+              {step === 5 && (
+                <div>
+                  <div className="mb-7">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Revise seu cadastro
+                    </h2>
+
+                    <p className="mt-1 text-slate-500">
+                      Confira as informações antes de
+                      finalizar.
+                    </p>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* PESSOAL */}
+                    <ReviewSection
+                      title="Dados pessoais"
+                      onEdit={() => goToStep(0)}
+                    >
+                      <ReviewItem
+                        label="Nome"
+                        value={
+                          form.name ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="E-mail"
+                        value={
+                          form.email ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Telefone"
+                        value={
+                          form.phone ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="CPF"
+                        value={maskedCpf()}
+                      />
+
+                      <ReviewItem
+                        label="Nascimento"
+                        value={
+                          form.birthDate ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Localização"
+                        value={`${form.city || ""}${
+                          form.city && form.state
+                            ? " - "
+                            : ""
+                        }${form.state || ""}`}
+                      />
+                    </ReviewSection>
+
+                    {/* PROFISSIONAL */}
+                    <ReviewSection
+                      title="Registro profissional"
+                      onEdit={() => goToStep(1)}
+                    >
+                      <ReviewItem
+                        label="CRP"
+                        value={
+                          form.crp ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Região"
+                        value={
+                          form.crpState ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Situação"
+                        value={
+                          form.crpStatus ||
+                          "Não informado"
+                        }
+                      />
+                    </ReviewSection>
+
+                    {/* ATUAÇÃO */}
+                    <ReviewSection
+                      title="Atuação"
+                      onEdit={() => goToStep(2)}
+                    >
+                      <ReviewItem
+                        label="Abordagem"
+                        value={
+                          form.approach ||
+                          "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Público"
+                        value={
+                          form.audience.length
+                            ? form.audience.join(
+                                ", "
+                              )
+                            : "Não informado"
+                        }
+                      />
+
+                      <ReviewItem
+                        label="Temas"
+                        value={
+                          form.themes.length
+                            ? form.themes.join(", ")
+                            : "Não informado"
+                        }
+                      />
+                    </ReviewSection>
+
+                    {/* ATENDIMENTO */}
+                    <ReviewSection
+                      title="Atendimento"
+                      onEdit={() => goToStep(3)}
+                    >
+                      <ReviewItem
+                        label="Modalidades"
+                        value={[
+                          form.online
+                            ? "On-line"
+                            : null,
+                          form.presencial
+                            ? "Presencial"
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      />
+
+                      <ReviewItem
+                        label="e-Psi"
+                        value={
+                          form.online
+                            ? form.ePsi
+                              ? "Confirmado"
+                              : "Não confirmado"
+                            : "Não se aplica"
+                        }
+                      />
+
+                      {form.presencial && (
+                        <ReviewItem
+                          label="Endereço"
+                          value={
+                            form.address ||
+                            "Não informado"
+                          }
+                        />
+                      )}
+
+                      <ReviewItem
+                        label="Duração"
+                        value={`${form.sessionDuration} minutos`}
+                      />
+
+                      <ReviewItem
+                        label="Valor"
+                        value={
+                          form.sessionPrice
+                            ? `R$ ${Number(
+                                form.sessionPrice
+                              )
+                                .toFixed(2)
+                                .replace(
+                                  ".",
+                                  ","
+                                )}`
+                            : "Não informado"
+                        }
+                      />
+                    </ReviewSection>
+
+                    {/* MÍDIA */}
+                    <ReviewSection
+                      title="Foto e apresentação"
+                      onEdit={() => goToStep(4)}
+                    >
+                      <div className="flex items-center gap-4">
+                        {form.photoUrl ? (
+                          <img
+                            src={form.photoUrl}
+                            alt="Foto profissional"
+                            className="w-20 h-20 rounded-xl object-cover"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center">
+                            <Camera className="w-6 h-6 text-slate-400" />
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="font-medium text-slate-800">
+                            Foto profissional
+                          </p>
+
+                          <p className="text-sm text-slate-500">
+                            {form.photoUrl
+                              ? "Adicionada"
+                              : "Não adicionada"}
+                          </p>
+
+                          <p className="text-sm text-slate-500 mt-1">
+                            Vídeo:{" "}
+                            {form.videoUrl
+                              ? "Adicionado"
+                              : "Não adicionado"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {form.presentation && (
+                        <div className="mt-5 rounded-xl bg-slate-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            Apresentação
+                          </p>
+
+                          <p className="text-sm text-slate-700 whitespace-pre-line">
+                            {form.presentation}
+                          </p>
+                        </div>
+                      )}
+                    </ReviewSection>
+                  </div>
+
+                  <div className="mt-7 rounded-2xl bg-blue-50 border border-blue-100 p-5">
+                    <div className="flex gap-3">
+                      <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+
+                      <div>
+                        <h3 className="font-semibold text-blue-900">
+                          Quase tudo pronto!
+                        </h3>
+
+                        <p className="mt-1 text-sm text-blue-800 leading-relaxed">
+                          Ao clicar em "Finalizar cadastro",
+                          suas informações serão salvas e
+                          enviaremos um código para seu
+                          e-mail. A confirmação do e-mail é
+                          necessária antes de acessar o
+                          painel profissional.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RODAPÉ */}
+            <div className="border-t border-slate-200 px-6 md:px-8 py-5 flex items-center justify-between gap-4">
+              <button
+                type="button"
+                onClick={previousStep}
+                disabled={
+                  step === 0 ||
+                  submitting ||
+                  uploading ||
+                  verifyingOtp
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Voltar
+              </button>
+
+              <div className="text-sm text-slate-400">
+                Etapa {step + 1} de {STEPS.length}
+              </div>
+
+              <button
+                type="button"
+                onClick={nextStep}
+                disabled={
+                  submitting ||
+                  uploading ||
+                  verifyingOtp
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+
+                    {step === 5
+                      ? "Salvando..."
+                      : "Processando..."}
+                  </>
+                ) : step === 5 ? (
+                  <>
+                    Finalizar cadastro
+                    <Check className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* RODAPÉ INFORMATIVO */}
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Seus dados serão utilizados para criação e
+            gerenciamento do seu perfil profissional.
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+/* =========================================================
+   COMPONENTES AUXILIARES
+========================================================= */
+
+function ReviewSection({
+  title,
+  onEdit,
+  children,
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="flex items-center justify-between gap-4 bg-slate-50 px-5 py-4 border-b border-slate-200">
+        <h3 className="font-semibold text-slate-900">
+          {title}
+        </h3>
+
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
+        >
+          <Edit3 className="w-4 h-4" />
+          Editar
+        </button>
+      </div>
+
+      <div className="p-5 grid md:grid-cols-2 gap-4">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function ReviewItem({ label, value }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm text-slate-800 break-words">
+        {value || "Não informado"}
+      </p>
+    </div>
+  );
+}
