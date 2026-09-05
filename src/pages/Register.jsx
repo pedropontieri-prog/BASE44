@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,27 @@ export default function Register() {
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
+  // Tempo de espera para reenviar o código
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Contador regressivo do reenvio
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -56,16 +77,17 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
-        options: {
-          data: {
-            full_name: "",
-            role: "patient",
+      const { data, error: signUpError } =
+        await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            data: {
+              full_name: "",
+              role: "patient",
+            },
           },
-        },
-      });
+        });
 
       if (signUpError) {
         throw signUpError;
@@ -78,6 +100,9 @@ export default function Register() {
       if (data.user && !data.session) {
         setEmail(normalizedEmail);
         setShowOtp(true);
+
+        // Começa o contador após o primeiro envio
+        setResendCooldown(60);
 
         toast({
           title: "Código enviado",
@@ -99,6 +124,7 @@ export default function Register() {
 
       setEmail(normalizedEmail);
       setShowOtp(true);
+      setResendCooldown(60);
     } catch (err) {
       console.error("Erro ao cadastrar:", err);
 
@@ -147,7 +173,10 @@ export default function Register() {
 
       window.location.href = safeReturnTo();
     } catch (err) {
-      console.error("Erro ao verificar código:", err);
+      console.error(
+        "Erro ao verificar código:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -159,6 +188,11 @@ export default function Register() {
   };
 
   const handleResend = async () => {
+    // Impede novas solicitações durante o cooldown
+    if (resendCooldown > 0 || loading) {
+      return;
+    }
+
     setError("");
     setLoading(true);
 
@@ -173,6 +207,9 @@ export default function Register() {
         throw resendError;
       }
 
+      // Começa novamente o contador de 60 segundos
+      setResendCooldown(60);
+
       toast({
         title: "Código reenviado",
         description:
@@ -184,10 +221,24 @@ export default function Register() {
         err
       );
 
-      setError(
-        err?.message ||
-          "Não foi possível reenviar o código."
-      );
+      /*
+       * Se o Supabase ainda estiver aplicando o limite,
+       * mostra uma mensagem mais amigável.
+       */
+      if (
+        err?.message?.toLowerCase().includes("security") ||
+        err?.message?.toLowerCase().includes("after") ||
+        err?.message?.toLowerCase().includes("rate limit")
+      ) {
+        setError(
+          "Aguarde alguns segundos antes de solicitar um novo código."
+        );
+      } else {
+        setError(
+          err?.message ||
+            "Não foi possível reenviar o código."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -284,10 +335,15 @@ export default function Register() {
           <button
             type="button"
             onClick={handleResend}
-            disabled={loading}
+            disabled={
+              loading ||
+              resendCooldown > 0
+            }
             className="text-primary font-medium hover:underline disabled:opacity-50"
           >
-            Reenviar
+            {resendCooldown > 0
+              ? `Reenviar em ${resendCooldown}s`
+              : "Reenviar"}
           </button>
         </p>
 
@@ -297,6 +353,7 @@ export default function Register() {
             setShowOtp(false);
             setOtpCode("");
             setError("");
+            setResendCooldown(0);
           }}
           className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground"
         >
