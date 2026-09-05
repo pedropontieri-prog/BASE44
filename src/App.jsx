@@ -10,11 +10,16 @@ import {
 } from "react-router-dom";
 
 import PageNotFound from "./lib/PageNotFound";
-import { AuthProvider, useAuth } from "@/lib/AuthContext";
+
+import {
+  AuthProvider,
+  useAuth,
+} from "@/lib/AuthContext";
 
 import UserNotRegisteredError from "@/components/UserNotRegisteredError";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ProfessionalRoute from "@/components/ProfessionalRoute";
 
 // ==================== PÁGINAS ====================
 
@@ -22,6 +27,7 @@ import Home from "@/pages/Home";
 import FindPsychologist from "@/pages/FindPsychologist";
 import PsychologistProfile from "@/pages/PsychologistProfile";
 import VideoCall from "@/pages/VideoCall";
+
 import PatientDashboard from "@/pages/PatientDashboard";
 import Journal from "@/pages/Journal";
 import Triage from "@/pages/Triage";
@@ -46,17 +52,19 @@ function LoadingScreen() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
+
         <div className="w-9 h-9 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
 
         <p className="text-sm text-muted-foreground">
           Carregando...
         </p>
+
       </div>
     </div>
   );
 }
 
-// ==================== APLICAÇÃO ====================
+// ==================== APLICAÇÃO AUTENTICADA ====================
 
 function AuthenticatedApp() {
   const {
@@ -65,12 +73,16 @@ function AuthenticatedApp() {
     authError,
   } = useAuth();
 
+  // ==================== CARREGANDO AUTENTICAÇÃO ====================
+
   if (
     isLoadingAuth ||
     isLoadingPublicSettings
   ) {
     return <LoadingScreen />;
   }
+
+  // ==================== USUÁRIO NÃO REGISTRADO ====================
 
   if (
     authError?.type === "user_not_registered"
@@ -80,7 +92,10 @@ function AuthenticatedApp() {
 
   return (
     <Routes>
-      {/* ==================== AUTENTICAÇÃO ==================== */}
+
+      {/* ======================================================
+          AUTENTICAÇÃO
+      ====================================================== */}
 
       <Route
         path="/login"
@@ -102,7 +117,9 @@ function AuthenticatedApp() {
         element={<ResetPassword />}
       />
 
-      {/* ==================== PÁGINAS PÚBLICAS ==================== */}
+      {/* ======================================================
+          PÁGINAS PÚBLICAS
+      ====================================================== */}
 
       <Route
         path="/"
@@ -134,28 +151,24 @@ function AuthenticatedApp() {
         element={<Privacy />}
       />
 
-      {/* ==================== CADASTRO PROFISSIONAL ==================== */}
-
-      {/* 
-        IMPORTANTE:
-        Esta rota NÃO fica dentro do ProtectedRoute.
-
-        O próprio ProfessionalOnboarding controla:
-        - criação da conta;
-        - login;
-        - preenchimento do cadastro;
-        - envio da foto;
-        - envio do vídeo;
-        - revisão;
-        - envio para verificação.
-      */}
+      {/* ======================================================
+          CADASTRO PROFISSIONAL
+          
+          Esta rota continua pública porque o próprio
+          ProfessionalOnboarding controla o processo
+          de cadastro do profissional.
+      ====================================================== */}
 
       <Route
         path="/cadastro-profissional"
         element={<ProfessionalOnboarding />}
       />
 
-      {/* ==================== ROTAS PROTEGIDAS ==================== */}
+      {/* ======================================================
+          ÁREA DO PACIENTE
+          
+          Estas rotas exigem autenticação.
+      ====================================================== */}
 
       <Route
         element={
@@ -169,6 +182,7 @@ function AuthenticatedApp() {
           />
         }
       >
+
         {/* ==================== PACIENTE ==================== */}
 
         <Route
@@ -177,7 +191,7 @@ function AuthenticatedApp() {
         />
 
         <Route
-          path="/painel"
+          path="/painel-paciente"
           element={<PatientDashboard />}
         />
 
@@ -196,27 +210,63 @@ function AuthenticatedApp() {
           element={<Notifications />}
         />
 
-        {/* ==================== PROFISSIONAL ==================== */}
+      </Route>
+
+      {/* ======================================================
+          ÁREA EXCLUSIVA DO PROFISSIONAL
+          
+          O ProfessionalRoute verifica:
+          1. Se o usuário está autenticado.
+          2. Se o usuário possui role de profissional.
+          
+          Paciente tentando acessar esta área será enviado
+          para /painel-paciente.
+      ====================================================== */}
+
+      <Route
+        element={<ProfessionalRoute />}
+      >
 
         <Route
           path="/painel-profissional"
           element={<PsychologistDashboard />}
         />
 
-        {/* ==================== ADMIN ==================== */}
+      </Route>
+
+      {/* ======================================================
+          ÁREA ADMINISTRATIVA
+      ====================================================== */}
+
+      <Route
+        element={
+          <ProtectedRoute
+            unauthenticatedElement={
+              <Navigate
+                to="/login"
+                replace
+              />
+            }
+          />
+        }
+      >
 
         <Route
           path="/verificacao"
           element={<AdminVerification />}
         />
+
       </Route>
 
-      {/* ==================== 404 ==================== */}
+      {/* ======================================================
+          404
+      ====================================================== */}
 
       <Route
         path="*"
         element={<PageNotFound />}
       />
+
     </Routes>
   );
 }
@@ -226,17 +276,23 @@ function AuthenticatedApp() {
 function App() {
   return (
     <AuthProvider>
+
       <QueryClientProvider
         client={queryClientInstance}
       >
+
         <Router>
+
           <ScrollToTop />
 
           <AuthenticatedApp />
+
         </Router>
 
         <Toaster />
+
       </QueryClientProvider>
+
     </AuthProvider>
   );
 }
