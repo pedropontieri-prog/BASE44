@@ -37,21 +37,14 @@ export default function ProfessionalRoute() {
     }
   }, [authChecked, isLoadingAuth, checkUserAuth]);
 
-  // Ainda verificando a sessão
   if (isLoadingAuth || !authChecked) {
     return <LoadingScreen />;
   }
 
-  // Não está autenticado
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  /*
-   * Tenta encontrar o tipo de conta em diferentes lugares.
-   * Isso deixa o componente compatível com diferentes estruturas
-   * do AuthContext/Supabase.
-   */
   const role = useMemo(() => {
     return normalizeRole(
       user?.role ||
@@ -64,7 +57,6 @@ export default function ProfessionalRoute() {
     );
   }, [user]);
 
-  // Tipos aceitos como profissional
   const professionalRoles = [
     "professional",
     "profissional",
@@ -74,12 +66,10 @@ export default function ProfessionalRoute() {
 
   const isProfessional = professionalRoles.includes(role);
 
-  // Está logado, mas não possui conta profissional
   if (!isProfessional) {
     return <Navigate to="/painel-paciente" replace />;
   }
 
-  // É profissional
   return <Outlet />;
 }
 ```
