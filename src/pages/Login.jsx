@@ -14,151 +14,115 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
-/**
- * ============================================================
- * DESTINO DO USUÁRIO
- * ============================================================
- *
- * A prioridade é:
- *
- * 1. Verificar se existe registro em public.psychologists
- *    para o usuário.
- *
- * 2. Verificar role/account_type/user_type do metadata.
- *
- * 3. Usar returnTo, se existir.
- *
- * 4. Fallback para /painel.
- *
- * Isso evita que um profissional seja enviado
- * incorretamente para o painel do paciente.
- */
-const getUserDestination = async (user, returnTo) => {
-  if (!user) {
-    return "/login";
-  }
+function getUserRole(user) {
+  const metadata = user?.user_metadata || {};
 
-  // ============================================================
-  // 1. VERIFICAR SE É PROFISSIONAL PELO BANCO
-  // ============================================================
-
-  try {
-    const {
-      data: psychologist,
-      error,
-    } = await supabase
-      .from("psychologists")
-      .select("id, user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!error && psychologist) {
-      console.log(
-        "Usuário identificado como profissional pelo banco.",
-        {
-          userId: user.id,
-          psychologistId: psychologist.id,
-        }
-      );
-
-      return "/painel-profissional";
-    }
-
-    if (error) {
-      console.warn(
-        "Não foi possível verificar psychologists:",
-        error
-      );
-    }
-  } catch (err) {
-    console.warn(
-      "Erro ao consultar psychologists:",
-      err
-    );
-  }
-
-  // ============================================================
-  // 2. VERIFICAR ROLE DO METADATA
-  // ============================================================
-
-  const metadata = user.user_metadata || {};
-
-  const role = String(
+  return String(
     metadata.role ||
       metadata.account_type ||
       metadata.user_type ||
+      metadata.profile_type ||
       ""
   )
     .trim()
     .toLowerCase();
+}
 
-  // ============================================================
-  // PROFISSIONAL
-  // ============================================================
+function isProfessional(user) {
+  const role = getUserRole(user);
 
-  const professionalRoles = [
+  return [
     "professional",
     "profissional",
     "psychologist",
     "psicologo",
     "psicóloga",
     "psicologa",
-  ];
+  ].includes(role);
+}
 
-  if (professionalRoles.includes(role)) {
-    return "/painel-profissional";
-  }
+function isPatient(user) {
+  const role = getUserRole(user);
 
-  // ============================================================
-  // PACIENTE
-  // ============================================================
-
-  const patientRoles = [
+  return [
     "patient",
     "paciente",
     "user",
-    "usuario",
-    "usuário",
-  ];
+  ].includes(role);
+}
 
-  if (patientRoles.includes(role)) {
+function getUserDestination(user, returnTo) {
+  if (!user) {
+    return "/login";
+  }
+
+  // Profissional sempre vai para o painel profissional.
+  if (isProfessional(user)) {
+    return "/painel-profissional";
+  }
+
+  // Paciente sempre vai para o painel do paciente.
+  if (isPatient(user)) {
     return "/painel-paciente";
   }
 
-  // ============================================================
-  // 3. RETURN TO
-  // ============================================================
-
+  // Se não houver role, respeita um returnTo específico.
   if (
     returnTo &&
     returnTo !== "/" &&
-    returnTo !== "/painel"
+    returnTo !== "/painel" &&
+    returnTo !== "/painel-paciente" &&
+    returnTo !== "/painel-profissional"
   ) {
     return returnTo;
   }
 
-  // ============================================================
-  // 4. FALLBACK
-  // ============================================================
+  // Nunca usar /painel, porque essa rota não existe.
+  return "/painel-paciente";
+}
 
-  return "/painel";
-};
+function getFriendlyLoginError(error) {
+  const message = String(
+    error?.message || ""
+  ).toLowerCase();
 
-/**
- * ============================================================
- * COMPONENTE LOGIN
- * ============================================================
- */
+  if (
+    message.includes("invalid login credentials") ||
+    message.includes("invalid login")
+  ) {
+    return "E-mail ou senha incorretos.";
+  }
+
+  if (
+    message.includes("email not confirmed") ||
+    message.includes("email_not_confirmed")
+  ) {
+    return "Seu e-mail ainda não foi confirmado.";
+  }
+
+  if (message.includes("too many requests")) {
+    return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+  }
+
+  if (message.includes("network")) {
+    return "Erro de conexão. Verifique sua internet e tente novamente.";
+  }
+
+  return (
+    error?.message ||
+    "Não foi possível entrar. Tente novamente."
+  );
+}
+
 export default function Login() {
   const navigate = useNavigate();
+  const returnTo = safeReturnTo();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const returnTo = safeReturnTo();
 
   // ============================================================
   // REDIRECIONAR USUÁRIO JÁ LOGADO
@@ -186,25 +150,15 @@ export default function Login() {
           return;
         }
 
-        const destination =
-          await getUserDestination(
-            session.user,
-            returnTo
-          );
-
-        if (!mounted) {
-          return;
-        }
+        const destination = getUserDestination(
+          session.user,
+          returnTo
+        );
 
         console.log(
-          "Sessão existente detectada.",
+          "Sessão encontrada.",
           {
-            userId: session.user.id,
-            email: session.user.email,
-            role:
-              session.user.user_metadata?.role,
-            accountType:
-              session.user.user_metadata?.account_type,
+            role: getUserRole(session.user),
             destination,
           }
         );
@@ -229,64 +183,33 @@ export default function Login() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) {
+      (event, session) => {
+        if (!mounted || !session?.user) {
           return;
         }
 
         if (
-          (
-            event === "SIGNED_IN" ||
-            event === "INITIAL_SESSION"
-          ) &&
-          session?.user
+          event === "SIGNED_IN" ||
+          event === "INITIAL_SESSION"
         ) {
-          /*
-           * Pequeno atraso para garantir que o estado
-           * da autenticação esteja disponível antes
-           * da consulta ao banco.
-           */
-          setTimeout(async () => {
-            if (!mounted) {
-              return;
+          const destination =
+            getUserDestination(
+              session.user,
+              returnTo
+            );
+
+          console.log(
+            "Autenticação alterada.",
+            {
+              event,
+              role: getUserRole(session.user),
+              destination,
             }
+          );
 
-            try {
-              const destination =
-                await getUserDestination(
-                  session.user,
-                  returnTo
-                );
-
-              if (!mounted) {
-                return;
-              }
-
-              console.log(
-                "Alteração de autenticação.",
-                {
-                  event,
-                  userId: session.user.id,
-                  role:
-                    session.user.user_metadata
-                      ?.role,
-                  accountType:
-                    session.user.user_metadata
-                      ?.account_type,
-                  destination,
-                }
-              );
-
-              navigate(destination, {
-                replace: true,
-              });
-            } catch (err) {
-              console.error(
-                "Erro ao definir destino:",
-                err
-              );
-            }
-          }, 100);
+          navigate(destination, {
+            replace: true,
+          });
         }
       }
     );
@@ -298,7 +221,7 @@ export default function Login() {
   }, [navigate, returnTo]);
 
   // ============================================================
-  // LOGIN COM E-MAIL E SENHA
+  // LOGIN E-MAIL/SENHA
   // ============================================================
 
   const handleSubmit = async (e) => {
@@ -322,10 +245,6 @@ export default function Login() {
         return;
       }
 
-      // ========================================================
-      // LOGIN
-      // ========================================================
-
       const {
         data: loginData,
         error: loginError,
@@ -345,10 +264,6 @@ export default function Login() {
         );
       }
 
-      // ========================================================
-      // CONFIRMAR SESSÃO
-      // ========================================================
-
       const {
         data: sessionData,
         error: sessionError,
@@ -359,51 +274,31 @@ export default function Login() {
         throw sessionError;
       }
 
-      if (!sessionData?.session) {
+      if (!sessionData?.session?.user) {
         throw new Error(
-          "Login realizado, mas a sessão não foi criada. Tente novamente."
+          "Login realizado, mas a sessão não foi criada."
         );
       }
 
       const user =
         sessionData.session.user;
 
-      // ========================================================
-      // IDENTIFICAR DESTINO
-      // ========================================================
-
       const destination =
-        await getUserDestination(
+        getUserDestination(
           user,
           returnTo
         );
 
-      const metadata =
-        user.user_metadata || {};
-
-      const role = String(
-        metadata.role ||
-          metadata.account_type ||
-          metadata.user_type ||
-          ""
-      )
-        .trim()
-        .toLowerCase();
-
       console.log(
-        "Login realizado com sucesso.",
+        "Login realizado.",
         {
           userId: user.id,
           email: user.email,
-          role,
-          metadata,
+          role: getUserRole(user),
+          metadata: user.user_metadata,
           destination,
         }
       );
-
-      // ========================================================
-      // REDIRECIONAR
-      // ========================================================
 
       navigate(destination, {
         replace: true,
@@ -414,55 +309,9 @@ export default function Login() {
         err
       );
 
-      const message =
-        String(
-          err?.message || ""
-        ).toLowerCase();
-
-      if (
-        message.includes(
-          "invalid login credentials"
-        ) ||
-        message.includes(
-          "invalid login"
-        )
-      ) {
-        setError(
-          "E-mail ou senha incorretos."
-        );
-      } else if (
-        message.includes(
-          "email not confirmed"
-        ) ||
-        message.includes(
-          "email_not_confirmed"
-        )
-      ) {
-        setError(
-          "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada e confirme o código."
-        );
-      } else if (
-        message.includes(
-          "too many requests"
-        )
-      ) {
-        setError(
-          "Muitas tentativas. Aguarde alguns minutos e tente novamente."
-        );
-      } else if (
-        message.includes(
-          "network"
-        )
-      ) {
-        setError(
-          "Erro de conexão. Verifique sua internet e tente novamente."
-        );
-      } else {
-        setError(
-          err?.message ||
-            "Não foi possível entrar. Tente novamente."
-        );
-      }
+      setError(
+        getFriendlyLoginError(err)
+      );
     } finally {
       setLoading(false);
     }
@@ -496,7 +345,6 @@ export default function Login() {
       } =
         await supabase.auth.signInWithOAuth({
           provider: "google",
-
           options: {
             redirectTo: redirectUrl,
           },
@@ -521,7 +369,7 @@ export default function Login() {
   };
 
   // ============================================================
-  // LINK DE CADASTRO
+  // CADASTRO
   // ============================================================
 
   const registerUrl =
@@ -552,10 +400,6 @@ export default function Login() {
         </>
       }
     >
-      {/* ======================================================
-          GOOGLE
-      ====================================================== */}
-
       <Button
         type="button"
         variant="outline"
@@ -564,21 +408,13 @@ export default function Login() {
         disabled={loading}
       >
         {loading ? (
-          <Loader2
-            className="w-5 h-5 mr-2 animate-spin"
-          />
+          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
         ) : (
-          <GoogleIcon
-            className="w-5 h-5 mr-2"
-          />
+          <GoogleIcon className="w-5 h-5 mr-2" />
         )}
 
         Continuar com o Google
       </Button>
-
-      {/* ======================================================
-          DIVISOR
-      ====================================================== */}
 
       <div className="relative mb-6">
         <div className="absolute inset-0 flex items-center">
@@ -592,10 +428,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* ======================================================
-          ERRO
-      ====================================================== */}
-
       {error && (
         <div
           role="alert"
@@ -605,18 +437,10 @@ export default function Login() {
         </div>
       )}
 
-      {/* ======================================================
-          FORMULÁRIO
-      ====================================================== */}
-
       <form
         onSubmit={handleSubmit}
         className="space-y-4"
       >
-        {/* ====================================================
-            E-MAIL
-        ==================================================== */}
-
         <div className="space-y-2">
           <Label htmlFor="email">
             E-mail
@@ -637,9 +461,7 @@ export default function Login() {
               placeholder="você@exemplo.com"
               value={email}
               onChange={(e) =>
-                setEmail(
-                  e.target.value
-                )
+                setEmail(e.target.value)
               }
               className="pl-10 h-12"
               disabled={loading}
@@ -647,10 +469,6 @@ export default function Login() {
             />
           </div>
         </div>
-
-        {/* ====================================================
-            SENHA
-        ==================================================== */}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -680,9 +498,7 @@ export default function Login() {
               placeholder="••••••••"
               value={password}
               onChange={(e) =>
-                setPassword(
-                  e.target.value
-                )
+                setPassword(e.target.value)
               }
               className="pl-10 h-12"
               disabled={loading}
@@ -691,10 +507,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* ====================================================
-            BOTÃO
-        ==================================================== */}
-
         <Button
           type="submit"
           className="w-full h-12 font-medium"
@@ -702,10 +514,7 @@ export default function Login() {
         >
           {loading ? (
             <>
-              <Loader2
-                className="w-4 h-4 mr-2 animate-spin"
-              />
-
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Entrando...
             </>
           ) : (
