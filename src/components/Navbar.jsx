@@ -1,3 +1,4 @@
+```jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -17,12 +18,30 @@ const navLinks = [
   { label: "Privacidade", path: "/privacidade" },
 ];
 
+const normalizeRole = (value) => {
+  if (!value) return "";
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+
+const isProfessionalRole = (role) => {
+  return [
+    "professional",
+    "profissional",
+    "psychologist",
+    "psicologo",
+  ].includes(normalizeRole(role));
+};
+
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
   const location = useLocation();
-
   const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
@@ -41,10 +60,16 @@ export default function Navbar() {
     setOpen(false);
   }, [location.pathname]);
 
-  const painelPath =
-    user?.role === "psychologist"
-      ? "/painel-profissional"
-      : "/painel";
+  const isProfessional = isProfessionalRole(
+    user?.role ||
+      user?.user_metadata?.role ||
+      user?.user_metadata?.account_type ||
+      user?.user_metadata?.user_type
+  );
+
+  const painelPath = isProfessional
+    ? "/painel-profissional"
+    : "/painel";
 
   const handleLogout = async () => {
     try {
@@ -58,14 +83,10 @@ export default function Navbar() {
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "glass-strong shadow-soft"
-          : "bg-transparent"
+        scrolled ? "glass-strong shadow-soft" : "bg-transparent"
       }`}
     >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-
-        {/* LOGO */}
         <Link
           to="/"
           className="flex items-center"
@@ -78,9 +99,7 @@ export default function Navbar() {
           />
         </Link>
 
-        {/* MENU DESKTOP */}
         <div className="hidden lg:flex items-center gap-1">
-
           {navLinks.map((link) => (
             <Link
               key={link.path}
@@ -109,12 +128,9 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* ÁREA DO USUÁRIO DESKTOP */}
         <div className="hidden lg:flex items-center gap-3">
-
           {isAuthenticated ? (
             <>
-              {/* FAVORITOS */}
               <Link
                 to="/favoritos"
                 className="p-2 rounded-full hover:bg-muted transition-colors"
@@ -124,7 +140,6 @@ export default function Navbar() {
                 <Heart size={19} />
               </Link>
 
-              {/* NOTIFICAÇÕES */}
               <Link
                 to="/notificacoes"
                 className="p-2 rounded-full hover:bg-muted transition-colors"
@@ -134,7 +149,6 @@ export default function Navbar() {
                 <Bell size={19} />
               </Link>
 
-              {/* MEU PAINEL */}
               <Link
                 to={painelPath}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft hover:shadow-glow transition-all duration-300 hover:scale-[1.02]"
@@ -143,7 +157,6 @@ export default function Navbar() {
                 Meu painel
               </Link>
 
-              {/* SAIR */}
               <button
                 type="button"
                 onClick={handleLogout}
@@ -155,7 +168,6 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              {/* ENTRAR */}
               <Link
                 to="/login"
                 className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
@@ -163,7 +175,6 @@ export default function Navbar() {
                 Entrar
               </Link>
 
-              {/* CRIAR CONTA */}
               <Link
                 to="/register"
                 className="px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft hover:shadow-glow transition-all duration-300 hover:scale-[1.02]"
@@ -174,7 +185,6 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* BOTÃO MOBILE */}
         <button
           type="button"
           className="lg:hidden p-2 rounded-xl hover:bg-muted transition-colors"
@@ -186,13 +196,9 @@ export default function Navbar() {
         </button>
       </nav>
 
-      {/* MENU MOBILE */}
       {open && (
         <div className="lg:hidden glass-strong border-t border-border animate-fade-in">
-
           <div className="px-4 py-4 space-y-1">
-
-            {/* LINKS PRINCIPAIS */}
             {navLinks.map((link) => (
               <Link
                 key={link.path}
@@ -207,10 +213,17 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {/* USUÁRIO LOGADO */}
-            {isAuthenticated ? (
-              <div className="pt-3 border-t border-border space-y-1">
+            {!isAuthenticated && (
+              <Link
+                to="/cadastro-profissional"
+                className="block px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
+              >
+                Sou profissional
+              </Link>
+            )}
 
+            {isAuthenticated && (
+              <div className="pt-3 border-t border-border space-y-1">
                 <Link
                   to={painelPath}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
@@ -243,32 +256,12 @@ export default function Navbar() {
                   <LogOut size={18} />
                   Sair
                 </button>
-
-              </div>
-            ) : (
-              /* USUÁRIO NÃO LOGADO */
-              <div className="pt-3 border-t border-border flex gap-3">
-
-                <Link
-                  to="/login"
-                  className="flex-1 text-center px-4 py-3 rounded-xl text-sm font-medium border border-border"
-                >
-                  Entrar
-                </Link>
-
-                <Link
-                  to="/register"
-                  className="flex-1 text-center px-4 py-3 rounded-xl gradient-brand text-white text-sm font-semibold"
-                >
-                  Criar conta
-                </Link>
-
               </div>
             )}
-
           </div>
         </div>
       )}
     </header>
   );
 }
+```
