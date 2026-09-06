@@ -1,10 +1,9 @@
-```jsx
 import React, {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useState
+  useState,
+  useCallback
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -58,20 +57,13 @@ export function AuthProvider({ children }) {
         ...profile,
         id: authUser.id,
         email: authUser.email || profile.email || "",
-        name:
-          profile.name ||
-          profile.full_name ||
-          userData.name ||
-          "",
+        name: profile.name || profile.full_name || userData.name || "",
         full_name:
           profile.full_name ||
           profile.name ||
           userData.full_name ||
           "",
-        avatar_url:
-          profile.avatar_url ||
-          userData.avatar_url ||
-          null,
+        avatar_url: profile.avatar_url || userData.avatar_url || null,
         role:
           profile.role ||
           profile.account_type ||
@@ -256,4 +248,3 @@ export function useAuth() {
 }
 
 export default AuthContext;
-```
