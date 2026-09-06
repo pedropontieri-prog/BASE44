@@ -28,17 +28,17 @@ const menu = [
   {
     label: 'Início',
     icon: ArrowRight,
-    path: '/painel',
+    path: '/painel-paciente',
   },
   {
     label: 'Próxima consulta',
     icon: Clock,
-    path: '/painel',
+    path: '/painel-paciente',
   },
   {
     label: 'Histórico',
     icon: History,
-    path: '/painel',
+    path: '/painel-paciente',
   },
   {
     label: 'Favoritos',
@@ -53,7 +53,7 @@ const menu = [
   {
     label: 'Dados da conta',
     icon: User,
-    path: '/painel',
+    path: '/painel-paciente',
   },
   {
     label: 'Privacidade',
@@ -70,15 +70,16 @@ const menu = [
 function getAppointmentDate(appointment) {
   if (!appointment) return null;
 
-  const possibleDates = [
-    appointment.scheduled_at,
-    appointment.starts_at,
-  ];
+  if (appointment.starts_at) {
+    const date = new Date(appointment.starts_at);
 
-  for (const value of possibleDates) {
-    if (!value) continue;
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
 
-    const date = new Date(value);
+  if (appointment.scheduled_at) {
+    const date = new Date(appointment.scheduled_at);
 
     if (!Number.isNaN(date.getTime())) {
       return date;
@@ -141,24 +142,16 @@ function formatDateLong(date) {
   }).format(date);
 }
 
-function formatTime(date, appointment) {
-  if (appointment?.time) {
-    return String(appointment.time).slice(0, 5);
+function formatTime(date) {
+  if (!date) {
+    return 'Horário não informado';
   }
 
-  if (appointment?.slot) {
-    return String(appointment.slot).slice(0, 5);
-  }
-
-  if (date) {
-    return new Intl.DateTimeFormat('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(date);
-  }
-
-  return 'Horário não informado';
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
 function getPsychologistName(appointment) {
@@ -176,17 +169,16 @@ function getPsychologistName(appointment) {
 
 function getAppointmentTime(appointment) {
   return formatTime(
-    getAppointmentDate(appointment),
-    appointment
+    getAppointmentDate(appointment)
   );
 }
 
 function getAppointmentModality(appointment) {
   return String(
+    appointment?.mode ||
     appointment?.modality ||
-      appointment?.mode ||
-      appointment?.type ||
-      'online'
+    appointment?.type ||
+    'online'
   ).toLowerCase();
 }
 
@@ -218,7 +210,11 @@ function getStatusLabel(status) {
     status || ''
   ).toLowerCase();
 
-  return labels[normalized] || status || 'Agendada';
+  return (
+    labels[normalized] ||
+    status ||
+    'Agendada'
+  );
 }
 
 function getStatusClass(status) {
@@ -260,58 +256,35 @@ function getRoomId(appointment) {
   );
 }
 
-/**
- * Busca as consultas do paciente.
- *
+/*
  * IMPORTANTE:
- * A aplicação usa a tabela "appointments".
+ * A tabela appointments possui:
  *
- * Primeiro tentamos patient_user_id.
- * Se essa coluna não existir, tentamos patient_id.
- * Isso evita que o painel fique preso a apenas uma
- * estrutura de banco.
+ * patient_id
+ * psychologist_id
+ * starts_at
+ * ends_at
+ * mode
+ * status
+ *
+ * Portanto usamos patient_id.
  */
 async function fetchAppointments(userId) {
-  let result = await supabase
+  const { data, error } = await supabase
     .from('appointments')
     .select('*')
-    .eq('patient_user_id', userId)
-    .order('created_at', {
-      ascending: false,
+    .eq('patient_id', userId)
+    .order('starts_at', {
+      ascending: true,
     });
 
-  if (!result.error) {
-    return Array.isArray(result.data)
-      ? result.data
-      : [];
+  if (error) {
+    throw error;
   }
 
-  /*
-   * Se patient_user_id não existir,
-   * tenta patient_id.
-   */
-  if (
-    result.error?.code === '42703' ||
-    String(result.error?.message || '')
-      .toLowerCase()
-      .includes('patient_user_id')
-  ) {
-    result = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('patient_id', userId)
-      .order('created_at', {
-        ascending: false,
-      });
-
-    if (!result.error) {
-      return Array.isArray(result.data)
-        ? result.data
-        : [];
-    }
-  }
-
-  throw result.error;
+  return Array.isArray(data)
+    ? data
+    : [];
 }
 
 function getFriendlyError(error) {
@@ -343,17 +316,17 @@ function getFriendlyError(error) {
     (
       message.includes('relation') ||
       message.includes('does not exist') ||
-      code === '42P01'
+      code === '42p01'
     )
   ) {
-    return 'A tabela "appointments" não existe no banco de dados. É necessário criar essa tabela no Supabase.';
+    return 'A tabela appointments não foi encontrada no banco de dados.';
   }
 
   if (
-    message.includes('patient_user_id') ||
+    message.includes('patient_id') ||
     code === '42703'
   ) {
-    return 'A coluna usada para identificar o paciente não existe na tabela appointments. Verifique se existe "patient_user_id" ou "patient_id".';
+    return 'A coluna patient_id não foi encontrada na tabela appointments.';
   }
 
   return (
@@ -438,7 +411,9 @@ export default function PatientDashboard() {
 
         if (
           status === 'cancelled' ||
-          status === 'canceled'
+          status === 'canceled' ||
+          status === 'completed' ||
+          status === 'no_show'
         ) {
           return false;
         }
@@ -529,12 +504,9 @@ export default function PatientDashboard() {
       time:
         getAppointmentTime(appointment),
       date:
-        appointment?.date ||
-        (
-          appointmentDate
-            ? appointmentDate.toISOString()
-            : ''
-        ),
+        appointmentDate
+          ? appointmentDate.toISOString()
+          : '',
     };
   };
 
@@ -1076,12 +1048,9 @@ function AppointmentItem({
                 ),
 
               date:
-                appointment?.date ||
-                (
-                  appointmentDate
-                    ? appointmentDate.toISOString()
-                    : ''
-                ),
+                appointmentDate
+                  ? appointmentDate.toISOString()
+                  : '',
             }}
             className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
           >
