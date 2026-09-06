@@ -15,28 +15,72 @@ import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 /**
- * Descobre para qual painel o usuário deve ir.
+ * ============================================================
+ * DESTINO DO USUÁRIO
+ * ============================================================
  *
- * Profissional:
- *   /painel-profissional
+ * A prioridade é:
  *
- * Paciente:
- *   /painel-paciente
+ * 1. Verificar se existe registro em public.psychologists
+ *    para o usuário.
  *
- * Se não encontrar o tipo, usa /painel como fallback.
+ * 2. Verificar role/account_type/user_type do metadata.
+ *
+ * 3. Usar returnTo, se existir.
+ *
+ * 4. Fallback para /painel.
+ *
+ * Isso evita que um profissional seja enviado
+ * incorretamente para o painel do paciente.
  */
-const getUserDestination = (user, returnTo) => {
+const getUserDestination = async (user, returnTo) => {
   if (!user) {
     return "/login";
   }
 
-  /*
-   * Se existe um returnTo válido e específico,
-   * podemos respeitá-lo.
-   *
-   * Mas NÃO deixamos um /painel genérico sobrescrever
-   * a decisão de profissional/paciente.
-   */
+  // ============================================================
+  // 1. VERIFICAR SE É PROFISSIONAL PELO BANCO
+  // ============================================================
+
+  try {
+    const {
+      data: psychologist,
+      error,
+    } = await supabase
+      .from("psychologists")
+      .select("id, user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!error && psychologist) {
+      console.log(
+        "Usuário identificado como profissional pelo banco.",
+        {
+          userId: user.id,
+          psychologistId: psychologist.id,
+        }
+      );
+
+      return "/painel-profissional";
+    }
+
+    if (error) {
+      console.warn(
+        "Não foi possível verificar psychologists:",
+        error
+      );
+    }
+  } catch (err) {
+    console.warn(
+      "Erro ao consultar psychologists:",
+      err
+    );
+  }
+
+  // ============================================================
+  // 2. VERIFICAR ROLE DO METADATA
+  // ============================================================
+
   const metadata = user.user_metadata || {};
 
   const role = String(
@@ -44,38 +88,47 @@ const getUserDestination = (user, returnTo) => {
       metadata.account_type ||
       metadata.user_type ||
       ""
-  ).toLowerCase();
+  )
+    .trim()
+    .toLowerCase();
 
-  /*
-   * PROFISSIONAL
-   */
-  if (
-    role === "professional" ||
-    role === "profissional" ||
-    role === "psychologist" ||
-    role === "psicologo" ||
-    role === "psicóloga" ||
-    role === "psicologo"
-  ) {
+  // ============================================================
+  // PROFISSIONAL
+  // ============================================================
+
+  const professionalRoles = [
+    "professional",
+    "profissional",
+    "psychologist",
+    "psicologo",
+    "psicóloga",
+    "psicologa",
+  ];
+
+  if (professionalRoles.includes(role)) {
     return "/painel-profissional";
   }
 
-  /*
-   * PACIENTE
-   */
-  if (
-    role === "patient" ||
-    role === "paciente" ||
-    role === "user"
-  ) {
+  // ============================================================
+  // PACIENTE
+  // ============================================================
+
+  const patientRoles = [
+    "patient",
+    "paciente",
+    "user",
+    "usuario",
+    "usuário",
+  ];
+
+  if (patientRoles.includes(role)) {
     return "/painel-paciente";
   }
 
-  /*
-   * Se não houver role no metadata,
-   * usa returnTo somente se ele não for um
-   * painel genérico.
-   */
+  // ============================================================
+  // 3. RETURN TO
+  // ============================================================
+
   if (
     returnTo &&
     returnTo !== "/" &&
@@ -84,12 +137,18 @@ const getUserDestination = (user, returnTo) => {
     return returnTo;
   }
 
-  /*
-   * Fallback.
-   */
+  // ============================================================
+  // 4. FALLBACK
+  // ============================================================
+
   return "/painel";
 };
 
+/**
+ * ============================================================
+ * COMPONENTE LOGIN
+ * ============================================================
+ */
 export default function Login() {
   const navigate = useNavigate();
 
@@ -127,14 +186,21 @@ export default function Login() {
           return;
         }
 
-        const destination = getUserDestination(
-          session.user,
-          returnTo
-        );
+        const destination =
+          await getUserDestination(
+            session.user,
+            returnTo
+          );
+
+        if (!mounted) {
+          return;
+        }
 
         console.log(
-          "Usuário já possui sessão.",
+          "Sessão existente detectada.",
           {
+            userId: session.user.id,
+            email: session.user.email,
             role:
               session.user.user_metadata?.role,
             accountType:
@@ -156,14 +222,14 @@ export default function Login() {
 
     checkSession();
 
-    // ============================================================
+    // ==========================================================
     // OBSERVAR ALTERAÇÕES DE AUTENTICAÇÃO
-    // ============================================================
+    // ==========================================================
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (!mounted) {
           return;
         }
@@ -175,28 +241,52 @@ export default function Login() {
           ) &&
           session?.user
         ) {
-          const destination =
-            getUserDestination(
-              session.user,
-              returnTo
-            );
-
-          console.log(
-            "Alteração de autenticação.",
-            {
-              event,
-              role:
-                session.user.user_metadata?.role,
-              accountType:
-                session.user.user_metadata
-                  ?.account_type,
-              destination,
+          /*
+           * Pequeno atraso para garantir que o estado
+           * da autenticação esteja disponível antes
+           * da consulta ao banco.
+           */
+          setTimeout(async () => {
+            if (!mounted) {
+              return;
             }
-          );
 
-          navigate(destination, {
-            replace: true,
-          });
+            try {
+              const destination =
+                await getUserDestination(
+                  session.user,
+                  returnTo
+                );
+
+              if (!mounted) {
+                return;
+              }
+
+              console.log(
+                "Alteração de autenticação.",
+                {
+                  event,
+                  userId: session.user.id,
+                  role:
+                    session.user.user_metadata
+                      ?.role,
+                  accountType:
+                    session.user.user_metadata
+                      ?.account_type,
+                  destination,
+                }
+              );
+
+              navigate(destination, {
+                replace: true,
+              });
+            } catch (err) {
+              console.error(
+                "Erro ao definir destino:",
+                err
+              );
+            }
+          }, 100);
         }
       }
     );
@@ -279,8 +369,14 @@ export default function Login() {
         sessionData.session.user;
 
       // ========================================================
-      // IDENTIFICAR TIPO DA CONTA
+      // IDENTIFICAR DESTINO
       // ========================================================
+
+      const destination =
+        await getUserDestination(
+          user,
+          returnTo
+        );
 
       const metadata =
         user.user_metadata || {};
@@ -290,17 +386,9 @@ export default function Login() {
           metadata.account_type ||
           metadata.user_type ||
           ""
-      ).toLowerCase();
-
-      // ========================================================
-      // DEFINIR DESTINO
-      // ========================================================
-
-      const destination =
-        getUserDestination(
-          user,
-          returnTo
-        );
+      )
+        .trim()
+        .toLowerCase();
 
       console.log(
         "Login realizado com sucesso.",
@@ -437,15 +525,11 @@ export default function Login() {
   // ============================================================
 
   const registerUrl =
-    "/register" +
-    (
-      returnTo &&
-      returnTo !== "/"
-    )
-      ? `?returnTo=${encodeURIComponent(
+    returnTo && returnTo !== "/"
+      ? `/register?returnTo=${encodeURIComponent(
           returnTo
         )}`
-      : "";
+      : "/register";
 
   // ============================================================
   // RENDER
