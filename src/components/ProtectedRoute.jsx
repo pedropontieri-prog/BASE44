@@ -1,27 +1,19 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
-import UserNotRegisteredError from "@/components/UserNotRegisteredError";
 
-const DefaultFallback = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
-      <p className="text-muted-foreground">Carregando...</p>
-    </div>
+const LoadingScreen = () => (
+  <div className="fixed inset-0 flex items-center justify-center bg-white">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
   </div>
 );
 
-export default function ProtectedRoute({
-  fallback = <DefaultFallback />,
-  unauthenticatedElement
-}) {
+export default function ProtectedRoute() {
   const {
     isAuthenticated,
     isLoadingAuth,
     authChecked,
-    authError,
-    checkUserAuth
+    checkUserAuth,
   } = useAuth();
 
   useEffect(() => {
@@ -31,19 +23,11 @@ export default function ProtectedRoute({
   }, [authChecked, isLoadingAuth, checkUserAuth]);
 
   if (isLoadingAuth || !authChecked) {
-    return fallback;
-  }
-
-  if (authError) {
-    if (authError.type === "user_not_registered") {
-      return <UserNotRegisteredError />;
-    }
-
-    return unauthenticatedElement;
+    return <LoadingScreen />;
   }
 
   if (!isAuthenticated) {
-    return unauthenticatedElement;
+    return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;
