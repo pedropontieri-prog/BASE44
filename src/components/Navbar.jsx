@@ -27,19 +27,23 @@ const normalizeRole = (value) => {
     .replace(/[\u0300-\u036f]/g, "");
 };
 
-const isProfessionalRole = (role) => {
+const isProfessionalRole = (value) => {
+  const role = normalizeRole(value);
+
   return [
     "professional",
     "profissional",
     "psychologist",
     "psicologo",
-  ].includes(normalizeRole(role));
+  ].includes(role);
 };
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+
   const location = useLocation();
+
   const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
@@ -58,12 +62,12 @@ export default function Navbar() {
     setOpen(false);
   }, [location.pathname]);
 
-  const isProfessional = isProfessionalRole(
-    user?.role ||
-      user?.user_metadata?.role ||
-      user?.user_metadata?.account_type ||
-      user?.user_metadata?.user_type
-  );
+  const isProfessional =
+    isProfessionalRole(user?.role) ||
+    isProfessionalRole(user?.user_metadata?.role) ||
+    isProfessionalRole(user?.user_metadata?.account_type) ||
+    isProfessionalRole(user?.user_metadata?.user_type) ||
+    isProfessionalRole(user?.user_metadata?.profile_type);
 
   const painelPath = isProfessional
     ? "/painel-profissional"
@@ -81,7 +85,9 @@ export default function Navbar() {
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass-strong shadow-soft" : "bg-transparent"
+        scrolled
+          ? "glass-strong shadow-soft"
+          : "bg-transparent"
       }`}
     >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -129,30 +135,49 @@ export default function Navbar() {
         <div className="hidden lg:flex items-center gap-3">
           {isAuthenticated ? (
             <>
-              <Link
-                to="/favoritos"
-                className="p-2 rounded-full hover:bg-muted transition-colors"
-                title="Favoritos"
-                aria-label="Favoritos"
-              >
-                <Heart size={19} />
-              </Link>
+              {!isProfessional && (
+                <>
+                  <Link
+                    to="/favoritos"
+                    className="p-2 rounded-full hover:bg-muted transition-colors"
+                    title="Favoritos"
+                    aria-label="Favoritos"
+                  >
+                    <Heart size={19} />
+                  </Link>
 
-              <Link
-                to="/notificacoes"
-                className="p-2 rounded-full hover:bg-muted transition-colors"
-                title="Notificações"
-                aria-label="Notificações"
-              >
-                <Bell size={19} />
-              </Link>
+                  <Link
+                    to="/notificacoes"
+                    className="p-2 rounded-full hover:bg-muted transition-colors"
+                    title="Notificações"
+                    aria-label="Notificações"
+                  >
+                    <Bell size={19} />
+                  </Link>
+                </>
+              )}
+
+              {isProfessional && (
+                <>
+                  <Link
+                    to="/notificacoes"
+                    className="p-2 rounded-full hover:bg-muted transition-colors"
+                    title="Notificações"
+                    aria-label="Notificações"
+                  >
+                    <Bell size={19} />
+                  </Link>
+                </>
+              )}
 
               <Link
                 to={painelPath}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft hover:shadow-glow transition-all duration-300 hover:scale-[1.02]"
               >
                 <LayoutDashboard size={17} />
-                Meu painel
+                {isProfessional
+                  ? "Painel profissional"
+                  : "Meu painel"}
               </Link>
 
               <button
@@ -227,16 +252,20 @@ export default function Navbar() {
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
                 >
                   <LayoutDashboard size={18} />
-                  Meu painel
+                  {isProfessional
+                    ? "Painel profissional"
+                    : "Meu painel"}
                 </Link>
 
-                <Link
-                  to="/favoritos"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
-                >
-                  <Heart size={18} />
-                  Favoritos
-                </Link>
+                {!isProfessional && (
+                  <Link
+                    to="/favoritos"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
+                  >
+                    <Heart size={18} />
+                    Favoritos
+                  </Link>
+                )}
 
                 <Link
                   to="/notificacoes"
