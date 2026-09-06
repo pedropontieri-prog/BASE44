@@ -22,13 +22,44 @@ import {
   UserCircle2,
   RefreshCw,
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabase';
 
 const STUN_SERVERS = [
   {
     urls: 'stun:stun.l.google.com:19302',
   },
 ];
+
+function createConnectionId(roomId) {
+  const storageKey = `vc_connId_${roomId}`;
+
+  let connId = null;
+
+  try {
+    connId = sessionStorage.getItem(storageKey);
+  } catch (_) {}
+
+  if (connId) {
+    return connId;
+  }
+
+  connId =
+    typeof crypto !== 'undefined' &&
+    crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
+
+  try {
+    sessionStorage.setItem(
+      storageKey,
+      connId
+    );
+  } catch (_) {}
+
+  return connId;
+}
 
 function formatMessageTime(value) {
   if (!value) {
@@ -47,44 +78,14 @@ function formatMessageTime(value) {
   });
 }
 
-function ControlButton({
-  active,
-  onClick,
-  iconOn,
-  iconOff,
-  label,
-}) {
-  const Icon = active ? iconOn : iconOff;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 group"
-      aria-label={label}
-    >
-      <span
-        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-          active
-            ? 'bg-white/15 hover:bg-white/25'
-            : 'bg-red-500/80 hover:bg-red-500'
-        }`}
-      >
-        <Icon size={20} />
-      </span>
-
-      <span className="text-[10px] text-white/60">
-        {label}
-      </span>
-    </button>
-  );
-}
-
 export default function VideoCall() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const params = new URLSearchParams(location.search);
+  const params = new URLSearchParams(
+    location.search
+  );
+
   const state = location.state || {};
 
   const roomId =
@@ -154,20 +155,26 @@ export default function VideoCall() {
   const pcRef =
     useRef(null);
 
-  const roomRef =
+  const channelRef =
     useRef(null);
 
-  const subscriptionRef =
+  const connectionIdRef =
     useRef(null);
-
-  const iceQueueRef =
-    useRef([]);
 
   const mySeatRef =
     useRef(null);
 
   const peerSeatRef =
     useRef(null);
+
+  const peerRoleRef =
+    useRef(null);
+
+  const peerConnectionsRef =
+    useRef(new Map());
+
+  const iceQueueRef =
+    useRef([]);
 
   const politeRef =
     useRef(false);
@@ -184,12 +191,19 @@ export default function VideoCall() {
   const endingRef =
     useRef(false);
 
-  useEffect(() => {
-    mySeatRef.current = mySeat;
-  }, [mySeat]);
+  const volOnRef =
+    useRef(volOn);
 
   useEffect(() => {
-    const video = remoteVideoRef.current;
+    volOnRef.current = volOn;
+  }, [volOn]);
+
+  /*
+   * Mantém o áudio remoto sincronizado.
+   */
+  useEffect(() => {
+    const video =
+      remoteVideoRef.current;
 
     if (!video) {
       return;
@@ -199,46 +213,51 @@ export default function VideoCall() {
     video.volume = volOn ? 1 : 0;
   }, [volOn, status]);
 
-  const formatElapsed = useCallback((seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    return (
-      String(minutes).padStart(2, '0') +
-      ':' +
-      String(remainingSeconds).padStart(2, '0')
-    );
-  }, []);
-
+  /*
+   * Fecha a conexão atual.
+   */
   const cleanupConnection = useCallback(() => {
-    try {
-      if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
-      }
-    } catch (_) {}
+    const channel =
+      channelRef.current;
 
-    subscriptionRef.current = null;
+    if (channel) {
+      try {
+        supabase.removeChannel(
+          channel
+        );
+      } catch (_) {}
+    }
 
-    try {
-      if (roomRef.current) {
-        roomRef.current.close();
-      }
-    } catch (_) {}
+    channelRef.current = null;
 
-    roomRef.current = null;
+    const pc =
+      pcRef.current;
 
-    try {
-      if (pcRef.current) {
-        pcRef.current.ontrack = null;
-        pcRef.current.onicecandidate = null;
-        pcRef.current.onconnectionstatechange = null;
-        pcRef.current.oniceconnectionstatechange = null;
-        pcRef.current.onnegotiationneeded = null;
-        pcRef.current.close();
-      }
-    } catch (_) {}
+    if (pc) {
+      try {
+        pc.ontrack = null;
+        pc.onicecandidate = null;
+        pc.onconnectionstatechange =
+          null;
+        pc.oniceconnectionstatechange =
+          null;
+        pc.onnegotiationneeded = null;
+        pc.ondatachannel = null;
+        pc.close();
+      } catch (_) {}
+    }
 
     pcRef.current = null;
+
+    peerConnectionsRef.current.forEach(
+      (connection) => {
+        try {
+          connection.close();
+        } catch (_) {}
+      }
+    );
+
+    peerConnectionsRef.current.clear();
 
     if (localStreamRef.current) {
       localStreamRef.current
@@ -253,261 +272,679 @@ export default function VideoCall() {
     localStreamRef.current = null;
 
     if (localVideoRef.current) {
-      localVideoRef.current.srcObject = null;
+      localVideoRef.current.srcObject =
+        null;
     }
 
     if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
+      remoteVideoRef.current.srcObject =
+        null;
     }
 
     iceQueueRef.current = [];
+    mySeatRef.current = null;
     peerSeatRef.current = null;
+    peerRoleRef.current = null;
+
+    politeRef.current = false;
     makingOfferRef.current = false;
     ignoreOfferRef.current = false;
     initializedRef.current = false;
+
+    setMySeat(null);
+    setPeerPresent(false);
+    setPeerRole(null);
   }, []);
 
-  const flushIceQueue = useCallback(async () => {
-    const pc = pcRef.current;
+  /*
+   * Publica uma mensagem pelo canal Realtime.
+   */
+  const sendRoomMessage = useCallback(
+    async (payload) => {
+      const channel =
+        channelRef.current;
 
-    if (!pc || !pc.remoteDescription) {
-      return;
-    }
-
-    const queue = [...iceQueueRef.current];
-
-    iceQueueRef.current = [];
-
-    for (const candidate of queue) {
-      try {
-        await pc.addIceCandidate(candidate);
-      } catch (error) {
-        console.warn(
-          'Não foi possível adicionar candidato ICE:',
-          error
-        );
-      }
-    }
-  }, []);
-
-  const negotiate = useCallback(async () => {
-    const pc = pcRef.current;
-    const room = roomRef.current;
-
-    if (!pc || !room) {
-      return;
-    }
-
-    if (makingOfferRef.current) {
-      return;
-    }
-
-    if (pc.signalingState !== 'stable') {
-      return;
-    }
-
-    try {
-      makingOfferRef.current = true;
-
-      setStatus('connecting');
-
-      const offer = await pc.createOffer();
-
-      if (pc.signalingState !== 'stable') {
-        return;
-      }
-
-      await pc.setLocalDescription(offer);
-
-      if (!pc.localDescription) {
-        return;
-      }
-
-      room.send({
-        type: 'signal',
-        data: {
-          kind: 'offer',
-          sdp: pc.localDescription,
-        },
-      });
-    } catch (error) {
-      console.error(
-        'Erro ao criar oferta WebRTC:',
-        error
-      );
-    } finally {
-      makingOfferRef.current = false;
-    }
-  }, []);
-
-  const handleSignal = useCallback(
-    async (data) => {
-      const pc = pcRef.current;
-      const room = roomRef.current;
-
-      if (!pc || !room || !data) {
-        return;
+      if (!channel) {
+        return false;
       }
 
       try {
-        if (data.kind === 'offer') {
-          const offerCollision =
-            makingOfferRef.current ||
-            pc.signalingState !== 'stable';
-
-          /*
-           * CORREÇÃO:
-           * A variável ignoreOffer precisava
-           * ser declarada antes de ser usada.
-           */
-          const ignoreOffer =
-            offerCollision &&
-            !politeRef.current;
-
-          ignoreOfferRef.current =
-            ignoreOffer;
-
-          if (ignoreOffer) {
-            return;
-          }
-
-          if (offerCollision) {
-            await pc.setLocalDescription({
-              type: 'rollback',
-            });
-          }
-
-          await pc.setRemoteDescription(
-            data.sdp
-          );
-
-          await flushIceQueue();
-
-          const answer =
-            await pc.createAnswer();
-
-          await pc.setLocalDescription(
-            answer
-          );
-
-          if (!pc.localDescription) {
-            return;
-          }
-
-          room.send({
-            type: 'signal',
-            data: {
-              kind: 'answer',
-              sdp: pc.localDescription,
-            },
+        const result =
+          await channel.send({
+            type: 'broadcast',
+            event: 'room',
+            payload,
           });
 
-          setStatus('connecting');
+        if (
+          result &&
+          typeof result === 'object' &&
+          result !== 'ok'
+        ) {
+          /*
+           * Algumas versões retornam "ok",
+           * outras retornam objeto.
+           * Não interrompemos a chamada aqui.
+           */
+        }
+
+        return true;
+      } catch (error) {
+        console.error(
+          'Erro ao enviar mensagem da sala:',
+          error
+        );
+
+        return false;
+      }
+    },
+    []
+  );
+
+  /*
+   * Adiciona candidatos ICE pendentes.
+   */
+  const flushIceQueue =
+    useCallback(async () => {
+      const pc =
+        pcRef.current;
+
+      if (
+        !pc ||
+        !pc.remoteDescription
+      ) {
+        return;
+      }
+
+      const queue = [
+        ...iceQueueRef.current,
+      ];
+
+      iceQueueRef.current = [];
+
+      for (
+        const candidate of queue
+      ) {
+        try {
+          await pc.addIceCandidate(
+            candidate
+          );
+        } catch (error) {
+          console.warn(
+            'Não foi possível adicionar candidato ICE:',
+            error
+          );
+        }
+      }
+    }, []);
+
+  /*
+   * Cria oferta WebRTC.
+   */
+  const negotiate =
+    useCallback(async () => {
+      const pc =
+        pcRef.current;
+
+      if (!pc) {
+        return;
+      }
+
+      if (
+        makingOfferRef.current
+      ) {
+        return;
+      }
+
+      if (
+        pc.signalingState !==
+        'stable'
+      ) {
+        return;
+      }
+
+      if (!peerSeatRef.current) {
+        return;
+      }
+
+      try {
+        makingOfferRef.current =
+          true;
+
+        setStatus('connecting');
+
+        const offer =
+          await pc.createOffer();
+
+        if (
+          pc.signalingState !==
+          'stable'
+        ) {
+          return;
+        }
+
+        await pc.setLocalDescription(
+          offer
+        );
+
+        await sendRoomMessage({
+          kind: 'offer',
+          fromSeat:
+            mySeatRef.current,
+          toSeat:
+            peerSeatRef.current,
+          sdp:
+            pc.localDescription,
+        });
+      } catch (error) {
+        console.error(
+          'Erro ao criar oferta WebRTC:',
+          error
+        );
+      } finally {
+        makingOfferRef.current =
+          false;
+      }
+    }, [sendRoomMessage]);
+
+  /*
+   * Processa a sinalização WebRTC.
+   */
+  const handleSignal =
+    useCallback(
+      async (data) => {
+        const pc =
+          pcRef.current;
+
+        if (!pc || !data) {
+          return;
+        }
+
+        /*
+         * Ignora mensagens destinadas
+         * a outro participante.
+         */
+        if (
+          data.toSeat &&
+          mySeatRef.current &&
+          data.toSeat !==
+            mySeatRef.current
+        ) {
+          return;
+        }
+
+        try {
+          if (
+            data.kind === 'offer'
+          ) {
+            const offerCollision =
+              makingOfferRef.current ||
+              pc.signalingState !==
+                'stable';
+
+            const shouldIgnore =
+              offerCollision &&
+              !politeRef.current;
+
+            ignoreOfferRef.current =
+              shouldIgnore;
+
+            if (shouldIgnore) {
+              return;
+            }
+
+            if (offerCollision) {
+              await pc.setLocalDescription(
+                {
+                  type: 'rollback',
+                }
+              );
+            }
+
+            await pc.setRemoteDescription(
+              data.sdp
+            );
+
+            peerSeatRef.current =
+              data.fromSeat ||
+              peerSeatRef.current;
+
+            await flushIceQueue();
+
+            const answer =
+              await pc.createAnswer();
+
+            await pc.setLocalDescription(
+              answer
+            );
+
+            await sendRoomMessage({
+              kind: 'answer',
+              fromSeat:
+                mySeatRef.current,
+              toSeat:
+                data.fromSeat,
+              sdp:
+                pc.localDescription,
+            });
+
+            setStatus('connecting');
+
+            return;
+          }
+
+          if (
+            data.kind === 'answer'
+          ) {
+            if (
+              data.toSeat &&
+              data.toSeat !==
+                mySeatRef.current
+            ) {
+              return;
+            }
+
+            if (
+              pc.signalingState !==
+              'have-local-offer'
+            ) {
+              return;
+            }
+
+            await pc.setRemoteDescription(
+              data.sdp
+            );
+
+            await flushIceQueue();
+
+            setStatus('connecting');
+
+            return;
+          }
+
+          if (
+            data.kind === 'ice'
+          ) {
+            if (
+              !data.candidate
+            ) {
+              return;
+            }
+
+            if (
+              pc.remoteDescription
+            ) {
+              try {
+                await pc.addIceCandidate(
+                  data.candidate
+                );
+              } catch (error) {
+                if (
+                  !ignoreOfferRef.current
+                ) {
+                  console.warn(
+                    'Erro ao adicionar ICE:',
+                    error
+                  );
+                }
+              }
+            } else {
+              iceQueueRef.current.push(
+                data.candidate
+              );
+            }
+          }
+        } catch (error) {
+          console.error(
+            'Erro na sinalização WebRTC:',
+            error
+          );
+        }
+      },
+      [
+        flushIceQueue,
+        sendRoomMessage,
+      ]
+    );
+
+  /*
+   * Cria a conexão WebRTC.
+   */
+  const createPeerConnection =
+    useCallback(() => {
+      if (pcRef.current) {
+        return pcRef.current;
+      }
+
+      const pc =
+        new RTCPeerConnection({
+          iceServers:
+            STUN_SERVERS,
+        });
+
+      pcRef.current = pc;
+
+      if (localStreamRef.current) {
+        localStreamRef.current
+          .getTracks()
+          .forEach((track) => {
+            pc.addTrack(
+              track,
+              localStreamRef.current
+            );
+          });
+      }
+
+      pc.ontrack = (event) => {
+        const stream =
+          event.streams?.[0];
+
+        if (
+          !stream ||
+          !remoteVideoRef.current
+        ) {
+          return;
+        }
+
+        remoteVideoRef.current.srcObject =
+          stream;
+
+        remoteVideoRef.current.muted =
+          !volOnRef.current;
+
+        remoteVideoRef.current.volume =
+          volOnRef.current ? 1 : 0;
+
+        remoteVideoRef.current
+          .play()
+          .catch(() => {});
+
+        setStatus('connected');
+      };
+
+      pc.onicecandidate = (
+        event
+      ) => {
+        if (
+          !event.candidate
+        ) {
+          return;
+        }
+
+        sendRoomMessage({
+          kind: 'ice',
+          fromSeat:
+            mySeatRef.current,
+          toSeat:
+            peerSeatRef.current,
+          candidate:
+            event.candidate,
+        });
+      };
+
+      pc.onconnectionstatechange =
+        () => {
+          const state =
+            pc.connectionState;
+
+          if (
+            state === 'connected'
+          ) {
+            setStatus(
+              'connected'
+            );
+          }
+
+          if (
+            state === 'connecting'
+          ) {
+            setStatus(
+              'connecting'
+            );
+          }
+
+          if (
+            state === 'disconnected'
+          ) {
+            setStatus('waiting');
+          }
+
+          if (
+            state === 'failed'
+          ) {
+            setStatus('waiting');
+          }
+
+          if (
+            state === 'closed'
+          ) {
+            setStatus('waiting');
+          }
+        };
+
+      pc.oniceconnectionstatechange =
+        () => {
+          const state =
+            pc.iceConnectionState;
+
+          if (
+            state === 'connected' ||
+            state === 'completed'
+          ) {
+            setStatus(
+              'connected'
+            );
+          }
+
+          if (
+            state === 'failed'
+          ) {
+            setStatus('waiting');
+          }
+        };
+
+      pc.onnegotiationneeded =
+        async () => {
+          /*
+           * Somente o participante
+           * escolhido pelo seat inicia.
+           */
+          if (
+            !politeRef.current &&
+            peerSeatRef.current
+          ) {
+            await negotiate();
+          }
+        };
+
+      return pc;
+    }, [negotiate, sendRoomMessage]);
+
+  /*
+   * Processa mensagens do Realtime.
+   */
+  const handleRoomEvent =
+    useCallback(
+      async (event) => {
+        const payload =
+          event?.payload || event;
+
+        if (!payload) {
+          return;
+        }
+
+        if (
+          payload.roomEvent ===
+          'presence'
+        ) {
+          const users =
+            Array.isArray(
+              payload.users
+            )
+              ? payload.users
+              : [];
+
+          const currentSeat =
+            mySeatRef.current;
+
+          const others =
+            users.filter(
+              (user) =>
+                user &&
+                user.seat !==
+                  currentSeat
+            );
+
+          const peer =
+            others[0] || null;
+
+          setPeerPresent(
+            Boolean(peer)
+          );
+
+          setPeerRole(
+            peer?.role || null
+          );
+
+          if (peer) {
+            peerSeatRef.current =
+              peer.seat;
+
+            peerRoleRef.current =
+              peer.role || null;
+
+            politeRef.current =
+              Number(
+                currentSeat
+              ) >
+              Number(peer.seat);
+
+            createPeerConnection();
+
+            /*
+             * O seat menor inicia.
+             */
+            if (
+              Number(currentSeat) <
+                Number(peer.seat)
+            ) {
+              setStatus(
+                'connecting'
+              );
+
+              await negotiate();
+            }
+          } else {
+            peerSeatRef.current =
+              null;
+
+            peerRoleRef.current =
+              null;
+
+            setStatus('waiting');
+          }
 
           return;
         }
 
-        if (data.kind === 'answer') {
+        if (
+          payload.roomEvent ===
+          'signal'
+        ) {
+          await handleSignal(
+            payload.data
+          );
+
+          return;
+        }
+
+        if (
+          payload.roomEvent ===
+          'chat'
+        ) {
+          const message =
+            payload.message;
+
           if (
-            pc.signalingState !==
-            'have-local-offer'
+            !message ||
+            !message.text
           ) {
             return;
           }
 
-          await pc.setRemoteDescription(
-            data.sdp
+          setMessages(
+            (current) => [
+              ...current,
+              {
+                id:
+                  message.id ||
+                  `${Date.now()}-${Math.random()}`,
+                from:
+                  message.seat ===
+                  mySeatRef.current
+                    ? 'me'
+                    : 'peer',
+                role:
+                  message.role,
+                text:
+                  message.text,
+                time:
+                  formatMessageTime(
+                    message.time
+                  ),
+              },
+            ]
           );
-
-          await flushIceQueue();
-
-          setStatus('connecting');
 
           return;
         }
+      },
+      [
+        createPeerConnection,
+        handleSignal,
+        negotiate,
+      ]
+    );
 
-        if (data.kind === 'ice') {
-          if (!data.candidate) {
-            return;
-          }
-
-          if (pc.remoteDescription) {
-            try {
-              await pc.addIceCandidate(
-                data.candidate
-              );
-            } catch (error) {
-              if (!ignoreOfferRef.current) {
-                console.warn(
-                  'Erro ao adicionar ICE:',
-                  error
-                );
-              }
-            }
-          } else {
-            iceQueueRef.current.push(
-              data.candidate
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          'Erro na sinalização WebRTC:',
-          error
-        );
-      }
-    },
-    [flushIceQueue]
-  );
-
-  const initializeCall = useCallback(
-    async () => {
+  /*
+   * Inicia câmera, microfone,
+   * canal Realtime e WebRTC.
+   */
+  const initializeCall =
+    useCallback(async () => {
       if (!roomId) {
         setPermissionError(
           'Sala de consulta não identificada.'
         );
-
         setStatus('error');
-
         return;
       }
 
-      if (initializedRef.current) {
+      if (
+        initializedRef.current
+      ) {
         return;
       }
 
-      initializedRef.current = true;
+      initializedRef.current =
+        true;
 
       setPermissionError(null);
-      setPeerPresent(false);
-      setPeerRole(null);
       setStatus('requesting');
 
-      const storageKey =
-        `vc_connId_${roomId}`;
-
-      let connId =
-        sessionStorage.getItem(
-          storageKey
+      const connectionId =
+        createConnectionId(
+          roomId
         );
 
-      if (!connId) {
-        connId =
-          typeof crypto !== 'undefined' &&
-          crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`;
-
-        sessionStorage.setItem(
-          storageKey,
-          connId
-        );
-      }
+      connectionIdRef.current =
+        connectionId;
 
       try {
         if (
           !navigator.mediaDevices ||
-          !navigator.mediaDevices.getUserMedia
+          !navigator.mediaDevices
+            .getUserMedia
         ) {
           throw new Error(
             'Seu navegador não suporta acesso à câmera e ao microfone.'
@@ -524,8 +961,17 @@ export default function VideoCall() {
                 height: {
                   ideal: 720,
                 },
+                facingMode:
+                  'user',
               },
-              audio: true,
+              audio: {
+                echoCancellation:
+                  true,
+                noiseSuppression:
+                  true,
+                autoGainControl:
+                  true,
+              },
             }
           );
 
@@ -544,26 +990,28 @@ export default function VideoCall() {
           } catch (_) {}
         }
 
+        const videoTracks =
+          stream.getVideoTracks();
+
+        const audioTracks =
+          stream.getAudioTracks();
+
         setCamOn(
-          stream
-            .getVideoTracks()
-            .some(
-              (track) => track.enabled
-            )
+          videoTracks.some(
+            (track) =>
+              track.enabled
+          )
         );
 
         setMicOn(
-          stream
-            .getAudioTracks()
-            .some(
-              (track) => track.enabled
-            )
+          audioTracks.some(
+            (track) =>
+              track.enabled
+          )
         );
-
-        setPermissionError(null);
       } catch (error) {
         console.error(
-          'Erro ao acessar mídia:',
+          'Erro ao acessar câmera/microfone:',
           error
         );
 
@@ -580,341 +1028,209 @@ export default function VideoCall() {
       }
 
       try {
-        const room =
-          base44.actors.VideoRoom(
-            roomId
-          ).connect({
-            id: connId,
-          });
+        /*
+         * Canal privado da consulta.
+         */
+        const channel =
+          supabase.channel(
+            `video-room:${roomId}`,
+            {
+              config: {
+                private: true,
+              },
+            }
+          );
 
-        roomRef.current = room;
+        channelRef.current =
+          channel;
 
-        const pc =
-          new RTCPeerConnection({
-            iceServers:
-              STUN_SERVERS,
-          });
+        /*
+         * Eventos de presença.
+         */
+        channel.on(
+          'presence',
+          {
+            event: 'sync',
+          },
+          () => {
+            const state =
+              channel.presenceState();
 
-        pcRef.current = pc;
-
-        if (
-          localStreamRef.current
-        ) {
-          localStreamRef.current
-            .getTracks()
-            .forEach((track) => {
-              pc.addTrack(
-                track,
-                localStreamRef.current
+            const users =
+              Object.entries(
+                state
+              ).flatMap(
+                ([
+                  key,
+                  entries,
+                ]) =>
+                  entries.map(
+                    (entry) => ({
+                      ...entry,
+                      presenceKey:
+                        key,
+                    })
+                  )
               );
-            });
-        }
 
-        pc.ontrack = (event) => {
-          const stream =
-            event.streams?.[0];
+            const currentSeat =
+              mySeatRef.current;
 
-          if (!stream) {
-            return;
-          }
+            const others =
+              users.filter(
+                (user) =>
+                  user.seat !==
+                  currentSeat
+              );
 
-          if (!remoteVideoRef.current) {
-            return;
-          }
+            const peer =
+              others[0] ||
+              null;
 
-          remoteVideoRef.current.srcObject =
-            stream;
+            setPeerPresent(
+              Boolean(peer)
+            );
 
-          remoteVideoRef.current.muted =
-            !volOn;
+            setPeerRole(
+              peer?.role || null
+            );
 
-          remoteVideoRef.current.volume =
-            volOn ? 1 : 0;
+            if (peer) {
+              peerSeatRef.current =
+                peer.seat;
 
-          remoteVideoRef.current
-            .play()
-            .catch(() => {});
+              peerRoleRef.current =
+                peer.role || null;
 
-          setPeerPresent(true);
-          setStatus('connected');
-        };
-
-        pc.onicecandidate = (event) => {
-          if (
-            !event.candidate ||
-            !roomRef.current
-          ) {
-            return;
-          }
-
-          roomRef.current.send({
-            type: 'signal',
-            data: {
-              kind: 'ice',
-              candidate:
-                event.candidate,
-            },
-          });
-        };
-
-        pc.onconnectionstatechange =
-          () => {
-            const connectionState =
-              pc.connectionState;
-
-            if (
-              connectionState ===
-              'connected'
-            ) {
-              setStatus('connected');
-              return;
-            }
-
-            if (
-              connectionState ===
-              'connecting'
-            ) {
-              setStatus('connecting');
-              return;
-            }
-
-            if (
-              connectionState ===
-                'disconnected' ||
-              connectionState ===
-                'failed'
-            ) {
-              setStatus('waiting');
-              return;
-            }
-
-            if (
-              connectionState ===
-              'closed'
-            ) {
-              setStatus('waiting');
-            }
-          };
-
-        pc.oniceconnectionstatechange =
-          () => {
-            const iceState =
-              pc.iceConnectionState;
-
-            if (
-              iceState === 'connected' ||
-              iceState === 'completed'
-            ) {
-              setStatus('connected');
-            }
-
-            if (
-              iceState === 'checking'
-            ) {
-              setStatus('connecting');
-            }
-
-            if (
-              iceState === 'failed'
-            ) {
-              setStatus('waiting');
-            }
-          };
-
-        const subscription =
-          room.subscribe((msg) => {
-            if (
-              !msg ||
-              typeof msg !== 'object'
-            ) {
-              return;
-            }
-
-            if (msg.type === 'you') {
-              const seat =
-                msg.seat;
-
-              setMySeat(seat);
-              mySeatRef.current =
-                seat;
-
-              return;
-            }
-
-            if (
-              msg.type === 'presence'
-            ) {
-              const users =
-                Array.isArray(
-                  msg.users
-                )
-                  ? msg.users
-                  : [];
-
-              const currentSeat =
-                mySeatRef.current ??
-                msg.seat;
-
-              const others =
-                users.filter(
-                  (user) =>
-                    user.seat !==
-                    currentSeat
+              politeRef.current =
+                Number(
+                  currentSeat
+                ) >
+                Number(
+                  peer.seat
                 );
 
-              const peer =
-                others[0];
+              createPeerConnection();
 
-              setPeerPresent(
-                Boolean(peer)
-              );
+              if (
+                Number(
+                  currentSeat
+                ) <
+                  Number(
+                    peer.seat
+                  )
+              ) {
+                setStatus(
+                  'connecting'
+                );
 
-              setPeerRole(
-                peer?.role || null
-              );
-
-              if (peer) {
-                peerSeatRef.current =
-                  peer.seat;
-
-                politeRef.current =
-                  currentSeat >
-                  peer.seat;
-
-                if (
-                  currentSeat <
-                    peer.seat &&
-                  pcRef.current
-                ) {
-                  setStatus(
-                    'connecting'
-                  );
-
-                  negotiate();
-                }
-              } else {
-                peerSeatRef.current =
-                  null;
-
-                setStatus('waiting');
+                negotiate();
               }
+            } else {
+              peerSeatRef.current =
+                null;
 
-              return;
-            }
-
-            if (
-              msg.type === 'signal'
-            ) {
-              handleSignal(
-                msg.data
+              setStatus(
+                'waiting'
               );
-
-              return;
             }
+          }
+        );
 
-            if (
-              msg.type ===
-              'chat_history'
-            ) {
-              const history =
-                Array.isArray(
-                  msg.messages
-                )
-                  ? msg.messages
-                  : [];
+        /*
+         * Eventos de sinalização e chat.
+         */
+        channel.on(
+          'broadcast',
+          {
+            event: 'room',
+          },
+          async ({
+            payload,
+          }) => {
+            await handleRoomEvent(
+              payload
+            );
+          }
+        );
 
-              setMessages(
-                history.map(
-                  (message) => ({
-                    from:
-                      message.seat ===
-                      mySeatRef.current
-                        ? 'me'
-                        : 'peer',
-                    role:
-                      message.role,
-                    text:
-                      message.text ||
-                      '',
-                    time:
-                      formatMessageTime(
-                        message.time
-                      ),
-                  })
-                )
-              );
-
-              return;
-            }
-
-            if (
-              msg.type === 'chat'
-            ) {
-              const message =
-                msg.message ||
-                msg;
-
-              if (!message.text) {
+        const subscription =
+          await channel.subscribe(
+            async (subscribeStatus) => {
+              if (
+                subscribeStatus !==
+                'SUBSCRIBED'
+              ) {
                 return;
               }
 
-              setMessages(
-                (current) => [
-                  ...current,
-                  {
-                    from:
-                      message.seat ===
-                      mySeatRef.current
-                        ? 'me'
-                        : 'peer',
-                    role:
-                      message.role,
-                    text:
-                      message.text,
-                    time:
-                      formatMessageTime(
-                        message.time
-                      ),
-                  },
-                ]
-              );
+              /*
+               * Seat baseado no papel.
+               *
+               * 0 = paciente
+               * 1 = psicólogo
+               *
+               * Isso garante que cada sala
+               * tenha dois lugares previsíveis.
+               */
+              const seat =
+                role ===
+                'psychologist'
+                  ? 1
+                  : 0;
+
+              mySeatRef.current =
+                seat;
+
+              setMySeat(seat);
+
+              await channel.track({
+                connectionId,
+                seat,
+                role,
+                joinedAt:
+                  new Date().toISOString(),
+              });
+
+              createPeerConnection();
+
+              setStatus('waiting');
             }
-          });
+          );
 
-        subscriptionRef.current =
-          subscription;
-
-        room.send({
-          type: 'role',
-          role,
-        });
-
-        setStatus('waiting');
+        /*
+         * O subscribe retorna o próprio
+         * canal nas versões atuais.
+         */
+        subscriptionRefSafe(
+          subscription
+        );
       } catch (error) {
         console.error(
-          'Erro ao iniciar sala:',
+          'Erro ao conectar à sala Supabase:',
           error
         );
 
         cleanupConnection();
 
         setPermissionError(
-          'Não foi possível conectar à sala da consulta. Tente novamente.'
+          'Não foi possível conectar à sala da consulta. Verifique sua conexão e tente novamente.'
         );
 
         setStatus('error');
       }
-    },
-    [
+    }, [
       roomId,
       role,
-      volOn,
-      negotiate,
-      handleSignal,
       cleanupConnection,
-    ]
-  );
+      createPeerConnection,
+      handleRoomEvent,
+      negotiate,
+    ]);
 
+  /*
+   * Inicialização.
+   */
   useEffect(() => {
     initializeCall();
 
@@ -926,8 +1242,13 @@ export default function VideoCall() {
     cleanupConnection,
   ]);
 
+  /*
+   * Cronômetro da consulta.
+   */
   useEffect(() => {
-    if (status !== 'connected') {
+    if (
+      status !== 'connected'
+    ) {
       setElapsed(0);
       return undefined;
     }
@@ -941,10 +1262,43 @@ export default function VideoCall() {
       }, 1000);
 
     return () => {
-      window.clearInterval(timer);
+      window.clearInterval(
+        timer
+      );
     };
   }, [status]);
 
+  /*
+   * Formata o cronômetro.
+   */
+  const formatElapsed =
+    useCallback(
+      (seconds) => {
+        const minutes =
+          Math.floor(
+            seconds / 60
+          );
+
+        const remainingSeconds =
+          seconds % 60;
+
+        return (
+          String(minutes).padStart(
+            2,
+            '0'
+          ) +
+          ':' +
+          String(
+            remainingSeconds
+          ).padStart(2, '0')
+        );
+      },
+      []
+    );
+
+  /*
+   * Liga/desliga câmera.
+   */
   const toggleCam = () => {
     const stream =
       localStreamRef.current;
@@ -953,24 +1307,20 @@ export default function VideoCall() {
       return;
     }
 
-    const tracks =
-      stream.getVideoTracks();
-
-    if (tracks.length === 0) {
-      return;
-    }
-
     const next = !camOn;
 
-    tracks.forEach(
-      (track) => {
+    stream
+      .getVideoTracks()
+      .forEach((track) => {
         track.enabled = next;
-      }
-    );
+      });
 
     setCamOn(next);
   };
 
+  /*
+   * Liga/desliga microfone.
+   */
   const toggleMic = () => {
     const stream =
       localStreamRef.current;
@@ -979,24 +1329,20 @@ export default function VideoCall() {
       return;
     }
 
-    const tracks =
-      stream.getAudioTracks();
-
-    if (tracks.length === 0) {
-      return;
-    }
-
     const next = !micOn;
 
-    tracks.forEach(
-      (track) => {
+    stream
+      .getAudioTracks()
+      .forEach((track) => {
         track.enabled = next;
-      }
-    );
+      });
 
     setMicOn(next);
   };
 
+  /*
+   * Liga/desliga volume.
+   */
   const toggleVolume = () => {
     const next = !volOn;
 
@@ -1011,59 +1357,91 @@ export default function VideoCall() {
     }
   };
 
-  const sendMessage = () => {
+  /*
+   * Envia mensagem pelo Realtime.
+   */
+  const sendMessage = async () => {
     const text =
       draft.trim();
 
-    const room =
-      roomRef.current;
-
-    if (!text || !room) {
+    if (!text) {
       return;
     }
 
-    room.send({
-      type: 'chat',
-      message: {
-        text,
-        role,
-        seat:
-          mySeatRef.current,
-        time:
-          new Date().toISOString(),
-      },
-    });
-
-    setDraft('');
-  };
-
-  const retryConnection = async () => {
-    if (retrying) {
+    if (
+      !channelRef.current
+    ) {
       return;
     }
 
-    setRetrying(true);
+    const message = {
+      id:
+        typeof crypto !==
+          'undefined' &&
+        crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`,
+      text,
+      role,
+      seat:
+        mySeatRef.current,
+      time:
+        new Date().toISOString(),
+    };
 
-    cleanupConnection();
+    const sent =
+      await sendRoomMessage({
+        roomEvent: 'chat',
+        message,
+      });
 
-    setStatus('requesting');
-
-    await new Promise(
-      (resolve) =>
-        setTimeout(resolve, 250)
-    );
-
-    setRetrying(false);
-
-    initializeCall();
+    if (sent) {
+      setDraft('');
+    }
   };
 
+  /*
+   * Tenta novamente.
+   */
+  const retryConnection =
+    async () => {
+      if (retrying) {
+        return;
+      }
+
+      setRetrying(true);
+
+      cleanupConnection();
+
+      setStatus(
+        'requesting'
+      );
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            300
+          )
+      );
+
+      setRetrying(false);
+
+      initializeCall();
+    };
+
+  /*
+   * Encerra a chamada.
+   */
   const endCall = () => {
-    if (endingRef.current) {
+    if (
+      endingRef.current
+    ) {
       return;
     }
 
-    endingRef.current = true;
+    endingRef.current =
+      true;
 
     cleanupConnection();
 
@@ -1071,12 +1449,16 @@ export default function VideoCall() {
   };
 
   const peerLabel =
-    peerRole === 'psychologist'
+    peerRole ===
+    'psychologist'
       ? peerName
       : peerRole === 'patient'
         ? 'Paciente'
         : peerName;
 
+  /*
+   * Sala inexistente.
+   */
   if (!roomId) {
     return (
       <div className="min-h-screen bg-foreground text-white flex items-center justify-center p-6">
@@ -1093,7 +1475,9 @@ export default function VideoCall() {
           </h1>
 
           <p className="mt-2 text-sm text-white/60">
-            Não foi possível identificar a sala desta consulta.
+            Não foi possível
+            identificar a sala desta
+            consulta.
           </p>
 
           <button
@@ -1112,6 +1496,7 @@ export default function VideoCall() {
 
   return (
     <div className="h-screen bg-foreground text-white flex flex-col overflow-hidden">
+      {/* Top bar */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 bg-black/30 backdrop-blur-md border-b border-white/10">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shrink-0">
@@ -1124,7 +1509,8 @@ export default function VideoCall() {
             </p>
 
             <p className="text-[11px] text-white/60 truncate">
-              Consulta com {peerName}
+              Consulta com{' '}
+              {peerName}
             </p>
           </div>
         </div>
@@ -1141,26 +1527,35 @@ export default function VideoCall() {
           >
             <Wifi size={13} />
 
-            {status === 'connected'
+            {status ===
+            'connected'
               ? 'Conexão segura'
-              : status === 'connecting'
+              : status ===
+                  'connecting'
                 ? 'Conectando...'
-                : status === 'waiting'
+                : status ===
+                    'waiting'
                   ? 'Aguardando'
-                  : status === 'error'
+                  : status ===
+                      'error'
                     ? 'Erro'
                     : 'Preparando...'}
           </span>
 
-          {status === 'connected' && (
+          {status ===
+            'connected' && (
             <span className="text-sm font-mono tabular-nums">
-              {formatElapsed(elapsed)}
+              {formatElapsed(
+                elapsed
+              )}
             </span>
           )}
         </div>
       </div>
 
+      {/* Stage */}
       <div className="flex-1 relative bg-black flex items-center justify-center p-4 sm:p-8 min-h-0">
+        {/* Remote video */}
         <div className="absolute inset-4 sm:inset-8 rounded-3xl overflow-hidden bg-gradient-to-br from-violet-900/40 to-slate-900 border border-white/10">
           <video
             ref={remoteVideoRef}
@@ -1169,12 +1564,15 @@ export default function VideoCall() {
             className="w-full h-full object-cover"
           />
 
-          {status !== 'connected' && (
+          {status !==
+            'connected' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
               <div className="w-20 h-20 rounded-3xl gradient-brand flex items-center justify-center shadow-glow animate-float">
-                {status === 'error' ? (
+                {status ===
+                'error' ? (
                   <AlertTriangle size={34} />
-                ) : status === 'waiting' ? (
+                ) : status ===
+                  'waiting' ? (
                   <UserCircle2 size={34} />
                 ) : (
                   <Video
@@ -1185,24 +1583,30 @@ export default function VideoCall() {
               </div>
 
               <p className="mt-6 font-heading font-semibold text-lg">
-                {status === 'error'
+                {status ===
+                'error'
                   ? 'Algo deu errado'
-                  : status === 'waiting'
+                  : status ===
+                      'waiting'
                     ? 'Aguardando o profissional'
-                    : status === 'connecting'
+                    : status ===
+                        'connecting'
                       ? 'Estabelecendo conexão...'
                       : 'Preparando sua sala...'}
               </p>
 
               <p className="mt-1.5 text-sm text-white/60 max-w-sm">
-                {status === 'error'
+                {status ===
+                'error'
                   ? 'Verifique as permissões de câmera e microfone e tente novamente.'
-                  : status === 'waiting'
+                  : status ===
+                      'waiting'
                     ? `A consulta começa ${scheduledTime}. Você já pode entrar e aguardar.`
                     : 'Conectando você ao profissional de forma segura.'}
               </p>
 
-              {status === 'waiting' && (
+              {status ===
+                'waiting' && (
                 <div className="mt-5 flex items-center gap-2 text-xs text-white/50">
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse-soft" />
 
@@ -1212,10 +1616,13 @@ export default function VideoCall() {
                 </div>
               )}
 
-              {status === 'error' && (
+              {status ===
+                'error' && (
                 <button
                   type="button"
-                  onClick={retryConnection}
+                  onClick={
+                    retryConnection
+                  }
                   disabled={retrying}
                   className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-sm font-semibold disabled:opacity-50"
                 >
@@ -1234,13 +1641,15 @@ export default function VideoCall() {
             </div>
           )}
 
-          {status === 'connected' && (
+          {status ===
+            'connected' && (
             <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-xs">
               {peerLabel}
             </div>
           )}
         </div>
 
+        {/* Local self-view */}
         <div className="absolute bottom-6 right-6 w-32 sm:w-44 aspect-[3/4] rounded-2xl overflow-hidden bg-slate-800 border-2 border-white/20 shadow-glow z-10">
           {camOn ? (
             <video
@@ -1252,7 +1661,9 @@ export default function VideoCall() {
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-white/50 gap-2">
-              <VideoOff size={22} />
+              <VideoOff
+                size={22}
+              />
 
               <span className="text-[11px]">
                 Câmera desligada
@@ -1265,8 +1676,10 @@ export default function VideoCall() {
           </span>
         </div>
 
+        {/* Permission error */}
         {permissionError &&
-          status !== 'error' && (
+          status !==
+            'error' && (
             <div className="absolute top-6 left-1/2 -translate-x-1/2 max-w-md w-[90%] glass-strong rounded-2xl p-4 flex items-start gap-3 text-sm animate-fade-in z-10">
               <AlertTriangle
                 size={18}
@@ -1286,6 +1699,7 @@ export default function VideoCall() {
           )}
       </div>
 
+      {/* Chat */}
       {chatOpen && (
         <div className="absolute right-0 top-0 bottom-0 w-full sm:w-80 bg-slate-900/95 backdrop-blur-xl border-l border-white/10 flex flex-col z-30 animate-fade-in">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
@@ -1307,7 +1721,8 @@ export default function VideoCall() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
+            {messages.length ===
+              0 && (
               <p className="text-xs text-white/40 text-center mt-8">
                 As mensagens são privadas e permanecem nesta sala.
               </p>
@@ -1316,16 +1731,18 @@ export default function VideoCall() {
             {messages.map(
               (message, index) => (
                 <div
-                  key={`${message.time}-${index}`}
+                  key={`${message.id || message.time}-${index}`}
                   className={`max-w-[80%] ${
-                    message.from === 'me'
+                    message.from ===
+                    'me'
                       ? 'ml-auto'
                       : ''
                   }`}
                 >
                   <div
                     className={`px-3 py-2 rounded-2xl text-sm break-words ${
-                      message.from === 'me'
+                      message.from ===
+                      'me'
                         ? 'gradient-brand'
                         : 'bg-white/10'
                     }`}
@@ -1350,7 +1767,10 @@ export default function VideoCall() {
                 )
               }
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                if (
+                  event.key ===
+                  'Enter'
+                ) {
                   event.preventDefault();
                   sendMessage();
                 }
@@ -1363,7 +1783,9 @@ export default function VideoCall() {
             <button
               type="button"
               onClick={sendMessage}
-              disabled={!draft.trim()}
+              disabled={
+                !draft.trim()
+              }
               className="w-10 h-10 rounded-xl gradient-brand flex items-center justify-center disabled:opacity-40"
               aria-label="Enviar mensagem"
             >
@@ -1373,6 +1795,7 @@ export default function VideoCall() {
         </div>
       )}
 
+      {/* Controls */}
       <div className="px-4 sm:px-6 py-5 bg-black/40 backdrop-blur-md border-t border-white/10">
         <div className="flex items-center justify-center gap-3 sm:gap-4">
           <ControlButton
@@ -1393,7 +1816,9 @@ export default function VideoCall() {
 
           <ControlButton
             active={volOn}
-            onClick={toggleVolume}
+            onClick={
+              toggleVolume
+            }
             iconOn={Volume2}
             iconOff={VolumeX}
             label="Volume"
@@ -1403,11 +1828,16 @@ export default function VideoCall() {
             active={chatOpen}
             onClick={() =>
               setChatOpen(
-                (current) => !current
+                (current) =>
+                  !current
               )
             }
-            iconOn={MessageCircle}
-            iconOff={MessageCircle}
+            iconOn={
+              MessageCircle
+            }
+            iconOff={
+              MessageCircle
+            }
             label="Chat"
           />
 
@@ -1427,5 +1857,50 @@ export default function VideoCall() {
         </p>
       </div>
     </div>
+  );
+}
+
+function subscriptionRefSafe(subscription) {
+  /*
+   * O Supabase Realtime trabalha com o próprio
+   * objeto de canal. Esta função existe apenas
+   * para manter compatibilidade com diferentes
+   * versões do cliente.
+   */
+  return subscription;
+}
+
+function ControlButton({
+  active,
+  onClick,
+  iconOn,
+  iconOff,
+  label,
+}) {
+  const Icon = active
+    ? iconOn
+    : iconOff;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 group"
+      aria-label={label}
+    >
+      <span
+        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+          active
+            ? 'bg-white/15 hover:bg-white/25'
+            : 'bg-red-500/80 hover:bg-red-500'
+        }`}
+      >
+        <Icon size={20} />
+      </span>
+
+      <span className="text-[10px] text-white/60">
+        {label}
+      </span>
+    </button>
   );
 }
