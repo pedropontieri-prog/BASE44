@@ -14,6 +14,10 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
+// ============================================================
+// ROLE DO USUÁRIO
+// ============================================================
+
 function getUserRole(user) {
   const metadata = user?.user_metadata || {};
 
@@ -28,6 +32,10 @@ function getUserRole(user) {
     .toLowerCase();
 }
 
+// ============================================================
+// VERIFICAR PROFISSIONAL
+// ============================================================
+
 function isProfessional(user) {
   const role = getUserRole(user);
 
@@ -41,6 +49,10 @@ function isProfessional(user) {
   ].includes(role);
 }
 
+// ============================================================
+// VERIFICAR PACIENTE
+// ============================================================
+
 function isPatient(user) {
   const role = getUserRole(user);
 
@@ -51,35 +63,63 @@ function isPatient(user) {
   ].includes(role);
 }
 
+// ============================================================
+// DESTINO DO USUÁRIO
+// ============================================================
+
 function getUserDestination(user, returnTo) {
   if (!user) {
     return "/login";
   }
 
-  // Profissional sempre vai para o painel profissional.
+  const role = getUserRole(user);
+
+  console.log("================================");
+  console.log("USUÁRIO LOGADO");
+  console.log("ID:", user.id);
+  console.log("E-MAIL:", user.email);
+  console.log("ROLE:", role);
+  console.log("METADATA:", user.user_metadata);
+  console.log("================================");
+
+  // ==========================================================
+  // PROFISSIONAL
+  // ==========================================================
+
   if (isProfessional(user)) {
+    console.log(
+      "Usuário profissional → /painel-profissional"
+    );
+
     return "/painel-profissional";
   }
 
-  // Paciente sempre vai para o painel do paciente.
+  // ==========================================================
+  // PACIENTE
+  // ==========================================================
+
   if (isPatient(user)) {
+    console.log(
+      "Usuário paciente → /painel-paciente"
+    );
+
     return "/painel-paciente";
   }
 
-  // Se não houver role, respeita um returnTo específico.
-  if (
-    returnTo &&
-    returnTo !== "/" &&
-    returnTo !== "/painel" &&
-    returnTo !== "/painel-paciente" &&
-    returnTo !== "/painel-profissional"
-  ) {
-    return returnTo;
-  }
+  // ==========================================================
+  // USUÁRIO SEM ROLE
+  // ==========================================================
 
-  // Nunca usar /painel, porque essa rota não existe.
+  console.warn(
+    "Usuário sem role definida. Enviando para painel-paciente."
+  );
+
   return "/painel-paciente";
 }
+
+// ============================================================
+// ERROS DE LOGIN
+// ============================================================
 
 function getFriendlyLoginError(error) {
   const message = String(
@@ -104,7 +144,10 @@ function getFriendlyLoginError(error) {
     return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
   }
 
-  if (message.includes("network")) {
+  if (
+    message.includes("network") ||
+    message.includes("fetch")
+  ) {
     return "Erro de conexão. Verifique sua internet e tente novamente.";
   }
 
@@ -113,6 +156,10 @@ function getFriendlyLoginError(error) {
     "Não foi possível entrar. Tente novamente."
   );
 }
+
+// ============================================================
+// LOGIN
+// ============================================================
 
 export default function Login() {
   const navigate = useNavigate();
@@ -125,7 +172,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   // ============================================================
-  // REDIRECIONAR USUÁRIO JÁ LOGADO
+  // VERIFICAR USUÁRIO JÁ LOGADO
   // ============================================================
 
   useEffect(() => {
@@ -143,6 +190,7 @@ export default function Login() {
             "Erro ao verificar sessão:",
             sessionError
           );
+
           return;
         }
 
@@ -150,22 +198,22 @@ export default function Login() {
           return;
         }
 
-        const destination = getUserDestination(
-          session.user,
-          returnTo
-        );
+        const destination =
+          getUserDestination(
+            session.user,
+            returnTo
+          );
 
         console.log(
-          "Sessão encontrada.",
-          {
-            role: getUserRole(session.user),
-            destination,
-          }
+          "Sessão encontrada. Redirecionando para:",
+          destination
         );
 
-        navigate(destination, {
-          replace: true,
-        });
+        if (mounted) {
+          navigate(destination, {
+            replace: true,
+          });
+        }
       } catch (err) {
         console.error(
           "Erro ao verificar sessão:",
@@ -184,13 +232,18 @@ export default function Login() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (!mounted || !session?.user) {
+        if (!mounted) {
+          return;
+        }
+
+        if (!session?.user) {
           return;
         }
 
         if (
           event === "SIGNED_IN" ||
-          event === "INITIAL_SESSION"
+          event === "INITIAL_SESSION" ||
+          event === "USER_UPDATED"
         ) {
           const destination =
             getUserDestination(
@@ -199,12 +252,13 @@ export default function Login() {
             );
 
           console.log(
-            "Autenticação alterada.",
-            {
-              event,
-              role: getUserRole(session.user),
-              destination,
-            }
+            "Evento de autenticação:",
+            event
+          );
+
+          console.log(
+            "Redirecionando para:",
+            destination
           );
 
           navigate(destination, {
@@ -221,7 +275,7 @@ export default function Login() {
   }, [navigate, returnTo]);
 
   // ============================================================
-  // LOGIN E-MAIL/SENHA
+  // LOGIN COM E-MAIL E SENHA
   // ============================================================
 
   const handleSubmit = async (e) => {
@@ -242,8 +296,13 @@ export default function Login() {
         setError(
           "Digite seu e-mail e sua senha."
         );
+
         return;
       }
+
+      // ========================================================
+      // LOGIN SUPABASE
+      // ========================================================
 
       const {
         data: loginData,
@@ -264,6 +323,10 @@ export default function Login() {
         );
       }
 
+      // ========================================================
+      // BUSCAR SESSÃO ATUAL
+      // ========================================================
+
       const {
         data: sessionData,
         error: sessionError,
@@ -274,14 +337,58 @@ export default function Login() {
         throw sessionError;
       }
 
-      if (!sessionData?.session?.user) {
+      const user =
+        sessionData?.session?.user ||
+        loginData.user;
+
+      if (!user) {
         throw new Error(
           "Login realizado, mas a sessão não foi criada."
         );
       }
 
-      const user =
-        sessionData.session.user;
+      // ========================================================
+      // MOSTRAR ROLE NO CONSOLE
+      // ========================================================
+
+      const role =
+        getUserRole(user);
+
+      console.log(
+        "================================"
+      );
+
+      console.log(
+        "LOGIN REALIZADO COM SUCESSO"
+      );
+
+      console.log(
+        "ID:",
+        user.id
+      );
+
+      console.log(
+        "E-MAIL:",
+        user.email
+      );
+
+      console.log(
+        "ROLE:",
+        role
+      );
+
+      console.log(
+        "METADATA:",
+        user.user_metadata
+      );
+
+      console.log(
+        "================================"
+      );
+
+      // ========================================================
+      // DEFINIR DESTINO
+      // ========================================================
 
       const destination =
         getUserDestination(
@@ -290,15 +397,13 @@ export default function Login() {
         );
 
       console.log(
-        "Login realizado.",
-        {
-          userId: user.id,
-          email: user.email,
-          role: getUserRole(user),
-          metadata: user.user_metadata,
-          destination,
-        }
+        "DESTINO FINAL:",
+        destination
       );
+
+      // ========================================================
+      // REDIRECIONAR
+      // ========================================================
 
       navigate(destination, {
         replace: true,
@@ -345,6 +450,7 @@ export default function Login() {
       } =
         await supabase.auth.signInWithOAuth({
           provider: "google",
+
           options: {
             redirectTo: redirectUrl,
           },
@@ -369,7 +475,7 @@ export default function Login() {
   };
 
   // ============================================================
-  // CADASTRO
+  // LINK PARA CADASTRO
   // ============================================================
 
   const registerUrl =
@@ -380,7 +486,7 @@ export default function Login() {
       : "/register";
 
   // ============================================================
-  // RENDER
+  // TELA
   // ============================================================
 
   return (
@@ -391,6 +497,7 @@ export default function Login() {
       footer={
         <>
           Não tem uma conta?{" "}
+
           <Link
             to={registerUrl}
             className="text-primary font-medium hover:underline"
@@ -400,6 +507,10 @@ export default function Login() {
         </>
       }
     >
+      {/* ======================================================
+          GOOGLE
+      ====================================================== */}
+
       <Button
         type="button"
         variant="outline"
@@ -416,6 +527,10 @@ export default function Login() {
         Continuar com o Google
       </Button>
 
+      {/* ======================================================
+          DIVISOR
+      ====================================================== */}
+
       <div className="relative mb-6">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-border" />
@@ -428,6 +543,10 @@ export default function Login() {
         </div>
       </div>
 
+      {/* ======================================================
+          ERRO
+      ====================================================== */}
+
       {error && (
         <div
           role="alert"
@@ -437,10 +556,18 @@ export default function Login() {
         </div>
       )}
 
+      {/* ======================================================
+          FORMULÁRIO
+      ====================================================== */}
+
       <form
         onSubmit={handleSubmit}
         className="space-y-4"
       >
+        {/* ====================================================
+            E-MAIL
+        ==================================================== */}
+
         <div className="space-y-2">
           <Label htmlFor="email">
             E-mail
@@ -469,6 +596,10 @@ export default function Login() {
             />
           </div>
         </div>
+
+        {/* ====================================================
+            SENHA
+        ==================================================== */}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -506,6 +637,10 @@ export default function Login() {
             />
           </div>
         </div>
+
+        {/* ====================================================
+            BOTÃO LOGIN
+        ==================================================== */}
 
         <Button
           type="submit"
