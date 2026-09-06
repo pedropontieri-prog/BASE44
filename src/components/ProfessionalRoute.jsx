@@ -1,22 +1,25 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 
 const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
-      <p className="text-muted-foreground">Carregando...</p>
-    </div>
+  <div className="fixed inset-0 flex items-center justify-center bg-white">
+    <div
+      className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"
+      aria-label="Carregando"
+    />
   </div>
 );
 
-const normalizeRole = (role) =>
-  String(role || "")
+const normalizeRole = (value) => {
+  if (!value) return "";
+
+  return String(value)
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+};
 
 export default function ProfessionalRoute() {
   const {
@@ -24,7 +27,7 @@ export default function ProfessionalRoute() {
     isAuthenticated,
     isLoadingAuth,
     authChecked,
-    checkUserAuth
+    checkUserAuth,
   } = useAuth();
 
   useEffect(() => {
@@ -41,23 +44,29 @@ export default function ProfessionalRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  const role = normalizeRole(
-    user?.role ||
-      user?.user_metadata?.role ||
-      user?.user_metadata?.account_type ||
-      user?.user_metadata?.user_type ||
-      ""
-  );
+  const role = useMemo(() => {
+    return normalizeRole(
+      user?.role ||
+        user?.user_metadata?.role ||
+        user?.user_metadata?.account_type ||
+        user?.user_metadata?.user_type ||
+        user?.raw_user_meta_data?.role ||
+        user?.raw_user_meta_data?.account_type ||
+        ""
+    );
+  }, [user]);
 
   const professionalRoles = [
     "professional",
     "profissional",
     "psychologist",
-    "psicologo"
+    "psicologo",
   ];
 
-  if (!professionalRoles.includes(role)) {
-    return <Navigate to="/painel" replace />;
+  const isProfessional = professionalRoles.includes(role);
+
+  if (!isProfessional) {
+    return <Navigate to="/painel-paciente" replace />;
   }
 
   return <Outlet />;
