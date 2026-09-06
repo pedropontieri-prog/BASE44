@@ -103,9 +103,10 @@ function getAppointmentDate(appointment) {
       appointment.slot ||
       '00:00';
 
-    const normalizedTime = String(time).length === 5
-      ? `${String(time)}:00`
-      : String(time);
+    const normalizedTime =
+      String(time).length === 5
+        ? `${String(time)}:00`
+        : String(time);
 
     const date = new Date(
       `${appointment.date}T${normalizedTime}`
@@ -127,16 +128,6 @@ function getAppointmentDate(appointment) {
   return null;
 }
 
-/*
- * IMPORTANTE:
- * O paciente e o psicólogo precisam entrar
- * exatamente na mesma sala.
- *
- * A prioridade é:
- * 1. room_id
- * 2. roomId
- * 3. id da consulta como fallback
- */
 function getRoomId(appointment) {
   return (
     appointment?.room_id ||
@@ -179,9 +170,9 @@ function getAppointmentTime(appointment) {
 function isOnlineAppointment(appointment) {
   const modality = String(
     appointment?.modality ||
-    appointment?.mode ||
-    appointment?.type ||
-    ''
+      appointment?.mode ||
+      appointment?.type ||
+      ''
   ).toLowerCase();
 
   return (
@@ -204,9 +195,13 @@ export default function PsychologistDashboard() {
   const [error, setError] =
     useState('');
 
+  const [appointmentsWarning, setAppointmentsWarning] =
+    useState('');
+
   async function loadDashboard() {
     setLoading(true);
     setError('');
+    setAppointmentsWarning('');
 
     try {
       const {
@@ -232,96 +227,94 @@ export default function PsychologistDashboard() {
       }
 
       /*
-       * Busca o perfil profissional
-       * do usuário logado.
+       * O perfil profissional é buscado somente
+       * pelo user_id do usuário autenticado.
+       *
+       * select("*") evita que uma coluna ausente
+       * na tabela faça a consulta inteira falhar.
        */
       const {
         data: psychologist,
         error: psychologistError,
       } = await supabase
         .from('psychologists')
-        .select(`
-          id,
-          user_id,
-          professional_name,
-          crp_number,
-          crp_region,
-          verification_status,
-          education,
-          institution,
-          graduation_year,
-          specializations,
-          approaches,
-          specialties,
-          experience,
-          topics,
-          modalities,
-          languages,
-          audience,
-          city,
-          state,
-          phone,
-          gender,
-          session_price,
-          session_duration,
-          available_days,
-          available_slots,
-          cancellation_policy,
-          address,
-          bio,
-          about,
-          photo_url,
-          profile_photo_url,
-          presentation_video_url,
-          presentation_video_status,
-          public_profile
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (psychologistError) {
+        console.error(
+          'Erro ao buscar perfil profissional:',
+          psychologistError
+        );
+
         throw psychologistError;
       }
 
       if (!psychologist) {
         setProfile(null);
         setAppointments([]);
+
         return;
       }
 
+      /*
+       * IMPORTANTE:
+       * O perfil já foi encontrado.
+       *
+       * A partir daqui, qualquer problema na agenda
+       * NÃO pode apagar o perfil profissional.
+       */
       setProfile(psychologist);
 
       /*
-       * Busca somente as consultas
-       * vinculadas ao psicólogo logado.
+       * A agenda é secundária.
+       *
+       * Não usamos order("date") ou order("time")
+       * porque isso pode quebrar caso o schema da
+       * tabela utilize outros nomes de campos.
        */
-      const {
-        data: appointmentData,
-        error: appointmentsError,
-      } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq(
-          'psychologist_id',
-          psychologist.id
-        )
-        .order('date', {
-          ascending: true,
-        })
-        .order('time', {
-          ascending: true,
-        })
-        .limit(100);
+      try {
+        const {
+          data: appointmentData,
+          error: appointmentsError,
+        } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq(
+            'psychologist_id',
+            psychologist.id
+          )
+          .limit(100);
 
-      if (appointmentsError) {
-        throw appointmentsError;
+        if (appointmentsError) {
+          console.error(
+            'Erro ao carregar atendimentos:',
+            appointmentsError
+          );
+
+          setAppointments([]);
+          setAppointmentsWarning(
+            'Não foi possível carregar sua agenda no momento.'
+          );
+        } else {
+          setAppointments(
+            Array.isArray(appointmentData)
+              ? appointmentData
+              : []
+          );
+        }
+      } catch (appointmentsError) {
+        console.error(
+          'Erro inesperado na agenda:',
+          appointmentsError
+        );
+
+        setAppointments([]);
+        setAppointmentsWarning(
+          'Não foi possível carregar sua agenda no momento.'
+        );
       }
-
-      setAppointments(
-        Array.isArray(appointmentData)
-          ? appointmentData
-          : []
-      );
     } catch (loadError) {
       console.error(
         'Erro ao carregar painel profissional:',
@@ -339,7 +332,8 @@ export default function PsychologistDashboard() {
       );
 
       setError(
-        'Não foi possível carregar seu painel profissional.'
+        loadError?.message ||
+          'Não foi possível carregar seu perfil profissional.'
       );
 
       setProfile(null);
@@ -364,26 +358,36 @@ export default function PsychologistDashboard() {
           appointment?.status || ''
         ).toLowerCase();
 
+        if (
+          status === 'cancelled' ||
+          status === 'canceled' ||
+          status === 'completed' ||
+          status === 'no_show'
+        ) {
+          return false;
+        }
+
+        const date =
+          getAppointmentDate(
+            appointment
+          );
+
+        if (date) {
+          return (
+            date.toISOString().slice(0, 10) ===
+            today
+          );
+        }
+
         return (
-          appointment?.date === today &&
-          (
-            status === 'scheduled' ||
-            status === 'confirmed' ||
-            status === 'pending'
-          )
+          String(
+            appointment?.date || ''
+          ) === today
         );
       })
       .sort((a, b) => {
-        return String(
-          a.time ||
-          a.slot ||
-          ''
-        ).localeCompare(
-          String(
-            b.time ||
-            b.slot ||
-            ''
-          )
+        return getAppointmentTime(a).localeCompare(
+          getAppointmentTime(b)
         );
       });
   }, [appointments, today]);
@@ -456,7 +460,8 @@ export default function PsychologistDashboard() {
 
     const checks = [
       Boolean(
-        profile.professional_name
+        profile.professional_name ||
+        profile.full_name
       ),
 
       Boolean(
@@ -526,331 +531,255 @@ export default function PsychologistDashboard() {
   if (!profile) {
     return (
       <PageShell>
-        <div className="max-w-2xl mx-auto px-4 pt-20 pb-20 text-center">
+        <div className="min-h-[70vh] flex items-center justify-center px-4">
+          <div className="max-w-lg w-full rounded-2xl border bg-white p-8 text-center">
+            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
 
-          <div className="w-16 h-16 rounded-3xl gradient-brand-soft mx-auto flex items-center justify-center text-primary mb-5">
-            <ShieldCheck size={30} />
-          </div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Você ainda não tem um perfil profissional
+            </h1>
 
-          <h1 className="text-2xl font-heading font-bold">
-            Você ainda não tem um perfil profissional
-          </h1>
+            <p className="mt-3 text-gray-600">
+              Crie seu perfil para começar a atender pelo EntreNós.
+            </p>
 
-          <p className="text-muted-foreground mt-2">
-            Crie seu perfil para começar a atender
-            pelo EntreNós.
-          </p>
-
-          {error && (
-            <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-700">
+            {error && (
+              <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700 text-left break-words">
                 {error}
-              </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col gap-3">
+              <Link
+                to="/cadastro-profissional"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700"
+              >
+                Iniciar cadastro
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+
+              <button
+                type="button"
+                onClick={loadDashboard}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 hover:bg-slate-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Tentar novamente
+              </button>
             </div>
-          )}
-
-          <Link
-            to="/cadastro-profissional"
-            className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-full gradient-brand text-white font-semibold"
-          >
-            Iniciar cadastro
-            <ArrowRight size={17} />
-          </Link>
-
+          </div>
         </div>
       </PageShell>
     );
   }
 
-  const psychologistName =
-    getPsychologistName(profile);
-
-  const photo =
-    profile.photo_url ||
-    profile.profile_photo_url ||
-    '';
-
-  const verificationStatus =
-    profile.verification_status ||
-    'pending';
-
   return (
     <PageShell>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-
+      <div className="max-w-6xl mx-auto px-4 pt-8 pb-20">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-bold">
-              Olá, {psychologistName}
+            <p className="text-sm text-slate-500">
+              Painel profissional
+            </p>
+
+            <h1 className="text-3xl font-bold text-slate-900">
+              Olá, {getPsychologistName(profile)}
             </h1>
 
-            <p className="text-muted-foreground mt-1 text-sm">
-              Bem-vindo(a) ao seu painel profissional.
-            </p>
+            <div className="mt-2">
+              <VerificationBadge
+                status={
+                  profile.verification_status
+                }
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={loadDashboard}
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-border text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+              title="Atualizar"
             >
-              <RefreshCw
-                size={14}
-                className={
-                  loading
-                    ? 'animate-spin'
-                    : ''
-                }
-              />
-
-              Atualizar
+              <RefreshCw className="w-5 h-5" />
             </button>
 
-            <VerificationBadge
-              status={verificationStatus}
-              size="md"
-            />
+            <Link
+              to="/notificacoes"
+              className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+            >
+              <Bell className="w-5 h-5" />
+            </Link>
 
+            <Link
+              to="/configuracoes"
+              className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+            >
+              <Settings className="w-5 h-5" />
+            </Link>
           </div>
         </div>
 
-        {error && (
-          <div className="mb-6 card-elevated p-4 border-red-200 bg-red-50 dark:bg-red-500/5 flex items-center gap-3">
-            <AlertCircle
-              size={20}
-              className="text-red-500 shrink-0"
-            />
+        {appointmentsWarning && (
+          <div className="mb-6 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+            {appointmentsWarning}
+          </div>
+        )}
 
-            <p className="text-sm text-red-700">
-              {error}
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <Calendar className="w-6 h-6 mb-3 text-slate-700" />
+
+            <p className="text-sm text-slate-500">
+              Hoje
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900">
+              {todays.length}
             </p>
           </div>
-        )}
 
-        {verificationStatus !== 'approved' && (
-          <div className="mb-6 card-elevated p-5 border-amber-200 bg-amber-50/60 dark:bg-amber-500/5 flex items-start gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <Users className="w-6 h-6 mb-3 text-slate-700" />
 
-            <AlertCircle
-              size={20}
-              className="text-amber-500 shrink-0 mt-0.5"
-            />
+            <p className="text-sm text-slate-500">
+              Próximos atendimentos
+            </p>
 
-            <div>
-              <p className="font-medium text-sm">
-                {verificationStatus === 'pending'
-                  ? 'Perfil em análise'
-                  : verificationStatus === 'needs_adjustments'
-                  ? 'Ajustes solicitados'
-                  : 'Verificação necessária'}
-              </p>
+            <p className="text-2xl font-bold text-slate-900">
+              {upcoming.length}
+            </p>
+          </div>
 
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {verificationStatus === 'pending'
-                  ? 'Nossa equipe está revisando seu CRP e informações. Você será notificado(a) ao ser aprovado(a).'
-                  : verificationStatus === 'needs_adjustments'
-                  ? 'Existem informações que precisam ser ajustadas antes da aprovação.'
-                  : 'Complete sua verificação para disponibilizar seu perfil.'}
-              </p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <ShieldCheck className="w-6 h-6 mb-3 text-slate-700" />
+
+            <p className="text-sm text-slate-500">
+              Verificação
+            </p>
+
+            <div className="mt-2">
+              <VerificationBadge
+                status={
+                  profile.verification_status
+                }
+              />
             </div>
+          </div>
 
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <Wallet className="w-6 h-6 mb-3 text-slate-700" />
+
+            <p className="text-sm text-slate-500">
+              Perfil completo
+            </p>
+
+            <p className="text-2xl font-bold text-slate-900">
+              {completeness}%
+            </p>
+          </div>
+        </div>
+
+        {next && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 mb-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              <div>
+                <p className="text-sm text-slate-500">
+                  Próximo atendimento
+                </p>
+
+                <h2 className="text-xl font-bold text-slate-900 mt-1">
+                  {next.patient_name ||
+                    next.patientName ||
+                    'Paciente'}
+                </h2>
+
+                <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-600">
+                  <span className="inline-flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+
+                    {getAppointmentDate(next)
+                      ? new Intl.DateTimeFormat(
+                          'pt-BR'
+                        ).format(
+                          getAppointmentDate(next)
+                        )
+                      : next.date ||
+                        'Data não informada'}
+                  </span>
+
+                  <span className="inline-flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+
+                    {getAppointmentTime(next)}
+                  </span>
+
+                  <span className="inline-flex items-center gap-2">
+                    {isOnlineAppointment(next) ? (
+                      <Video className="w-4 h-4" />
+                    ) : (
+                      <MapPin className="w-4 h-4" />
+                    )}
+
+                    {isOnlineAppointment(next)
+                      ? 'Online'
+                      : 'Presencial'}
+                  </span>
+                </div>
+              </div>
+
+              {isOnlineAppointment(next) && (
+                <Link
+                  to={`/sala/${getRoomId(next)}`}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700"
+                >
+                  Entrar na sala
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+            </div>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">
+              Próximos atendimentos
+            </h2>
 
-          <div className="lg:col-span-2 space-y-6">
+            <Link
+              to="/agenda"
+              className="text-sm inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
+            >
+              Ver agenda
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
 
-            <div className="card-elevated p-6 relative overflow-hidden">
-
-              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full gradient-brand opacity-10 blur-2xl" />
-
-              <div className="relative">
-
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">
-                  Próxima consulta
-                </span>
-
-                {next ? (
-                  <>
-                    <h2 className="mt-2 text-xl font-heading font-bold">
-                      {next.patient_name ||
-                        next.patientName ||
-                        'Paciente'}
-                    </h2>
-
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
-
-                      <span className="inline-flex items-center gap-1.5">
-                        <Calendar size={15} />
-
-                        {next.date ||
-                          (
-                            getAppointmentDate(next)
-                              ? new Intl.DateTimeFormat(
-                                  'pt-BR'
-                                ).format(
-                                  getAppointmentDate(next)
-                                )
-                              : 'Data não informada'
-                          )}
-                      </span>
-
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock size={15} />
-
-                        {getAppointmentTime(next)}
-                      </span>
-
-                      <span className="inline-flex items-center gap-1.5">
-                        {isOnlineAppointment(next) ? (
-                          <>
-                            <Video size={15} />
-                            Online
-                          </>
-                        ) : (
-                          <>
-                            <MapPin size={15} />
-                            Presencial
-                          </>
-                        )}
-                      </span>
-
-                    </div>
-
-                    {isOnlineAppointment(next) && (
-                      <Link
-                        to="/videochamada"
-                        state={{
-                          roomId:
-                            getRoomId(next),
-
-                          appointmentId:
-                            next.id,
-
-                          role:
-                            'psychologist',
-
-                          psychologistName:
-                            psychologistName,
-
-                          time:
-                            getAppointmentTime(next),
-
-                          date:
-                            next.date ||
-                            (
-                              getAppointmentDate(next)
-                                ? getAppointmentDate(next).toISOString()
-                                : ''
-                            ),
-                        }}
-                        className="mt-5 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
-                      >
-                        <Video size={17} />
-                        Entrar na próxima consulta
-                      </Link>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-2 text-muted-foreground text-sm">
-                    Você não tem consultas agendadas.
-                  </p>
-                )}
-
-              </div>
+          {upcoming.length === 0 ? (
+            <div className="p-10 text-center text-slate-500">
+              Nenhum atendimento próximo.
             </div>
-
-            <div className="card-elevated p-6">
-
-              <h3 className="font-heading font-semibold mb-4">
-                Consultas de hoje
-              </h3>
-
-              {todays.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  Nenhuma consulta para hoje.
-                </p>
-              ) : (
-                <div className="space-y-2">
-
-                  {todays.map((appointment) => (
-                    <div
-                      key={appointment.id}
-                      className="flex items-center justify-between gap-4 p-3 rounded-xl hover:bg-muted transition-colors"
-                    >
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {upcoming
+                .slice(0, 8)
+                .map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                  >
+                    <div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className="font-semibold text-slate-900">
                           {appointment.patient_name ||
                             appointment.patientName ||
                             'Paciente'}
-                        </p>
-
-                        <p className="text-xs text-muted-foreground">
-                          {getAppointmentTime(
-                            appointment
-                          )}
-                          {' · '}
-                          {isOnlineAppointment(
-                            appointment
-                          )
-                            ? 'Online'
-                            : 'Presencial'}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-
-                        {isOnlineAppointment(
-                          appointment
-                        ) && (
-                          <Link
-                            to="/videochamada"
-                            state={{
-                              roomId:
-                                getRoomId(
-                                  appointment
-                                ),
-
-                              appointmentId:
-                                appointment.id,
-
-                              role:
-                                'psychologist',
-
-                              psychologistName:
-                                psychologistName,
-
-                              time:
-                                getAppointmentTime(
-                                  appointment
-                                ),
-
-                              date:
-                                appointment.date ||
-                                (
-                                  getAppointmentDate(
-                                    appointment
-                                  )
-                                    ? getAppointmentDate(
-                                        appointment
-                                      ).toISOString()
-                                    : ''
-                                ),
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
-                          >
-                            <Video size={13} />
-                            Entrar
-                          </Link>
-                        )}
+                        </h3>
 
                         <span
-                          className={`text-xs px-2.5 py-1 rounded-full ${getStatusClass(
+                          className={`px-2 py-1 rounded-full text-xs ${getStatusClass(
                             appointment.status
                           )}`}
                         >
@@ -858,295 +787,57 @@ export default function PsychologistDashboard() {
                             appointment.status
                           )}
                         </span>
-
                       </div>
 
-                    </div>
-                  ))}
-
-                </div>
-              )}
-
-            </div>
-
-            <div className="card-elevated p-6">
-
-              <h3 className="font-heading font-semibold mb-4">
-                Agenda
-              </h3>
-
-              {upcoming.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  Sua agenda está vazia.
-                </p>
-              ) : (
-                <div className="space-y-2">
-
-                  {upcoming
-                    .slice(0, 15)
-                    .map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="flex items-center justify-between gap-4 p-3 rounded-xl hover:bg-muted transition-colors"
-                      >
-
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {appointment.patient_name ||
-                              appointment.patientName ||
-                              'Paciente'}
-                          </p>
-
-                          <p className="text-xs text-muted-foreground">
-                            {appointment.date ||
+                      <div className="flex flex-wrap gap-4 mt-2 text-sm text-slate-500">
+                        <span>
+                          {getAppointmentDate(
+                            appointment
+                          )
+                            ? new Intl.DateTimeFormat(
+                                'pt-BR'
+                              ).format(
+                                getAppointmentDate(
+                                  appointment
+                                )
+                              )
+                            : appointment.date ||
                               'Data não informada'}
-                            {' · '}
-                            {getAppointmentTime(
-                              appointment
-                            )}
-                          </p>
-                        </div>
+                        </span>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <span>
+                          {getAppointmentTime(
+                            appointment
+                          )}
+                        </span>
 
+                        <span>
                           {isOnlineAppointment(
                             appointment
-                          ) && (
-                            <Link
-                              to="/videochamada"
-                              state={{
-                                roomId:
-                                  getRoomId(
-                                    appointment
-                                  ),
-
-                                appointmentId:
-                                  appointment.id,
-
-                                role:
-                                  'psychologist',
-
-                                psychologistName:
-                                  psychologistName,
-
-                                time:
-                                  getAppointmentTime(
-                                    appointment
-                                  ),
-
-                                date:
-                                  appointment.date ||
-                                  (
-                                    getAppointmentDate(
-                                      appointment
-                                    )
-                                      ? getAppointmentDate(
-                                          appointment
-                                        ).toISOString()
-                                      : ''
-                                  ),
-                              }}
-                              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
-                            >
-                              <Video size={13} />
-                              Entrar
-                            </Link>
-                          )}
-
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-violet-soft text-primary">
-                            {isOnlineAppointment(
-                              appointment
-                            )
-                              ? 'Online'
-                              : 'Presencial'}
-                          </span>
-
-                        </div>
-
+                          )
+                            ? 'Online'
+                            : 'Presencial'}
+                        </span>
                       </div>
-                    ))}
-
-                </div>
-              )}
-
-            </div>
-
-          </div>
-
-          <div className="space-y-6">
-
-            <div className="card-elevated p-5">
-
-              <h3 className="font-heading font-semibold text-sm mb-3">
-                Perfil público
-              </h3>
-
-              <div className="flex items-center gap-3">
-
-                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-muted shrink-0">
-
-                  {photo ? (
-                    <Image
-                      src={photo}
-                      fittingType="fill"
-                      className="w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full gradient-brand-soft flex items-center justify-center text-primary font-bold">
-                      {psychologistName
-                        .charAt(0)
-                        .toUpperCase()}
                     </div>
-                  )}
 
-                </div>
-
-                <div className="min-w-0">
-
-                  <p className="text-sm font-medium truncate">
-                    {psychologistName}
-                  </p>
-
-                  <p className="text-xs text-muted-foreground">
-                    CRP{' '}
-                    {profile.crp_region || ''}
-                    {profile.crp_region &&
-                    profile.crp_number
-                      ? '/'
-                      : ''}
-                    {profile.crp_number ||
-                      'Não informado'}
-                  </p>
-
-                </div>
-
-              </div>
-
-              <div className="mt-4">
-
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>
-                    Completude do perfil
-                  </span>
-
-                  <span>
-                    {completeness}%
-                  </span>
-                </div>
-
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full gradient-brand transition-all"
-                    style={{
-                      width: `${completeness}%`,
-                    }}
-                  />
-                </div>
-
-              </div>
-
-              {verificationStatus === 'approved' &&
-                profile.public_profile && (
-                  <Link
-                    to={`/psicologo/${profile.id}`}
-                    className="mt-4 text-xs font-medium text-primary inline-flex items-center gap-1 hover:gap-2 transition-all"
-                  >
-                    Ver meu perfil público
-                    <ArrowRight size={13} />
-                  </Link>
-                )}
-
-              {verificationStatus !== 'approved' && (
-                <Link
-                  to="/cadastro-profissional"
-                  className="mt-4 text-xs font-medium text-primary inline-flex items-center gap-1 hover:gap-2 transition-all"
-                >
-                  Editar perfil
-                  <ArrowRight size={13} />
-                </Link>
-              )}
-
+                    {isOnlineAppointment(
+                      appointment
+                    ) && (
+                      <Link
+                        to={`/sala/${getRoomId(
+                          appointment
+                        )}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 hover:bg-slate-50"
+                      >
+                        <Video className="w-4 h-4" />
+                        Sala
+                      </Link>
+                    )}
+                  </div>
+                ))}
             </div>
-
-            <div className="card-elevated p-5">
-
-              <h3 className="font-heading font-semibold text-sm mb-3">
-                Atalhos
-              </h3>
-
-              <div className="space-y-1">
-
-                <Link
-                  to="/painel-profissional"
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
-                >
-                  <Users
-                    size={16}
-                    className="text-primary"
-                  />
-                  Pacientes
-                </Link>
-
-                <Link
-                  to="/painel-profissional"
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
-                >
-                  <Wallet
-                    size={16}
-                    className="text-primary"
-                  />
-                  Financeiro
-                </Link>
-
-                <Link
-                  to="/notificacoes"
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
-                >
-                  <Bell
-                    size={16}
-                    className="text-primary"
-                  />
-                  Notificações
-                </Link>
-
-                <Link
-                  to="/painel-profissional"
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
-                >
-                  <Settings
-                    size={16}
-                    className="text-primary"
-                  />
-                  Configurações
-                </Link>
-
-              </div>
-
-            </div>
-
-            <div className="card-elevated p-5 gradient-brand-soft">
-
-              <ShieldCheck
-                size={22}
-                className="text-primary"
-              />
-
-              <h3 className="mt-3 font-heading font-semibold text-sm">
-                Status da verificação
-              </h3>
-
-              <p className="text-xs text-muted-foreground mt-1">
-                {verificationStatus === 'approved'
-                  ? 'Seu perfil está verificado e pode ser exibido publicamente.'
-                  : verificationStatus === 'pending'
-                  ? 'Seu perfil está aguardando análise da equipe.'
-                  : 'Verifique seu perfil para começar a aparecer para pacientes.'}
-              </p>
-
-            </div>
-
-          </div>
-
+          )}
         </div>
       </div>
     </PageShell>
