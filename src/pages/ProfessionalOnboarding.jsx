@@ -1142,17 +1142,24 @@ export default function ProfessionalOnboarding() {
 
     if (existing?.id) {
       const {
+        data: updated,
         error: updateError,
       } = await supabase
         .from("psychologists")
         .update(professionalData)
-        .eq("id", existing.id);
+        .eq("id", existing.id)
+        .select("id")
+        .single();
 
       if (updateError) {
         throw updateError;
       }
 
-      return existing.id;
+      if (!updated?.id) {
+        throw new Error("O perfil profissional não pôde ser atualizado.");
+      }
+
+      return updated.id;
     }
 
     const {
@@ -1166,6 +1173,10 @@ export default function ProfessionalOnboarding() {
 
     if (insertError) {
       throw insertError;
+    }
+
+    if (!inserted?.id) {
+      throw new Error("O perfil profissional não foi criado.");
     }
 
     return inserted.id;
