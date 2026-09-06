@@ -60,7 +60,7 @@ export default function ProfessionalRoute() {
   ];
 
   if (!professionalRoles.includes(role)) {
-    return <Navigate to="/painel-paciente" replace />;
+    return <Navigate to="/painel" replace />;
   }
 
   return <Outlet />;
