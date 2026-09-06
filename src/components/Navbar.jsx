@@ -1,267 +1,208 @@
-```jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import {
-  Menu,
-  X,
-  Heart,
-  Bell,
-  LayoutDashboard,
-  LogOut,
-} from "lucide-react";
+import { Menu, X, User, Heart, Bell, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 
-const navLinks = [
-  { label: "Início", path: "/" },
-  { label: "Encontrar psicólogo", path: "/encontrar" },
-  { label: "Não sei por onde começar", path: "/triagem" },
-  { label: "Privacidade", path: "/privacidade" },
-];
-
-const normalizeRole = (value) => {
-  if (!value) return "";
-
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-};
-
-const isProfessionalRole = (role) => {
-  return [
-    "professional",
-    "profissional",
-    "psychologist",
-    "psicologo",
-  ].includes(normalizeRole(role));
-};
-
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
-
-  const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
 
-  useEffect(() => {
-    const onScroll = () => {
-      setScrolled(window.scrollY > 12);
-    };
+  const navLinks = [
+    {
+      label: "Início",
+      path: "/"
+    },
+    {
+      label: "Encontrar psicólogo",
+      path: "/encontrar"
+    },
+    {
+      label: "Não sei por onde começar",
+      path: "/triagem"
+    },
+    {
+      label: "Privacidade",
+      path: "/privacidade"
+    }
+  ];
 
-    window.addEventListener("scroll", onScroll);
+  const painelPath =
+    user?.role === "psychologist" ||
+    user?.role === "psicologo" ||
+    user?.role === "professional" ||
+    user?.role === "profissional"
+      ? "/painel-profissional"
+      : "/painel";
 
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
+  const isActive = (path) => {
+    if (path === "/") {
+      return location.pathname === "/";
+    }
 
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
-
-  const isProfessional = isProfessionalRole(
-    user?.role ||
-      user?.user_metadata?.role ||
-      user?.user_metadata?.account_type ||
-      user?.user_metadata?.user_type
-  );
-
-  const painelPath = isProfessional
-    ? "/painel-profissional"
-    : "/painel";
+    return location.pathname.startsWith(path);
+  };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      setOpen(false);
-    } catch (error) {
-      console.error("Erro ao sair:", error);
-    }
+    setMobileOpen(false);
+    await logout(true);
   };
 
   return (
-    <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass-strong shadow-soft" : "bg-transparent"
-      }`}
-    >
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <Link
-          to="/"
-          className="flex items-center"
-          aria-label="EntreNós início"
-        >
-          <img
-            src="/logo.png"
-            alt="EntreNós"
-            className="h-10 w-auto object-contain"
-          />
-        </Link>
+    <header className="fixed top-0 left-0 right-0 z-50 border-b bg-background/95 backdrop-blur">
+      <div className="container mx-auto px-4">
+        <div className="flex h-16 items-center justify-between">
+          <Link
+            to="/"
+            className="flex items-center gap-2"
+            onClick={() => setMobileOpen(false)}
+          >
+            <span className="text-2xl font-bold text-primary">EntreNós</span>
+          </Link>
 
-        <div className="hidden lg:flex items-center gap-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                location.pathname === link.path
-                  ? "text-primary bg-primary/10"
-                  : "text-foreground/70 hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-
-          {!isAuthenticated && (
-            <Link
-              to="/cadastro-profissional"
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                location.pathname === "/cadastro-profissional"
-                  ? "text-primary bg-primary/10"
-                  : "text-foreground/70 hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              Sou profissional
-            </Link>
-          )}
-        </div>
-
-        <div className="hidden lg:flex items-center gap-3">
-          {isAuthenticated ? (
-            <>
-              <Link
-                to="/favoritos"
-                className="p-2 rounded-full hover:bg-muted transition-colors"
-                title="Favoritos"
-                aria-label="Favoritos"
-              >
-                <Heart size={19} />
-              </Link>
-
-              <Link
-                to="/notificacoes"
-                className="p-2 rounded-full hover:bg-muted transition-colors"
-                title="Notificações"
-                aria-label="Notificações"
-              >
-                <Bell size={19} />
-              </Link>
-
-              <Link
-                to={painelPath}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft hover:shadow-glow transition-all duration-300 hover:scale-[1.02]"
-              >
-                <LayoutDashboard size={17} />
-                Meu painel
-              </Link>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
-              >
-                <LogOut size={17} />
-                Sair
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="px-4 py-2 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
-              >
-                Entrar
-              </Link>
-
-              <Link
-                to="/register"
-                className="px-5 py-2.5 rounded-full gradient-brand text-white text-sm font-semibold shadow-soft hover:shadow-glow transition-all duration-300 hover:scale-[1.02]"
-              >
-                Criar conta
-              </Link>
-            </>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className="lg:hidden p-2 rounded-xl hover:bg-muted transition-colors"
-          onClick={() => setOpen(!open)}
-          aria-label="Menu"
-          aria-expanded={open}
-        >
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
-      </nav>
-
-      {open && (
-        <div className="lg:hidden glass-strong border-t border-border animate-fade-in">
-          <div className="px-4 py-4 space-y-1">
+          <nav className="hidden md:flex items-center gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`block px-4 py-3 rounded-xl text-sm font-medium ${
-                  location.pathname === link.path
-                    ? "text-primary bg-primary/10"
-                    : "text-foreground/80 hover:bg-muted"
+                className={`text-sm font-medium transition-colors ${
+                  isActive(link.path)
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-primary"
                 }`}
               >
                 {link.label}
               </Link>
             ))}
 
-            {!isAuthenticated && (
+            {!isAuthenticated ? (
               <Link
                 to="/cadastro-profissional"
-                className="block px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
+                className="text-sm font-medium text-muted-foreground hover:text-primary"
               >
                 Sou profissional
               </Link>
-            )}
-
-            {isAuthenticated && (
-              <div className="pt-3 border-t border-border space-y-1">
-                <Link
-                  to={painelPath}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
-                >
-                  <LayoutDashboard size={18} />
-                  Meu painel
-                </Link>
-
+            ) : (
+              <div className="flex items-center gap-4">
                 <Link
                   to="/favoritos"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
+                  className="text-muted-foreground hover:text-primary"
+                  aria-label="Favoritos"
                 >
-                  <Heart size={18} />
-                  Favoritos
+                  <Heart className="h-5 w-5" />
                 </Link>
 
                 <Link
                   to="/notificacoes"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted"
+                  className="text-muted-foreground hover:text-primary"
+                  aria-label="Notificações"
                 >
-                  <Bell size={18} />
-                  Notificações
+                  <Bell className="h-5 w-5" />
+                </Link>
+
+                <Link
+                  to={painelPath}
+                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary"
+                >
+                  <User className="h-5 w-5" />
+                  Meu painel
                 </Link>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium hover:bg-muted text-left"
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="Sair"
                 >
-                  <LogOut size={18} />
-                  Sair
+                  <LogOut className="h-5 w-5" />
                 </button>
               </div>
             )}
-          </div>
+          </nav>
+
+          <button
+            type="button"
+            className="md:hidden"
+            onClick={() => setMobileOpen((value) => !value)}
+            aria-label="Abrir menu"
+          >
+            {mobileOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </div>
-      )}
+
+        {mobileOpen && (
+          <nav className="md:hidden border-t py-4">
+            <div className="flex flex-col gap-4">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={() => setMobileOpen(false)}
+                  className={`text-sm font-medium ${
+                    isActive(link.path)
+                      ? "text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+
+              {!isAuthenticated ? (
+                <Link
+                  to="/cadastro-profissional"
+                  onClick={() => setMobileOpen(false)}
+                  className="text-sm font-medium text-muted-foreground"
+                >
+                  Sou profissional
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/favoritos"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                  >
+                    <Heart className="h-5 w-5" />
+                    Favoritos
+                  </Link>
+
+                  <Link
+                    to="/notificacoes"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                  >
+                    <Bell className="h-5 w-5" />
+                    Notificações
+                  </Link>
+
+                  <Link
+                    to={painelPath}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                  >
+                    <User className="h-5 w-5" />
+                    Meu painel
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 text-left text-sm font-medium text-muted-foreground"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    Sair
+                  </button>
+                </>
+              )}
+            </div>
+          </nav>
+        )}
+      </div>
     </header>
   );
 }
-```
