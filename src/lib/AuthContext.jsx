@@ -2,22 +2,23 @@ import React, {
   createContext,
   useContext,
   useEffect,
-  useState
+  useState,
+  useCallback
 } from "react";
 import { supabase } from "@/lib/supabase";
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(false);
+  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
 
-  const loadUserProfile = async (authUser) => {
+  const loadUserProfile = useCallback(async (authUser) => {
     if (!authUser) {
       return null;
     }
@@ -47,12 +48,7 @@ export const AuthProvider = ({ children }) => {
         .eq("id", authUser.id)
         .maybeSingle();
 
-      if (error) {
-        console.warn("Não foi possível carregar o perfil:", error);
-        return userData;
-      }
-
-      if (!profile) {
+      if (error || !profile) {
         return userData;
       }
 
@@ -61,42 +57,41 @@ export const AuthProvider = ({ children }) => {
         ...profile,
         id: authUser.id,
         email: authUser.email || profile.email || "",
-        name:
-          profile.name ||
-          profile.full_name ||
-          userData.name,
+        name: profile.name || profile.full_name || userData.name || "",
         full_name:
           profile.full_name ||
           profile.name ||
-          userData.full_name,
-        avatar_url:
-          profile.avatar_url ||
-          userData.avatar_url,
+          userData.full_name ||
+          "",
+        avatar_url: profile.avatar_url || userData.avatar_url || null,
         role:
           profile.role ||
           profile.account_type ||
           profile.user_type ||
-          userData.role,
+          userData.role ||
+          "patient",
         user_metadata: metadata
       };
-    } catch (error) {
-      console.warn("Erro inesperado ao carregar o perfil:", error);
+    } catch {
       return userData;
     }
-  };
+  }, []);
 
-  const checkUserAuth = async () => {
+  const checkUserAuth = useCallback(async () => {
+    setIsLoadingAuth(true);
+    setAuthError(null);
+
     try {
-      setIsLoadingAuth(true);
-      setAuthError(null);
-
       const {
         data: { session },
-        error
+        error: sessionError
       } = await supabase.auth.getSession();
 
-      if (error) {
-        throw error;
+      if (sessionError) {
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError(sessionError);
+        return null;
       }
 
       if (!session?.user) {
@@ -112,157 +107,127 @@ export const AuthProvider = ({ children }) => {
 
       return profile;
     } catch (error) {
-      console.error("Erro ao verificar autenticação:", error);
-
       setUser(null);
       setIsAuthenticated(false);
-
-      setAuthError({
-        type: "auth_error",
-        message:
-          error?.message ||
-          "Não foi possível verificar sua autenticação."
-      });
-
+      setAuthError(error);
       return null;
     } finally {
       setIsLoadingAuth(false);
       setAuthChecked(true);
     }
-  };
+  }, [loadUserProfile]);
 
-  const checkAppState = async () => {
-    setIsLoadingPublicSettings(false);
-    return checkUserAuth();
-  };
+  const checkAppState = useCallback(async () => {
+    setIsLoadingPublicSettings(true);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const initializeAuth = async () => {
-      await checkUserAuth();
-    };
-
-    initializeAuth();
-
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) {
-          return;
-        }
-
-        if (event === "SIGNED_OUT") {
-          setUser(null);
-          setIsAuthenticated(false);
-          setAuthError(null);
-          setAuthChecked(true);
-          setIsLoadingAuth(false);
-          return;
-        }
-
-        if (
-          event === "SIGNED_IN" ||
-          event === "USER_UPDATED" ||
-          event === "INITIAL_SESSION"
-        ) {
-          if (!session?.user) {
-            setUser(null);
-            setIsAuthenticated(false);
-            setAuthChecked(true);
-            setIsLoadingAuth(false);
-            return;
-          }
-
-          const profile = await loadUserProfile(session.user);
-
-          if (!mounted) {
-            return;
-          }
-
-          setUser(profile);
-          setIsAuthenticated(true);
-          setAuthError(null);
-          setAuthChecked(true);
-          setIsLoadingAuth(false);
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const logout = async (shouldRedirect = true) => {
     try {
-      setIsLoadingAuth(true);
-      setAuthError(null);
-
-      const { error } = await supabase.auth.signOut();
+      const { data, error } = await supabase
+        .from("app_public_settings")
+        .select("*")
+        .maybeSingle();
 
       if (error) {
-        throw error;
+        setAppPublicSettings(null);
+        return null;
       }
 
+      setAppPublicSettings(data || null);
+      return data || null;
+    } catch {
+      setAppPublicSettings(null);
+      return null;
+    } finally {
+      setIsLoadingPublicSettings(false);
+    }
+  }, []);
+
+  const logout = useCallback(async (shouldRedirect = true) => {
+    try {
+      await supabase.auth.signOut();
+    } finally {
       setUser(null);
       setIsAuthenticated(false);
+      setAuthError(null);
       setAuthChecked(true);
 
       if (shouldRedirect) {
         window.location.href = "/";
       }
-    } catch (error) {
-      console.error("Erro ao sair:", error);
+    }
+  }, []);
 
-      setAuthError({
-        type: "logout_error",
-        message:
-          error?.message ||
-          "Não foi possível sair da conta."
-      });
-    } finally {
+  const navigateToLogin = useCallback(() => {
+    const currentPath =
+      window.location.pathname +
+      window.location.search +
+      window.location.hash;
+
+    const returnTo = encodeURIComponent(currentPath);
+
+    window.location.href = `/login?returnTo=${returnTo}`;
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initialize = async () => {
+      if (!mounted) {
+        return;
+      }
+
+      await Promise.all([
+        checkUserAuth(),
+        checkAppState()
+      ]);
+    };
+
+    initialize();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (session?.user) {
+        const profile = await loadUserProfile(session.user);
+
+        if (!mounted) {
+          return;
+        }
+
+        setUser(profile);
+        setIsAuthenticated(true);
+        setAuthError(null);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+        setAuthError(null);
+      }
+
       setIsLoadingAuth(false);
-    }
-  };
+      setAuthChecked(true);
+    });
 
-  const navigateToLogin = () => {
-    const pathname = window.location.pathname;
-    const search = window.location.search;
-    const hash = window.location.hash;
-
-    if (pathname === "/login") {
-      return;
-    }
-
-    const currentPath = `${pathname}${search}${hash}`;
-
-    const returnTo =
-      currentPath && currentPath !== "/login"
-        ? `?returnTo=${encodeURIComponent(currentPath)}`
-        : "";
-
-    window.location.href = `/login${returnTo}`;
-  };
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [checkUserAuth, checkAppState, loadUserProfile]);
 
   const value = {
     user,
-    setUser,
     isAuthenticated,
-    setIsAuthenticated,
     isLoadingAuth,
     isLoadingPublicSettings,
     authError,
     authChecked,
     appPublicSettings,
-    setAppPublicSettings,
-    checkUserAuth,
-    checkAppState,
-    loadUserProfile,
     logout,
-    navigateToLogin
+    navigateToLogin,
+    checkUserAuth,
+    checkAppState
   };
 
   return (
@@ -270,18 +235,16 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error(
-      "useAuth deve ser usado dentro de um AuthProvider"
-    );
+    throw new Error("useAuth must be used inside AuthProvider");
   }
 
   return context;
-};
+}
 
 export default AuthContext;
