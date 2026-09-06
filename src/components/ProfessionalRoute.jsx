@@ -1,14 +1,11 @@
 ```jsx
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 
 const LoadingScreen = () => (
   <div className="fixed inset-0 flex items-center justify-center bg-white">
-    <div
-      className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"
-      aria-label="Carregando"
-    />
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
   </div>
 );
 
@@ -45,17 +42,15 @@ export default function ProfessionalRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  const role = useMemo(() => {
-    return normalizeRole(
-      user?.role ||
-        user?.user_metadata?.role ||
-        user?.user_metadata?.account_type ||
-        user?.user_metadata?.user_type ||
-        user?.raw_user_meta_data?.role ||
-        user?.raw_user_meta_data?.account_type ||
-        ""
-    );
-  }, [user]);
+  const role = normalizeRole(
+    user?.role ||
+      user?.user_metadata?.role ||
+      user?.user_metadata?.account_type ||
+      user?.user_metadata?.user_type ||
+      user?.raw_user_meta_data?.role ||
+      user?.raw_user_meta_data?.account_type ||
+      ""
+  );
 
   const professionalRoles = [
     "professional",
@@ -64,9 +59,7 @@ export default function ProfessionalRoute() {
     "psicologo",
   ];
 
-  const isProfessional = professionalRoles.includes(role);
-
-  if (!isProfessional) {
+  if (!professionalRoles.includes(role)) {
     return <Navigate to="/painel-paciente" replace />;
   }
 
