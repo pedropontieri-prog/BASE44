@@ -1,4 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -15,6 +20,7 @@ import {
   BookHeart,
   RefreshCw,
 } from 'lucide-react';
+
 import PageShell from '@/components/PageShell';
 import { supabase } from '@/lib/supabase';
 
@@ -92,11 +98,11 @@ function getAppointmentDate(appointment) {
 
     const normalizedTime =
       String(timeString).length === 5
-        ? String(timeString) + ':00'
+        ? `${String(timeString)}:00`
         : String(timeString);
 
     const date = new Date(
-      String(dateString) + 'T' + normalizedTime
+      `${dateString}T${normalizedTime}`
     );
 
     if (!Number.isNaN(date.getTime())) {
@@ -179,9 +185,9 @@ function getAppointmentTime(appointment) {
 function getAppointmentModality(appointment) {
   return String(
     appointment?.modality ||
-    appointment?.mode ||
-    appointment?.type ||
-    'online'
+      appointment?.mode ||
+      appointment?.type ||
+      'online'
   ).toLowerCase();
 }
 
@@ -253,73 +259,19 @@ function getRoomId(appointment) {
 }
 
 async function fetchAppointments(userId) {
-  const attempts = [
-    {
-      column: 'patient_id',
-      value: userId,
-    },
-    {
-      column: 'user_id',
-      value: userId,
-    },
-  ];
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*')
+    .eq('patient_user_id', userId)
+    .order('created_at', {
+      ascending: false,
+    });
 
-  let lastError = null;
-
-  for (const attempt of attempts) {
-    const result = await supabase
-      .from('appointments')
-      .select('*')
-      .eq(attempt.column, attempt.value);
-
-    if (!result.error) {
-      const data = Array.isArray(result.data)
-        ? result.data
-        : [];
-
-      return data.sort((a, b) => {
-        const dateA = getAppointmentDate(a);
-        const dateB = getAppointmentDate(b);
-
-        if (!dateA && !dateB) {
-          return 0;
-        }
-
-        if (!dateA) {
-          return 1;
-        }
-
-        if (!dateB) {
-          return -1;
-        }
-
-        return dateA.getTime() - dateB.getTime();
-      });
-    }
-
-    lastError = result.error;
-
-    const message = String(
-      result.error.message || ''
-    ).toLowerCase();
-
-    const shouldTryNext =
-      message.includes(attempt.column) ||
-      message.includes('column') ||
-      message.includes('does not exist') ||
-      result.error.code === '42703';
-
-    if (!shouldTryNext) {
-      throw result.error;
-    }
+  if (error) {
+    throw error;
   }
 
-  throw (
-    lastError ||
-    new Error(
-      'Não foi possível carregar as consultas.'
-    )
-  );
+  return Array.isArray(data) ? data : [];
 }
 
 function getFriendlyError(error) {
@@ -338,7 +290,8 @@ function getFriendlyError(error) {
 
   if (
     message.includes('row-level security') ||
-    message.includes('permission denied')
+    message.includes('permission denied') ||
+    error?.code === '42501'
   ) {
     return 'Você não tem permissão para visualizar suas consultas.';
   }
@@ -354,13 +307,16 @@ function getFriendlyError(error) {
   }
 
   if (
-    message.includes('patient_id') ||
-    message.includes('user_id')
+    message.includes('patient_user_id') ||
+    error?.code === '42703'
   ) {
-    return 'Não foi possível identificar o paciente desta consulta.';
+    return 'A coluna patient_user_id não foi encontrada na tabela de consultas.';
   }
 
-  return 'Não foi possível carregar suas consultas. Tente novamente.';
+  return (
+    error?.message ||
+    'Não foi possível carregar suas consultas. Tente novamente.'
+  );
 }
 
 export default function PatientDashboard() {
@@ -411,21 +367,6 @@ export default function PatientDashboard() {
         loadError
       );
 
-      console.error(
-        'Mensagem do Supabase:',
-        loadError?.message
-      );
-
-      console.error(
-        'Detalhes do Supabase:',
-        loadError?.details
-      );
-
-      console.error(
-        'Código do Supabase:',
-        loadError?.code
-      );
-
       setAppointments([]);
       setError(
         getFriendlyError(loadError)
@@ -439,7 +380,10 @@ export default function PatientDashboard() {
     loadAppointments();
   }, [loadAppointments]);
 
-  const now = new Date();
+  const now = useMemo(
+    () => new Date(),
+    []
+  );
 
   const upcomingAppointments = useMemo(() => {
     return appointments
@@ -558,7 +502,9 @@ export default function PatientDashboard() {
         appointment?.date ||
         (
           getAppointmentDate(appointment)
-            ? getAppointmentDate(appointment).toISOString()
+            ? getAppointmentDate(
+                appointment
+              ).toISOString()
             : ''
         ),
     };
@@ -736,7 +682,6 @@ export default function PatientDashboard() {
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={15} />
-
                         {formatDate(
                           getAppointmentDate(next)
                         )}
@@ -744,7 +689,6 @@ export default function PatientDashboard() {
 
                       <span className="inline-flex items-center gap-1.5">
                         <Clock size={15} />
-
                         {getAppointmentTime(next)}
                       </span>
 
@@ -812,7 +756,6 @@ export default function PatientDashboard() {
                         : ''
                     }
                   />
-
                   Atualizar
                 </button>
               </div>
@@ -840,7 +783,7 @@ export default function PatientDashboard() {
                           getAppointmentId(
                             appointment
                           ) ||
-                          'upcoming-' + index
+                          `upcoming-${index}`
                         }
                         appointment={appointment}
                       />
@@ -877,7 +820,7 @@ export default function PatientDashboard() {
                           getAppointmentId(
                             appointment
                           ) ||
-                          'history-' + index
+                          `history-${index}`
                         }
                         appointment={appointment}
                         history
@@ -900,7 +843,7 @@ export default function PatientDashboard() {
 
                   return (
                     <Link
-                      key={item.label + '-' + item.path}
+                      key={`${item.label}-${item.path}`}
                       to={item.path}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-muted transition-colors text-foreground/80"
                     >
@@ -908,7 +851,6 @@ export default function PatientDashboard() {
                         size={16}
                         className="text-primary"
                       />
-
                       {item.label}
                     </Link>
                   );
@@ -977,8 +919,7 @@ function AppointmentItem({
   history = false,
 }) {
   const status =
-    appointment?.status ||
-    'scheduled';
+    appointment?.status || 'scheduled';
 
   const appointmentDate =
     getAppointmentDate(appointment);
@@ -1058,10 +999,7 @@ function AppointmentItem({
   );
 }
 
-function Info({
-  label,
-  value,
-}) {
+function Info({ label, value }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">
