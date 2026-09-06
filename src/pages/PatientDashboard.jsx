@@ -68,20 +68,17 @@ const menu = [
 ];
 
 function getAppointmentDate(appointment) {
-  if (!appointment) {
-    return null;
-  }
+  if (!appointment) return null;
 
-  if (appointment.scheduled_at) {
-    const date = new Date(appointment.scheduled_at);
+  const possibleDates = [
+    appointment.scheduled_at,
+    appointment.starts_at,
+  ];
 
-    if (!Number.isNaN(date.getTime())) {
-      return date;
-    }
-  }
+  for (const value of possibleDates) {
+    if (!value) continue;
 
-  if (appointment.starts_at) {
-    const date = new Date(appointment.starts_at);
+    const date = new Date(value);
 
     if (!Number.isNaN(date.getTime())) {
       return date;
@@ -172,14 +169,16 @@ function getPsychologistName(appointment) {
     appointment?.professionalName ||
     appointment?.psychologist?.professional_name ||
     appointment?.psychologist?.name ||
+    appointment?.professional?.name ||
     'Psicólogo'
   );
 }
 
 function getAppointmentTime(appointment) {
-  const date = getAppointmentDate(appointment);
-
-  return formatTime(date, appointment);
+  return formatTime(
+    getAppointmentDate(appointment),
+    appointment
+  );
 }
 
 function getAppointmentModality(appointment) {
@@ -192,13 +191,16 @@ function getAppointmentModality(appointment) {
 }
 
 function isOnlineAppointment(appointment) {
-  const modality = getAppointmentModality(appointment);
+  const modality =
+    getAppointmentModality(appointment);
 
-  return (
-    modality === 'online' ||
-    modality === 'video' ||
-    modality === 'videochamada'
-  );
+  return [
+    'online',
+    'video',
+    'videochamada',
+    'video_call',
+    'video-call',
+  ].includes(modality);
 }
 
 function getStatusLabel(status) {
@@ -212,11 +214,11 @@ function getStatusLabel(status) {
     no_show: 'Não compareceu',
   };
 
-  return (
-    labels[String(status || '').toLowerCase()] ||
-    status ||
-    'Agendada'
-  );
+  const normalized = String(
+    status || ''
+  ).toLowerCase();
+
+  return labels[normalized] || status || 'Agendada';
 }
 
 function getStatusClass(status) {
@@ -258,8 +260,19 @@ function getRoomId(appointment) {
   );
 }
 
+/**
+ * Busca as consultas do paciente.
+ *
+ * IMPORTANTE:
+ * A aplicação usa a tabela "appointments".
+ *
+ * Primeiro tentamos patient_user_id.
+ * Se essa coluna não existir, tentamos patient_id.
+ * Isso evita que o painel fique preso a apenas uma
+ * estrutura de banco.
+ */
 async function fetchAppointments(userId) {
-  const { data, error } = await supabase
+  let result = await supabase
     .from('appointments')
     .select('*')
     .eq('patient_user_id', userId)
@@ -267,17 +280,46 @@ async function fetchAppointments(userId) {
       ascending: false,
     });
 
-  if (error) {
-    throw error;
+  if (!result.error) {
+    return Array.isArray(result.data)
+      ? result.data
+      : [];
   }
 
-  return Array.isArray(data) ? data : [];
+  /*
+   * Se patient_user_id não existir,
+   * tenta patient_id.
+   */
+  if (
+    result.error?.code === '42703' ||
+    String(result.error?.message || '')
+      .toLowerCase()
+      .includes('patient_user_id')
+  ) {
+    result = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('patient_id', userId)
+      .order('created_at', {
+        ascending: false,
+      });
+
+    if (!result.error) {
+      return Array.isArray(result.data)
+        ? result.data
+        : [];
+    }
+  }
+
+  throw result.error;
 }
 
 function getFriendlyError(error) {
   const message = String(
     error?.message || ''
   ).toLowerCase();
+
+  const code = error?.code;
 
   if (
     message.includes('jwt') ||
@@ -291,26 +333,27 @@ function getFriendlyError(error) {
   if (
     message.includes('row-level security') ||
     message.includes('permission denied') ||
-    error?.code === '42501'
+    code === '42501'
   ) {
-    return 'Você não tem permissão para visualizar suas consultas.';
+    return 'Você não tem permissão para visualizar suas consultas. Verifique as políticas RLS da tabela appointments.';
   }
 
   if (
     message.includes('appointments') &&
     (
       message.includes('relation') ||
-      message.includes('does not exist')
+      message.includes('does not exist') ||
+      code === '42P01'
     )
   ) {
-    return 'A tabela de consultas não foi encontrada no banco de dados.';
+    return 'A tabela "appointments" não existe no banco de dados. É necessário criar essa tabela no Supabase.';
   }
 
   if (
     message.includes('patient_user_id') ||
-    error?.code === '42703'
+    code === '42703'
   ) {
-    return 'A coluna patient_user_id não foi encontrada na tabela de consultas.';
+    return 'A coluna usada para identificar o paciente não existe na tabela appointments. Verifique se existe "patient_user_id" ou "patient_id".';
   }
 
   return (
@@ -358,7 +401,8 @@ export default function PatientDashboard() {
         return;
       }
 
-      const data = await fetchAppointments(user.id);
+      const data =
+        await fetchAppointments(user.id);
 
       setAppointments(data);
     } catch (loadError) {
@@ -392,11 +436,10 @@ export default function PatientDashboard() {
           appointment?.status || ''
         ).toLowerCase();
 
-        const cancelled =
+        if (
           status === 'cancelled' ||
-          status === 'canceled';
-
-        if (cancelled) {
+          status === 'canceled'
+        ) {
           return false;
         }
 
@@ -416,17 +459,9 @@ export default function PatientDashboard() {
         const dateB =
           getAppointmentDate(b);
 
-        if (!dateA && !dateB) {
-          return 0;
-        }
-
-        if (!dateA) {
-          return 1;
-        }
-
-        if (!dateB) {
-          return -1;
-        }
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
 
         return (
           dateA.getTime() -
@@ -467,17 +502,9 @@ export default function PatientDashboard() {
         const dateB =
           getAppointmentDate(b);
 
-        if (!dateA && !dateB) {
-          return 0;
-        }
-
-        if (!dateA) {
-          return 1;
-        }
-
-        if (!dateB) {
-          return -1;
-        }
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
 
         return (
           dateB.getTime() -
@@ -489,6 +516,9 @@ export default function PatientDashboard() {
   const next = upcomingAppointments[0];
 
   const getVideoLinkState = (appointment) => {
+    const appointmentDate =
+      getAppointmentDate(appointment);
+
     return {
       roomId: getRoomId(appointment),
       appointmentId:
@@ -501,10 +531,8 @@ export default function PatientDashboard() {
       date:
         appointment?.date ||
         (
-          getAppointmentDate(appointment)
-            ? getAppointmentDate(
-                appointment
-              ).toISOString()
+          appointmentDate
+            ? appointmentDate.toISOString()
             : ''
         ),
     };
@@ -513,6 +541,7 @@ export default function PatientDashboard() {
   return (
     <PageShell>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20">
+
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-heading font-bold">
             Olá, bem-vindo(a) de volta
@@ -527,6 +556,7 @@ export default function PatientDashboard() {
         {confirmed && (
           <div className="mb-8 card-elevated p-6 border-emerald-200 bg-emerald-50/50 dark:bg-emerald-500/5 animate-scale-in">
             <div className="flex items-start gap-4">
+
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-500/15 flex items-center justify-center shrink-0">
                 <CheckCircle2
                   size={24}
@@ -535,6 +565,7 @@ export default function PatientDashboard() {
               </div>
 
               <div className="flex-1">
+
                 <h3 className="font-heading font-semibold text-lg">
                   Consulta agendada com sucesso!
                 </h3>
@@ -545,6 +576,7 @@ export default function PatientDashboard() {
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-3 mt-4 text-sm">
+
                   <Info
                     label="Profissional"
                     value={
@@ -583,6 +615,7 @@ export default function PatientDashboard() {
 
                   {confirmed.modality === 'online' && (
                     <div className="sm:col-span-2">
+
                       <Link
                         to="/videochamada"
                         state={{
@@ -591,15 +624,19 @@ export default function PatientDashboard() {
                             confirmed.appointmentId ||
                             confirmed.id ||
                             null,
+
                           appointmentId:
                             confirmed.appointmentId ||
                             confirmed.id ||
                             null,
+
                           role: 'patient',
+
                           psychologistName:
                             confirmed.psychologistName ||
                             confirmed.professionalName ||
                             'Psicólogo',
+
                           time:
                             confirmed.slot ||
                             confirmed.time ||
@@ -610,8 +647,10 @@ export default function PatientDashboard() {
                         <Video size={16} />
                         Entrar na videochamada
                       </Link>
+
                     </div>
                   )}
+
                 </div>
               </div>
             </div>
@@ -620,8 +659,11 @@ export default function PatientDashboard() {
 
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 dark:bg-red-500/5 p-5">
+
             <div className="flex items-center justify-between gap-4">
+
               <div className="min-w-0">
+
                 <p className="text-sm font-medium text-red-700">
                   Não foi possível carregar suas consultas.
                 </p>
@@ -629,6 +671,7 @@ export default function PatientDashboard() {
                 <p className="text-xs text-red-600 mt-1 break-words">
                   {error}
                 </p>
+
               </div>
 
               <button
@@ -648,16 +691,21 @@ export default function PatientDashboard() {
 
                 Atualizar
               </button>
+
             </div>
           </div>
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
+
           <div className="lg:col-span-2 space-y-6">
+
             <div className="card-elevated p-6 relative overflow-hidden">
+
               <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full gradient-brand opacity-10 blur-2xl" />
 
               <div className="relative">
+
                 <span className="text-xs font-semibold text-primary uppercase tracking-wider">
                   Próxima consulta
                 </span>
@@ -669,6 +717,7 @@ export default function PatientDashboard() {
                   </div>
                 ) : next ? (
                   <>
+
                     <h2 className="mt-2 text-xl font-heading font-bold">
                       {getPsychologistName(next)}
                     </h2>
@@ -680,6 +729,7 @@ export default function PatientDashboard() {
                     </p>
 
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm text-muted-foreground">
+
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={15} />
                         {formatDate(
@@ -693,6 +743,7 @@ export default function PatientDashboard() {
                       </span>
 
                       <span className="inline-flex items-center gap-1.5">
+
                         {isOnlineAppointment(next) ? (
                           <>
                             <Video size={15} />
@@ -704,7 +755,9 @@ export default function PatientDashboard() {
                             Presencial
                           </>
                         )}
+
                       </span>
+
                     </div>
 
                     {isOnlineAppointment(next) && (
@@ -717,9 +770,11 @@ export default function PatientDashboard() {
                         Entrar na sala
                       </Link>
                     )}
+
                   </>
                 ) : (
                   <div className="mt-2">
+
                     <p className="text-muted-foreground">
                       Você não tem consultas agendadas.
                     </p>
@@ -731,13 +786,17 @@ export default function PatientDashboard() {
                       Encontrar psicólogo
                       <ArrowRight size={15} />
                     </Link>
+
                   </div>
                 )}
+
               </div>
             </div>
 
             <div className="card-elevated p-6">
+
               <div className="flex items-center justify-between gap-4 mb-4">
+
                 <h3 className="font-heading font-semibold">
                   Próximas consultas
                 </h3>
@@ -758,23 +817,30 @@ export default function PatientDashboard() {
                   />
                   Atualizar
                 </button>
+
               </div>
 
               {loading ? (
                 <div className="space-y-3">
+
                   {[0, 1, 2].map((item) => (
                     <div
                       key={item}
                       className="h-16 animate-shimmer rounded-xl"
                     />
                   ))}
+
                 </div>
               ) : upcomingAppointments.length === 0 ? (
+
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   Nenhuma consulta próxima.
                 </p>
+
               ) : (
+
                 <div className="space-y-2">
+
                   {upcomingAppointments
                     .slice(0, 5)
                     .map((appointment, index) => (
@@ -788,30 +854,42 @@ export default function PatientDashboard() {
                         appointment={appointment}
                       />
                     ))}
+
                 </div>
+
               )}
+
             </div>
 
             <div className="card-elevated p-6">
+
               <h3 className="font-heading font-semibold mb-4">
                 Histórico de consultas
               </h3>
 
               {loading ? (
+
                 <div className="space-y-3">
+
                   {[0, 1, 2].map((item) => (
                     <div
                       key={item}
                       className="h-16 animate-shimmer rounded-xl"
                     />
                   ))}
+
                 </div>
+
               ) : historyAppointments.length === 0 ? (
+
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   Nenhum histórico de consultas disponível.
                 </p>
+
               ) : (
+
                 <div className="space-y-2">
+
                   {historyAppointments
                     .slice(0, 10)
                     .map((appointment, index) => (
@@ -826,18 +904,25 @@ export default function PatientDashboard() {
                         history
                       />
                     ))}
+
                 </div>
+
               )}
+
             </div>
+
           </div>
 
           <div className="space-y-6">
+
             <div className="card-elevated p-5">
+
               <h3 className="font-heading font-semibold text-sm mb-3">
                 Atalhos
               </h3>
 
               <div className="space-y-1">
+
                 {menu.map((item) => {
                   const Icon = item.icon;
 
@@ -851,10 +936,12 @@ export default function PatientDashboard() {
                         size={16}
                         className="text-primary"
                       />
+
                       {item.label}
                     </Link>
                   );
                 })}
+
               </div>
             </div>
 
@@ -862,11 +949,14 @@ export default function PatientDashboard() {
               to="/diario"
               className="block card-elevated p-5 hover:shadow-glow transition-all group"
             >
+
               <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center">
+
                 <BookHeart
                   size={22}
                   className="text-primary"
                 />
+
               </div>
 
               <h3 className="mt-4 font-heading font-semibold text-sm">
@@ -882,9 +972,11 @@ export default function PatientDashboard() {
                 Abrir diário
                 <ArrowRight size={13} />
               </span>
+
             </Link>
 
             <div className="card-elevated p-5 gradient-brand-soft">
+
               <Shield
                 size={22}
                 className="text-primary"
@@ -906,8 +998,11 @@ export default function PatientDashboard() {
                 Abrir central
                 <ArrowRight size={13} />
               </Link>
+
             </div>
+
           </div>
+
         </div>
       </div>
     </PageShell>
@@ -938,7 +1033,9 @@ function AppointmentItem({
 
   return (
     <div className="flex items-center justify-between gap-4 p-3 rounded-xl hover:bg-muted transition-colors">
+
       <div className="min-w-0">
+
         <p className="text-sm font-medium truncate">
           {getPsychologistName(appointment)}
         </p>
@@ -952,25 +1049,32 @@ function AppointmentItem({
             ? 'Online'
             : 'Presencial'}
         </p>
+
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+
         {canEnter && (
           <Link
             to="/videochamada"
             state={{
               roomId:
                 getRoomId(appointment),
+
               appointmentId,
+
               role: 'patient',
+
               psychologistName:
                 getPsychologistName(
                   appointment
                 ),
+
               time:
                 getAppointmentTime(
                   appointment
                 ),
+
               date:
                 appointment?.date ||
                 (
@@ -994,6 +1098,7 @@ function AppointmentItem({
         >
           {getStatusLabel(status)}
         </span>
+
       </div>
     </div>
   );
@@ -1002,6 +1107,7 @@ function AppointmentItem({
 function Info({ label, value }) {
   return (
     <div>
+
       <p className="text-xs text-muted-foreground">
         {label}
       </p>
@@ -1009,6 +1115,7 @@ function Info({ label, value }) {
       <p className="font-medium mt-0.5">
         {value || 'Não informado'}
       </p>
+
     </div>
   );
 }
