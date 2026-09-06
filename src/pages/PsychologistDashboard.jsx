@@ -28,6 +28,10 @@ function getPsychologistName(profile) {
 }
 
 function getStatusLabel(status) {
+  const normalizedStatus = String(
+    status || ''
+  ).toLowerCase();
+
   const labels = {
     scheduled: 'Agendada',
     confirmed: 'Confirmada',
@@ -38,22 +42,30 @@ function getStatusLabel(status) {
     no_show: 'Não compareceu',
   };
 
-  return labels[status] || status || 'Agendada';
+  return (
+    labels[normalizedStatus] ||
+    status ||
+    'Agendada'
+  );
 }
 
 function getStatusClass(status) {
+  const normalizedStatus = String(
+    status || ''
+  ).toLowerCase();
+
   if (
-    status === 'cancelled' ||
-    status === 'canceled'
+    normalizedStatus === 'cancelled' ||
+    normalizedStatus === 'canceled'
   ) {
     return 'bg-red-50 text-red-600 dark:bg-red-500/10';
   }
 
-  if (status === 'completed') {
+  if (normalizedStatus === 'completed') {
     return 'bg-blue-50 text-blue-600 dark:bg-blue-500/10';
   }
 
-  if (status === 'pending') {
+  if (normalizedStatus === 'pending') {
     return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10';
   }
 
@@ -65,9 +77,7 @@ function getAppointmentDate(appointment) {
     return null;
   }
 
-  if (
-    appointment.scheduled_at
-  ) {
+  if (appointment.scheduled_at) {
     const date = new Date(
       appointment.scheduled_at
     );
@@ -77,9 +87,7 @@ function getAppointmentDate(appointment) {
     }
   }
 
-  if (
-    appointment.starts_at
-  ) {
+  if (appointment.starts_at) {
     const date = new Date(
       appointment.starts_at
     );
@@ -95,8 +103,12 @@ function getAppointmentDate(appointment) {
       appointment.slot ||
       '00:00';
 
+    const normalizedTime = String(time).length === 5
+      ? `${String(time)}:00`
+      : String(time);
+
     const date = new Date(
-      `${appointment.date}T${time}:00`
+      `${appointment.date}T${normalizedTime}`
     );
 
     if (!Number.isNaN(date.getTime())) {
@@ -115,11 +127,82 @@ function getAppointmentDate(appointment) {
   return null;
 }
 
+/*
+ * IMPORTANTE:
+ * O paciente e o psicólogo precisam entrar
+ * exatamente na mesma sala.
+ *
+ * A prioridade é:
+ * 1. room_id
+ * 2. roomId
+ * 3. id da consulta como fallback
+ */
+function getRoomId(appointment) {
+  return (
+    appointment?.room_id ||
+    appointment?.roomId ||
+    appointment?.id ||
+    null
+  );
+}
+
+function getAppointmentTime(appointment) {
+  if (appointment?.time) {
+    return String(
+      appointment.time
+    ).slice(0, 5);
+  }
+
+  if (appointment?.slot) {
+    return String(
+      appointment.slot
+    ).slice(0, 5);
+  }
+
+  const date =
+    getAppointmentDate(appointment);
+
+  if (date) {
+    return new Intl.DateTimeFormat(
+      'pt-BR',
+      {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }
+    ).format(date);
+  }
+
+  return 'Horário não informado';
+}
+
+function isOnlineAppointment(appointment) {
+  const modality = String(
+    appointment?.modality ||
+    appointment?.mode ||
+    appointment?.type ||
+    ''
+  ).toLowerCase();
+
+  return (
+    modality === 'online' ||
+    modality === 'video' ||
+    modality === 'videochamada'
+  );
+}
+
 export default function PsychologistDashboard() {
-  const [profile, setProfile] = useState(null);
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [profile, setProfile] =
+    useState(null);
+
+  const [appointments, setAppointments] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState('');
 
   async function loadDashboard() {
     setLoading(true);
@@ -140,14 +223,17 @@ export default function PsychologistDashboard() {
       if (!user) {
         setProfile(null);
         setAppointments([]);
+
         setError(
           'Sua sessão não foi encontrada. Faça login novamente.'
         );
+
         return;
       }
 
       /*
-       * Busca o perfil profissional do usuário logado.
+       * Busca o perfil profissional
+       * do usuário logado.
        */
       const {
         data: psychologist,
@@ -206,10 +292,8 @@ export default function PsychologistDashboard() {
       setProfile(psychologist);
 
       /*
-       * Busca somente as consultas vinculadas
-       * ao psicólogo logado.
-       *
-       * A coluna esperada é psychologist_id.
+       * Busca somente as consultas
+       * vinculadas ao psicólogo logado.
        */
       const {
         data: appointmentData,
@@ -244,6 +328,16 @@ export default function PsychologistDashboard() {
         loadError
       );
 
+      console.error(
+        'Mensagem:',
+        loadError?.message
+      );
+
+      console.error(
+        'Código:',
+        loadError?.code
+      );
+
       setError(
         'Não foi possível carregar seu painel profissional.'
       );
@@ -256,21 +350,7 @@ export default function PsychologistDashboard() {
   }
 
   useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      if (!mounted) {
-        return;
-      }
-
-      await loadDashboard();
-    }
-
-    load();
-
-    return () => {
-      mounted = false;
-    };
+    loadDashboard();
   }, []);
 
   const today = new Date()
@@ -280,21 +360,30 @@ export default function PsychologistDashboard() {
   const todays = useMemo(() => {
     return appointments
       .filter((appointment) => {
+        const status = String(
+          appointment?.status || ''
+        ).toLowerCase();
+
         return (
-          appointment.date === today &&
+          appointment?.date === today &&
           (
-            appointment.status ===
-              'scheduled' ||
-            appointment.status ===
-              'confirmed'
+            status === 'scheduled' ||
+            status === 'confirmed' ||
+            status === 'pending'
           )
         );
       })
       .sort((a, b) => {
         return String(
-          a.time || ''
+          a.time ||
+          a.slot ||
+          ''
         ).localeCompare(
-          String(b.time || '')
+          String(
+            b.time ||
+            b.slot ||
+            ''
+          )
         );
       });
   }, [appointments, today]);
@@ -304,8 +393,9 @@ export default function PsychologistDashboard() {
 
     return appointments
       .filter((appointment) => {
-        const status =
-          appointment.status;
+        const status = String(
+          appointment?.status || ''
+        ).toLowerCase();
 
         if (
           status === 'cancelled' ||
@@ -322,7 +412,11 @@ export default function PsychologistDashboard() {
           );
 
         if (!date) {
-          return appointment.date >= today;
+          return (
+            String(
+              appointment?.date || ''
+            ) >= today
+          );
         }
 
         return date >= now;
@@ -361,34 +455,47 @@ export default function PsychologistDashboard() {
     }
 
     const checks = [
-      Boolean(profile.professional_name),
-      Boolean(profile.crp_number),
+      Boolean(
+        profile.professional_name
+      ),
+
+      Boolean(
+        profile.crp_number
+      ),
+
       Boolean(
         profile.about ||
         profile.bio
       ),
+
       Boolean(
         profile.photo_url ||
         profile.profile_photo_url
       ),
-      Array.isArray(profile.approaches) &&
+
+      Array.isArray(
+        profile.approaches
+      ) &&
         profile.approaches.length > 0,
+
       (
         Array.isArray(
           profile.specialties
         ) &&
         profile.specialties.length > 0
       ) ||
-        (
-          Array.isArray(
-            profile.specializations
-          ) &&
-          profile.specializations.length > 0
-        ),
+      (
+        Array.isArray(
+          profile.specializations
+        ) &&
+        profile.specializations.length > 0
+      ),
+
       Array.isArray(
         profile.available_days
       ) &&
         profile.available_days.length > 0,
+
       Array.isArray(
         profile.available_slots
       ) &&
@@ -399,7 +506,10 @@ export default function PsychologistDashboard() {
       checks.filter(Boolean).length;
 
     return Math.round(
-      (completed / checks.length) * 100
+      (
+        completed /
+        checks.length
+      ) * 100
     );
   }, [profile]);
 
@@ -496,6 +606,7 @@ export default function PsychologistDashboard() {
                     : ''
                 }
               />
+
               Atualizar
             </button>
 
@@ -530,21 +641,17 @@ export default function PsychologistDashboard() {
 
             <div>
               <p className="font-medium text-sm">
-                {verificationStatus ===
-                'pending'
+                {verificationStatus === 'pending'
                   ? 'Perfil em análise'
-                  : verificationStatus ===
-                    'needs_adjustments'
+                  : verificationStatus === 'needs_adjustments'
                   ? 'Ajustes solicitados'
                   : 'Verificação necessária'}
               </p>
 
               <p className="text-xs text-muted-foreground mt-0.5">
-                {verificationStatus ===
-                'pending'
+                {verificationStatus === 'pending'
                   ? 'Nossa equipe está revisando seu CRP e informações. Você será notificado(a) ao ser aprovado(a).'
-                  : verificationStatus ===
-                    'needs_adjustments'
+                  : verificationStatus === 'needs_adjustments'
                   ? 'Existem informações que precisam ser ajustadas antes da aprovação.'
                   : 'Complete sua verificação para disponibilizar seu perfil.'}
               </p>
@@ -579,20 +686,27 @@ export default function PsychologistDashboard() {
 
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={15} />
+
                         {next.date ||
-                          'Data não informada'}
+                          (
+                            getAppointmentDate(next)
+                              ? new Intl.DateTimeFormat(
+                                  'pt-BR'
+                                ).format(
+                                  getAppointmentDate(next)
+                                )
+                              : 'Data não informada'
+                          )}
                       </span>
 
                       <span className="inline-flex items-center gap-1.5">
                         <Clock size={15} />
-                        {next.time ||
-                          next.slot ||
-                          'Horário não informado'}
+
+                        {getAppointmentTime(next)}
                       </span>
 
                       <span className="inline-flex items-center gap-1.5">
-                        {next.modality ===
-                        'online' ? (
+                        {isOnlineAppointment(next) ? (
                           <>
                             <Video size={15} />
                             Online
@@ -607,22 +721,32 @@ export default function PsychologistDashboard() {
 
                     </div>
 
-                    {next.modality ===
-                      'online' && (
+                    {isOnlineAppointment(next) && (
                       <Link
                         to="/videochamada"
                         state={{
                           roomId:
-                            next.id,
+                            getRoomId(next),
+
                           appointmentId:
                             next.id,
-                          role: 'psychologist',
+
+                          role:
+                            'psychologist',
+
                           psychologistName:
                             psychologistName,
+
                           time:
-                            next.time ||
-                            next.slot ||
-                            '',
+                            getAppointmentTime(next),
+
+                          date:
+                            next.date ||
+                            (
+                              getAppointmentDate(next)
+                                ? getAppointmentDate(next).toISOString()
+                                : ''
+                            ),
                         }}
                         className="mt-5 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all"
                       >
@@ -667,12 +791,13 @@ export default function PsychologistDashboard() {
                         </p>
 
                         <p className="text-xs text-muted-foreground">
-                          {appointment.time ||
-                            appointment.slot ||
-                            'Horário não informado'}
+                          {getAppointmentTime(
+                            appointment
+                          )}
                           {' · '}
-                          {appointment.modality ===
-                          'online'
+                          {isOnlineAppointment(
+                            appointment
+                          )
                             ? 'Online'
                             : 'Presencial'}
                         </p>
@@ -680,23 +805,42 @@ export default function PsychologistDashboard() {
 
                       <div className="flex items-center gap-2 shrink-0">
 
-                        {appointment.modality ===
-                          'online' && (
+                        {isOnlineAppointment(
+                          appointment
+                        ) && (
                           <Link
                             to="/videochamada"
                             state={{
                               roomId:
-                                appointment.id,
+                                getRoomId(
+                                  appointment
+                                ),
+
                               appointmentId:
                                 appointment.id,
+
                               role:
                                 'psychologist',
+
                               psychologistName:
                                 psychologistName,
+
                               time:
-                                appointment.time ||
-                                appointment.slot ||
-                                '',
+                                getAppointmentTime(
+                                  appointment
+                                ),
+
+                              date:
+                                appointment.date ||
+                                (
+                                  getAppointmentDate(
+                                    appointment
+                                  )
+                                    ? getAppointmentDate(
+                                        appointment
+                                      ).toISOString()
+                                    : ''
+                                ),
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
                           >
@@ -757,31 +901,50 @@ export default function PsychologistDashboard() {
                             {appointment.date ||
                               'Data não informada'}
                             {' · '}
-                            {appointment.time ||
-                              appointment.slot ||
-                              'Horário não informado'}
+                            {getAppointmentTime(
+                              appointment
+                            )}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
 
-                          {appointment.modality ===
-                            'online' && (
+                          {isOnlineAppointment(
+                            appointment
+                          ) && (
                             <Link
                               to="/videochamada"
                               state={{
                                 roomId:
-                                  appointment.id,
+                                  getRoomId(
+                                    appointment
+                                  ),
+
                                 appointmentId:
                                   appointment.id,
+
                                 role:
                                   'psychologist',
+
                                 psychologistName:
                                   psychologistName,
+
                                 time:
-                                  appointment.time ||
-                                  appointment.slot ||
-                                  '',
+                                  getAppointmentTime(
+                                    appointment
+                                  ),
+
+                                date:
+                                  appointment.date ||
+                                  (
+                                    getAppointmentDate(
+                                      appointment
+                                    )
+                                      ? getAppointmentDate(
+                                          appointment
+                                        ).toISOString()
+                                      : ''
+                                  ),
                               }}
                               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full gradient-brand text-white text-xs font-medium"
                             >
@@ -791,8 +954,9 @@ export default function PsychologistDashboard() {
                           )}
 
                           <span className="text-xs px-2.5 py-1 rounded-full bg-violet-soft text-primary">
-                            {appointment.modality ===
-                            'online'
+                            {isOnlineAppointment(
+                              appointment
+                            )
                               ? 'Online'
                               : 'Presencial'}
                           </span>
@@ -845,8 +1009,7 @@ export default function PsychologistDashboard() {
 
                   <p className="text-xs text-muted-foreground">
                     CRP{' '}
-                    {profile.crp_region ||
-                      ''}
+                    {profile.crp_region || ''}
                     {profile.crp_region &&
                     profile.crp_number
                       ? '/'
@@ -882,8 +1045,7 @@ export default function PsychologistDashboard() {
 
               </div>
 
-              {verificationStatus ===
-                'approved' &&
+              {verificationStatus === 'approved' &&
                 profile.public_profile && (
                   <Link
                     to={`/psicologo/${profile.id}`}
@@ -894,8 +1056,7 @@ export default function PsychologistDashboard() {
                   </Link>
                 )}
 
-              {verificationStatus !==
-                'approved' && (
+              {verificationStatus !== 'approved' && (
                 <Link
                   to="/cadastro-profissional"
                   className="mt-4 text-xs font-medium text-primary inline-flex items-center gap-1 hover:gap-2 transition-all"
@@ -975,11 +1136,9 @@ export default function PsychologistDashboard() {
               </h3>
 
               <p className="text-xs text-muted-foreground mt-1">
-                {verificationStatus ===
-                'approved'
+                {verificationStatus === 'approved'
                   ? 'Seu perfil está verificado e pode ser exibido publicamente.'
-                  : verificationStatus ===
-                    'pending'
+                  : verificationStatus === 'pending'
                   ? 'Seu perfil está aguardando análise da equipe.'
                   : 'Verifique seu perfil para começar a aparecer para pacientes.'}
               </p>
