@@ -1,302 +1,169 @@
-import { Toaster } from "@/components/ui/toaster";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClientInstance } from "@/lib/query-client";
-
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-  Navigate,
-} from "react-router-dom";
-
-import PageNotFound from "./lib/PageNotFound";
-
-import {
-  AuthProvider,
-  useAuth,
-} from "@/lib/AuthContext";
-
-import UserNotRegisteredError from "@/components/UserNotRegisteredError";
-import ScrollToTop from "./components/ScrollToTop";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "@/lib/AuthContext";
+import PageShell from "@/components/PageShell";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ProfessionalRoute from "@/components/ProfessionalRoute";
-
-// ==================== PÁGINAS ====================
+import ScrollToTop from "@/components/ScrollToTop";
 
 import Home from "@/pages/Home";
 import FindPsychologist from "@/pages/FindPsychologist";
 import PsychologistProfile from "@/pages/PsychologistProfile";
+import Triage from "@/pages/Triage";
 import VideoCall from "@/pages/VideoCall";
-
+import Privacy from "@/pages/Privacy";
+import ProfessionalOnboarding from "@/pages/ProfessionalOnboarding";
+import BookingConfirmation from "@/pages/BookingConfirmation";
 import PatientDashboard from "@/pages/PatientDashboard";
 import Journal from "@/pages/Journal";
-import Triage from "@/pages/Triage";
-import Privacy from "@/pages/Privacy";
-import BookingConfirmation from "@/pages/BookingConfirmation";
-
-import ProfessionalOnboarding from "@/pages/ProfessionalOnboarding";
+import Favorites from "@/pages/Favorites";
+import Notifications from "@/pages/Notifications";
 import PsychologistDashboard from "@/pages/PsychologistDashboard";
 import AdminVerification from "@/pages/AdminVerification";
 
-import Favorites from "@/pages/Favorites";
-import Notifications from "@/pages/Notifications";
+const queryClient = new QueryClient();
 
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
-
-// ==================== LOADING ====================
-
-function LoadingScreen() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-4">
-
-        <div className="w-9 h-9 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-
-        <p className="text-sm text-muted-foreground">
-          Carregando...
-        </p>
-
-      </div>
-    </div>
-  );
-}
-
-// ==================== APLICAÇÃO AUTENTICADA ====================
-
-function AuthenticatedApp() {
-  const {
-    isLoadingAuth,
-    isLoadingPublicSettings,
-    authError,
-  } = useAuth();
-
-  // ==================== CARREGANDO AUTENTICAÇÃO ====================
-
-  if (
-    isLoadingAuth ||
-    isLoadingPublicSettings
-  ) {
-    return <LoadingScreen />;
-  }
-
-  // ==================== USUÁRIO NÃO REGISTRADO ====================
-
-  if (
-    authError?.type === "user_not_registered"
-  ) {
-    return <UserNotRegisteredError />;
-  }
-
-  return (
-    <Routes>
-
-      {/* ======================================================
-          AUTENTICAÇÃO
-      ====================================================== */}
-
-      <Route
-        path="/login"
-        element={<Login />}
-      />
-
-      <Route
-        path="/register"
-        element={<Register />}
-      />
-
-      <Route
-        path="/forgot-password"
-        element={<ForgotPassword />}
-      />
-
-      <Route
-        path="/reset-password"
-        element={<ResetPassword />}
-      />
-
-      {/* ======================================================
-          PÁGINAS PÚBLICAS
-      ====================================================== */}
-
-      <Route
-        path="/"
-        element={<Home />}
-      />
-
-      <Route
-        path="/encontrar"
-        element={<FindPsychologist />}
-      />
-
-      <Route
-        path="/psicologo/:id"
-        element={<PsychologistProfile />}
-      />
-
-      <Route
-        path="/triagem"
-        element={<Triage />}
-      />
-
-      <Route
-        path="/videochamada"
-        element={<VideoCall />}
-      />
-
-      <Route
-        path="/privacidade"
-        element={<Privacy />}
-      />
-
-      {/* ======================================================
-          CADASTRO PROFISSIONAL
-          
-          Esta rota continua pública porque o próprio
-          ProfessionalOnboarding controla o processo
-          de cadastro do profissional.
-      ====================================================== */}
-
-      <Route
-        path="/cadastro-profissional"
-        element={<ProfessionalOnboarding />}
-      />
-
-      {/* ======================================================
-          ÁREA DO PACIENTE
-          
-          Estas rotas exigem autenticação.
-      ====================================================== */}
-
-      <Route
-        element={
-          <ProtectedRoute
-            unauthenticatedElement={
-              <Navigate
-                to="/login"
-                replace
-              />
-            }
-          />
-        }
-      >
-
-        {/* ==================== PACIENTE ==================== */}
-
-        <Route
-          path="/agendamento"
-          element={<BookingConfirmation />}
-        />
-
-        <Route
-          path="/painel-paciente"
-          element={<PatientDashboard />}
-        />
-
-        <Route
-          path="/diario"
-          element={<Journal />}
-        />
-
-        <Route
-          path="/favoritos"
-          element={<Favorites />}
-        />
-
-        <Route
-          path="/notificacoes"
-          element={<Notifications />}
-        />
-
-      </Route>
-
-      {/* ======================================================
-          ÁREA EXCLUSIVA DO PROFISSIONAL
-          
-          O ProfessionalRoute verifica:
-          1. Se o usuário está autenticado.
-          2. Se o usuário possui role de profissional.
-          
-          Paciente tentando acessar esta área será enviado
-          para /painel-paciente.
-      ====================================================== */}
-
-      <Route
-        element={<ProfessionalRoute />}
-      >
-
-        <Route
-          path="/painel-profissional"
-          element={<PsychologistDashboard />}
-        />
-
-      </Route>
-
-      {/* ======================================================
-          ÁREA ADMINISTRATIVA
-      ====================================================== */}
-
-      <Route
-        element={
-          <ProtectedRoute
-            unauthenticatedElement={
-              <Navigate
-                to="/login"
-                replace
-              />
-            }
-          />
-        }
-      >
-
-        <Route
-          path="/verificacao"
-          element={<AdminVerification />}
-        />
-
-      </Route>
-
-      {/* ======================================================
-          404
-      ====================================================== */}
-
-      <Route
-        path="*"
-        element={<PageNotFound />}
-      />
-
-    </Routes>
-  );
-}
-
-// ==================== APP ====================
-
-function App() {
+export default function App() {
   return (
     <AuthProvider>
-
-      <QueryClientProvider
-        client={queryClientInstance}
-      >
-
+      <QueryClientProvider client={queryClient}>
         <Router>
-
           <ScrollToTop />
 
-          <AuthenticatedApp />
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <PageShell>
+                  <Home />
+                </PageShell>
+              }
+            />
 
+            <Route
+              path="/encontrar"
+              element={
+                <PageShell>
+                  <FindPsychologist />
+                </PageShell>
+              }
+            />
+
+            <Route
+              path="/psicologo/:id"
+              element={
+                <PageShell>
+                  <PsychologistProfile />
+                </PageShell>
+              }
+            />
+
+            <Route
+              path="/triagem"
+              element={
+                <PageShell>
+                  <Triage />
+                </PageShell>
+              }
+            />
+
+            <Route
+              path="/videochamada"
+              element={
+                <PageShell>
+                  <VideoCall />
+                </PageShell>
+              }
+            />
+
+            <Route
+              path="/privacidade"
+              element={
+                <PageShell>
+                  <Privacy />
+                </PageShell>
+              }
+            />
+
+            <Route
+              path="/cadastro-profissional"
+              element={
+                <PageShell>
+                  <ProfessionalOnboarding />
+                </PageShell>
+              }
+            />
+
+            <Route element={<ProtectedRoute />}>
+              <Route
+                path="/agendamento"
+                element={
+                  <PageShell>
+                    <BookingConfirmation />
+                  </PageShell>
+                }
+              />
+
+              <Route
+                path="/painel"
+                element={
+                  <PageShell>
+                    <PatientDashboard />
+                  </PageShell>
+                }
+              />
+
+              <Route
+                path="/diario"
+                element={
+                  <PageShell>
+                    <Journal />
+                  </PageShell>
+                }
+              />
+
+              <Route
+                path="/favoritos"
+                element={
+                  <PageShell>
+                    <Favorites />
+                  </PageShell>
+                }
+              />
+
+              <Route
+                path="/notificacoes"
+                element={
+                  <PageShell>
+                    <Notifications />
+                  </PageShell>
+                }
+              />
+
+              <Route
+                path="/verificacao"
+                element={
+                  <PageShell>
+                    <AdminVerification />
+                  </PageShell>
+                }
+              />
+            </Route>
+
+            <Route element={<ProfessionalRoute />}>
+              <Route
+                path="/painel-profissional"
+                element={
+                  <PageShell>
+                    <PsychologistDashboard />
+                  </PageShell>
+                }
+              />
+            </Route>
+          </Routes>
         </Router>
-
-        <Toaster />
-
       </QueryClientProvider>
-
     </AuthProvider>
   );
 }
-
-// ==================== EXPORT ====================
-
-export default App;
