@@ -117,11 +117,6 @@ function AuthenticatedApp() {
       />
 
       <Route
-        path="/videochamada"
-        element={<VideoCall />}
-      />
-
-      <Route
         path="/privacidade"
         element={<Privacy />}
       />
@@ -146,6 +141,11 @@ function AuthenticatedApp() {
         <Route
           path="/agendamento"
           element={<BookingConfirmation />}
+        />
+
+        <Route
+          path="/videochamada"
+          element={<VideoCall />}
         />
 
         <Route
