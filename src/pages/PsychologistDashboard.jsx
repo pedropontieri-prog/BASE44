@@ -613,7 +613,7 @@ export default function PsychologistDashboard() {
             </Link>
 
             <Link
-              to="/configuracoes"
+              to="/cadastro-profissional"
               className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
             >
               <Settings className="w-5 h-5" />
