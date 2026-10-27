@@ -731,7 +731,14 @@ export default function PsychologistDashboard() {
 
               {isOnlineAppointment(next) && (
                 <Link
-                  to={`/sala/${getRoomId(next)}`}
+                  to="/videochamada"
+                  state={{
+                    roomId: getRoomId(next),
+                    appointmentId: next.id,
+                    role: 'psychologist',
+                    psychologistName: getPsychologistName(profile),
+                    time: getAppointmentTime(next),
+                  }}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700"
                 >
                   Entrar na sala
