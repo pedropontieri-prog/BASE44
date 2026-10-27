@@ -443,11 +443,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const params =
-        returnTo && returnTo !== "/"
-          ? `?returnTo=${encodeURIComponent(returnTo)}`
-          : "";
-
       const redirectUrl = new URL("/login", window.location.origin);
       if (returnTo && returnTo !== "/") {
         redirectUrl.searchParams.set("returnTo", returnTo);
