@@ -105,19 +105,20 @@ export default function AdminVerification() {
           id: authUser.id,
           email: authUser.email,
           role: authUser.user_metadata?.role || 'patient',
-          full_name: authUser.user_metadata?.full_name || ''
+          full_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || ''
         };
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, email, full_name, role')
+          .select('id, email, nickname, role')
           .eq('id', authUser.id)
           .maybeSingle();
 
         if (!profileError && profile) {
           currentUser = {
             ...currentUser,
-            ...profile
+            ...profile,
+            full_name: profile.nickname || currentUser.full_name
           };
         }
 
