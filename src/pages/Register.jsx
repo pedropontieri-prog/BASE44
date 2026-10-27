@@ -248,24 +248,27 @@ export default function Register() {
   };
 
   const handleGoogle = async () => {
+    if (loading) return;
+
     setError("");
+    setLoading(true);
 
     try {
       const returnTo = safeReturnTo();
 
-      const redirectUrl =
-        `${window.location.origin}/login` +
-        (returnTo !== "/"
-          ? `?returnTo=${encodeURIComponent(
-              returnTo
-            )}`
-          : "");
+      const redirectUrl = new URL("/login", window.location.origin);
+      if (returnTo !== "/") {
+        redirectUrl.searchParams.set("returnTo", returnTo);
+      }
 
       const { error: oauthError } =
         await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: redirectUrl,
+            redirectTo: redirectUrl.toString(),
+            queryParams: {
+              prompt: "select_account",
+            },
           },
         });
 
@@ -278,10 +281,17 @@ export default function Register() {
         err
       );
 
-      setError(
-        err?.message ||
-          "Não foi possível continuar com o Google."
-      );
+      const message = String(err?.message || "").toLowerCase();
+
+      if (message.includes("provider is not enabled") || message.includes("provider_not_enabled")) {
+        setError("O acesso com Google ainda não está ativado no sistema. Entre com e-mail e senha por enquanto ou peça ao administrador para ativar Google nas configurações de autenticação do Supabase.");
+      } else if (message.includes("redirect") && (message.includes("allow") || message.includes("url"))) {
+        setError("O endereço de retorno do login com Google não está autorizado. É necessário adicionar o endereço deste site à lista de redirecionamentos do Supabase.");
+      } else {
+        setError(err?.message || "Não foi possível continuar com o Google.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
