@@ -20,6 +20,21 @@ import { supabase } from '@/lib/supabase';
 
 const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+function getNextDateForDayIndex(dayIndex) {
+  const weekdays = [1, 2, 3, 4, 5, 6];
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+
+  const difference = (weekdays[dayIndex] - date.getDay() + 7) % 7;
+  date.setDate(date.getDate() + difference);
+
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 const slots = [
   '09:00',
   '10:00',
@@ -225,7 +240,8 @@ export default function PsychologistProfile() {
     navigate('/agendamento', {
       state: {
         psychologist: p,
-        day: days[selectedDay],
+        day: getNextDateForDayIndex(selectedDay),
+        dayLabel: days[selectedDay],
         slot: selectedSlot,
         modality
       }
