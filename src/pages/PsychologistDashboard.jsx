@@ -682,12 +682,14 @@ export default function PsychologistDashboard() {
               <Bell className="w-5 h-5" />
             </Link>
 
-            <Link
-              to="/cadastro-profissional"
+            <a
+              href="#disponibilidade"
               className="p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50"
+              aria-label="Editar disponibilidade"
+              title="Editar disponibilidade"
             >
               <Settings className="w-5 h-5" />
-            </Link>
+            </a>
           </div>
         </div>
 
@@ -697,7 +699,7 @@ export default function PsychologistDashboard() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 mb-8">
+        <section id="disponibilidade" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Minha disponibilidade</h2>
