@@ -19,6 +19,7 @@ export default function BookingConfirmation() {
   const {
     psychologist,
     day,
+    dayLabel,
     slot,
     modality
   } = location.state || {};
@@ -26,6 +27,7 @@ export default function BookingConfirmation() {
   const [appointment, setAppointment] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
+  const attemptedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!psychologist || !day || !slot || !modality) {
@@ -37,6 +39,11 @@ export default function BookingConfirmation() {
   }, []);
 
   async function createAppointment() {
+    if (attemptedRef.current) {
+      return;
+    }
+
+    attemptedRef.current = true;
     setLoading(true);
     setError('');
 
@@ -51,75 +58,58 @@ export default function BookingConfirmation() {
       }
 
       if (!user) {
-        setError('Você precisa estar logado para agendar uma consulta.');
+        setError('Você precisa entrar na sua conta para agendar uma consulta.');
         return;
       }
 
-      const psychologistName =
-        psychologist.professional_name ||
-        psychologist.full_name ||
-        'Profissional';
+      if (!psychologist?.id || !day || !slot || !modality) {
+        setError('Faltam informações para concluir o agendamento. Volte ao perfil e escolha a data e o horário novamente.');
+        return;
+      }
 
-      const price =
-        psychologist.session_price ??
-        psychologist.price ??
-        0;
+      const duration = Number(psychologist.session_duration) || 50;
+      const start = new Date(`${day}T${slot}:00`);
 
-      const duration =
-        psychologist.session_duration ||
-        50;
+      if (Number.isNaN(start.getTime())) {
+        setError('A data ou o horário selecionado é inválido. Escolha outro horário.');
+        return;
+      }
 
-      const address =
-        modality === 'in_person'
-          ? psychologist.address || ''
-          : '';
+      if (start.getTime() <= Date.now()) {
+        setError('Esse horário já passou. Volte ao perfil e escolha um horário futuro.');
+        return;
+      }
+
+      const end = new Date(start.getTime() + duration * 60000);
 
       const { data, error: appointmentError } = await supabase
         .from('appointments')
         .insert({
           psychologist_id: psychologist.id,
-          psychologist_name: psychologistName,
-          patient_user_id: user.id,
-          patient_name:
-            user.user_metadata?.full_name ||
-            user.user_metadata?.name ||
-            user.email ||
-            'Paciente',
-          date: day,
-          time: slot,
-          modality,
-          address,
-          duration,
-          price,
+          patient_id: user.id,
+          starts_at: start.toISOString(),
+          ends_at: end.toISOString(),
+          mode: modality,
           status: 'scheduled'
         })
-        .select()
+        .select('*')
         .single();
 
       if (appointmentError) {
-        console.error(
-          'Erro ao criar agendamento:',
-          appointmentError
-        );
-
-        setError(
-          appointmentError.message ||
-          'Não foi possível confirmar o agendamento.'
-        );
-
-        return;
+        console.error('Erro ao criar agendamento:', appointmentError);
+        throw appointmentError;
       }
 
       setAppointment(data);
     } catch (err) {
-      console.error(
-        'Erro inesperado ao criar agendamento:',
-        err
-      );
+      console.error('Erro ao criar agendamento:', err);
+      const message = String(err?.message || '').toLowerCase();
 
-      setError(
-        'Não foi possível confirmar o agendamento.'
-      );
+      if (message.includes('row-level security') || message.includes('permission denied') || err?.code === '42501') {
+        setError('O banco de dados bloqueou o agendamento. É necessário configurar as políticas de acesso (RLS) da tabela appointments no Supabase.');
+      } else {
+        setError(err?.message || 'Não foi possível confirmar o agendamento. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
@@ -215,7 +205,7 @@ export default function BookingConfirmation() {
                 </Link>
 
                 <Link
-                  to="/painel"
+                  to="/painel-paciente"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full glass-strong font-semibold hover:bg-white transition-all"
                 >
                   Ir para meu painel
@@ -237,8 +227,7 @@ export default function BookingConfirmation() {
               </h1>
 
               <p className="text-muted-foreground mt-2">
-                Enviamos a confirmação para o seu e-mail.
-                Você pode entrar na sala alguns minutos antes.
+                Seu agendamento foi registrado. Você pode acompanhar os detalhes no painel e entrar na sala alguns minutos antes.
               </p>
 
               <div className="mt-7 text-left grid sm:grid-cols-2 gap-4 bg-muted/40 rounded-2xl p-5">
@@ -252,7 +241,7 @@ export default function BookingConfirmation() {
                 <Detail
                   icon={Clock}
                   label="Data e horário"
-                  value={`${day}, ${slot}`}
+                  value={`${new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${day}T12:00:00`))}, ${slot}`}
                 />
 
                 <Detail
