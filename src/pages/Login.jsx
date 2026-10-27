@@ -471,10 +471,15 @@ export default function Login() {
         err
       );
 
-      setError(
-        err?.message ||
-          "Não foi possível entrar com o Google."
-      );
+      const message = String(err?.message || "").toLowerCase();
+
+      if (message.includes("provider is not enabled") || message.includes("provider_not_enabled")) {
+        setError("O acesso com Google ainda não está ativado no sistema. Entre com e-mail e senha por enquanto ou peça ao administrador para ativar Google nas configurações de autenticação do Supabase.");
+      } else if (message.includes("redirect") && (message.includes("allow") || message.includes("url"))) {
+        setError("O endereço de retorno do login com Google não está autorizado. É necessário adicionar o endereço deste site à lista de redirecionamentos do Supabase.");
+      } else {
+        setError(err?.message || "Não foi possível entrar com o Google.");
+      }
 
       setLoading(false);
     }
