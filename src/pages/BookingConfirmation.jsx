@@ -304,7 +304,7 @@ export default function BookingConfirmation() {
                 )}
 
                 <Link
-                  to="/painel"
+                  to="/painel-paciente"
                   state={{
                     confirmed: {
                       appointmentId: appointment?.id,
