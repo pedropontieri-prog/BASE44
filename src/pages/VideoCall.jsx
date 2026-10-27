@@ -932,6 +932,80 @@ export default function VideoCall() {
       setPermissionError(null);
       setStatus('requesting');
 
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError) {
+          throw userError;
+        }
+
+        if (!user) {
+          throw new Error('Entre na sua conta para acessar a videochamada.');
+        }
+
+        const appointmentId =
+          state.appointmentId || roomId;
+
+        const {
+          data: appointment,
+          error: appointmentError,
+        } = await supabase
+          .from('appointments')
+          .select('id, patient_id, psychologist_id, status')
+          .eq('id', appointmentId)
+          .maybeSingle();
+
+        if (appointmentError) {
+          throw appointmentError;
+        }
+
+        if (!appointment) {
+          throw new Error('A consulta não foi encontrada ou você não tem permissão para acessá-la.');
+        }
+
+        const normalizedRole = String(role).toLowerCase();
+        let isParticipant = false;
+
+        if (normalizedRole === 'psychologist' || normalizedRole === 'professional') {
+          const {
+            data: psychologist,
+            error: psychologistError,
+          } = await supabase
+            .from('psychologists')
+            .select('id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (psychologistError) {
+            throw psychologistError;
+          }
+
+          isParticipant = psychologist?.id === appointment.psychologist_id;
+        } else {
+          isParticipant = appointment.patient_id === user.id;
+        }
+
+        if (!isParticipant) {
+          throw new Error('Esta consulta não pertence à sua conta.');
+        }
+
+        if (['cancelled', 'canceled', 'completed', 'no_show'].includes(String(appointment.status || '').toLowerCase())) {
+          throw new Error('Esta consulta não está disponível para videochamada.');
+        }
+      } catch (authorizationError) {
+        console.error('Acesso à videochamada negado:', authorizationError);
+        setPermissionError(
+          authorizationError?.message ||
+          'Não foi possível validar seu acesso à consulta.'
+        );
+        setStatus('error');
+        initializedRef.current = false;
+        return;
+      }
+
       const connectionId =
         createConnectionId(
           roomId
