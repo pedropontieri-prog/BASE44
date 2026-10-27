@@ -87,6 +87,9 @@ export default function BookingConfirmation() {
         .insert({
           psychologist_id: psychologist.id,
           patient_id: user.id,
+          psychologist_name: psychologistName,
+          patient_name: user.user_metadata?.name || user.user_metadata?.full_name || user.email || 'Paciente',
+          psychologist_photo: psychologist.profile_photo_url || psychologist.photo_url || '',
           starts_at: start.toISOString(),
           ends_at: end.toISOString(),
           mode: modality,
