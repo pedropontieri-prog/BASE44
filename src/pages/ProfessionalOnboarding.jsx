@@ -1032,7 +1032,7 @@ export default function ProfessionalOnboarding() {
     }
 
     if (form.presencial) {
-      modalities.push("presencial");
+      modalities.push("in_person");
     }
 
     const professionalData = {
