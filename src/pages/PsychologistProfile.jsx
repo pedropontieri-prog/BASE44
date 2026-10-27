@@ -540,7 +540,7 @@ export default function PsychologistProfile() {
                           : 'border-border text-foreground/70 hover:bg-muted'
                       }`}
                     >
-                      {d}
+                      {d.label}
                     </button>
                   ))}
 
