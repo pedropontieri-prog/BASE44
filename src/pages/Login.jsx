@@ -140,6 +140,14 @@ function getFriendlyLoginError(error) {
     return "Seu e-mail ainda não foi confirmado.";
   }
 
+  if (message.includes("provider is not enabled") || message.includes("provider_not_enabled")) {
+    return "O acesso com Google ainda não está ativado no sistema. Entre com e-mail e senha por enquanto ou peça ao administrador para ativar Google nas configurações de autenticação do Supabase.";
+  }
+
+  if (message.includes("redirect") && (message.includes("allow") || message.includes("url"))) {
+    return "O endereço de retorno do login com Google não está autorizado. É necessário adicionar o endereço deste site à lista de redirecionamentos do Supabase.";
+  }
+
   if (message.includes("too many requests")) {
     return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
   }
@@ -437,13 +445,13 @@ export default function Login() {
     try {
       const params =
         returnTo && returnTo !== "/"
-          ? `?returnTo=${encodeURIComponent(
-              returnTo
-            )}`
+          ? `?returnTo=${encodeURIComponent(returnTo)}`
           : "";
 
-      const redirectUrl =
-        `${window.location.origin}/login${params}`;
+      const redirectUrl = new URL("/login", window.location.origin);
+      if (returnTo && returnTo !== "/") {
+        redirectUrl.searchParams.set("returnTo", returnTo);
+      }
 
       const {
         error: googleError,
@@ -452,7 +460,10 @@ export default function Login() {
           provider: "google",
 
           options: {
-            redirectTo: redirectUrl,
+            redirectTo: redirectUrl.toString(),
+            queryParams: {
+              prompt: "select_account",
+            },
           },
         });
 
