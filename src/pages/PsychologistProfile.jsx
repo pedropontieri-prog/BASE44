@@ -18,14 +18,40 @@ import VerificationBadge from '@/components/VerificationBadge';
 import { Image } from '@/components/ui/image';
 import { supabase } from '@/lib/supabase';
 
-const days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const dayOptions = [
+  { label: 'Dom', weekday: 0 },
+  { label: 'Seg', weekday: 1 },
+  { label: 'Ter', weekday: 2 },
+  { label: 'Qua', weekday: 3 },
+  { label: 'Qui', weekday: 4 },
+  { label: 'Sex', weekday: 5 },
+  { label: 'Sáb', weekday: 6 },
+];
 
-function getNextDateForDayIndex(dayIndex) {
-  const weekdays = [1, 2, 3, 4, 5, 6];
+const defaultSlots = [
+  '09:00',
+  '10:00',
+  '11:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+];
+
+function getNextDateForWeekday(weekday, slot) {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
 
-  const difference = (weekdays[dayIndex] - date.getDay() + 7) % 7;
+  let difference = (weekday - date.getDay() + 7) % 7;
+  const [hours, minutes] = String(slot).split(':').map(Number);
+  const selectedTime = new Date(date);
+  selectedTime.setHours(hours || 0, minutes || 0, 0, 0);
+
+  if (difference === 0 && selectedTime.getTime() <= Date.now()) {
+    difference = 7;
+  }
+
   date.setDate(date.getDate() + difference);
 
   return [
@@ -34,17 +60,6 @@ function getNextDateForDayIndex(dayIndex) {
     String(date.getDate()).padStart(2, '0'),
   ].join('-');
 }
-
-const slots = [
-  '09:00',
-  '10:00',
-  '11:00',
-  '14:00',
-  '15:00',
-  '16:00',
-  '17:00',
-  '18:00'
-];
 
 export default function PsychologistProfile() {
   const { id } = useParams();
@@ -229,19 +244,40 @@ export default function PsychologistProfile() {
     p.modalities ||
     [];
 
+  const configuredDays = Array.isArray(p.available_days)
+    ? p.available_days
+    : [];
+
+  const days = configuredDays.length
+    ? dayOptions.filter((option) =>
+        configuredDays.some((value) =>
+          String(value).toLowerCase() === option.label.toLowerCase() ||
+          String(value).toLowerCase() === ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'][option.weekday]
+        )
+      )
+    : dayOptions.filter((option) => option.weekday !== 0);
+
+  const configuredSlots = Array.isArray(p.available_slots)
+    ? p.available_slots
+    : [];
+
+  const slots = configuredSlots.length
+    ? defaultSlots.filter((slot) => configuredSlots.includes(slot))
+    : defaultSlots;
+
   const price =
     p.session_price ??
     p.price ??
     null;
 
   const handleSchedule = () => {
-    if (!selectedSlot) return;
+    if (!selectedSlot || !days[selectedDay]) return;
 
     navigate('/agendamento', {
       state: {
         psychologist: p,
-        day: getNextDateForDayIndex(selectedDay),
-        dayLabel: days[selectedDay],
+        day: getNextDateForWeekday(days[selectedDay].weekday, selectedSlot),
+        dayLabel: days[selectedDay].label,
         slot: selectedSlot,
         modality
       }
@@ -493,7 +529,7 @@ export default function PsychologistProfile() {
 
                   {days.map((d, i) => (
                     <button
-                      key={d}
+                      key={d.label}
                       onClick={() => {
                         setSelectedDay(i);
                         setSelectedSlot(null);
@@ -544,7 +580,7 @@ export default function PsychologistProfile() {
                 className="w-full mt-6 py-3.5 rounded-full gradient-brand text-white font-semibold shadow-soft hover:shadow-glow transition-all disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
               >
                 {selectedSlot
-                  ? `Confirmar ${days[selectedDay]} ${selectedSlot}`
+                  ? `Confirmar ${days[selectedDay]?.label || 'Escolher'} ${selectedSlot}`
                   : 'Selecione um horário'}
 
                 <ArrowRight size={17} />
