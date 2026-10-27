@@ -94,6 +94,10 @@ export default function VideoCall() {
     params.get('id') ||
     null;
 
+  const appointmentId =
+    state.appointmentId ||
+    roomId;
+
   const role =
     state.role ||
     params.get('role') ||
@@ -946,9 +950,6 @@ export default function VideoCall() {
           throw new Error('Entre na sua conta para acessar a videochamada.');
         }
 
-        const appointmentId =
-          state.appointmentId || roomId;
-
         const {
           data: appointment,
           error: appointmentError,
@@ -1295,6 +1296,7 @@ export default function VideoCall() {
       }
     }, [
       roomId,
+      appointmentId,
       role,
       cleanupConnection,
       createPeerConnection,
