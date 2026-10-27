@@ -19,6 +19,9 @@ import VerificationBadge from '@/components/VerificationBadge';
 import { Image } from '@/components/ui/image';
 import { supabase } from '@/lib/supabase';
 
+const availabilityDayOptions = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const availabilitySlotOptions = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
+
 function getPsychologistName(profile) {
   return (
     profile?.professional_name ||
@@ -198,6 +201,18 @@ export default function PsychologistDashboard() {
   const [appointmentsWarning, setAppointmentsWarning] =
     useState('');
 
+  const [availabilityDays, setAvailabilityDays] =
+    useState(availabilityDayOptions);
+
+  const [availabilitySlots, setAvailabilitySlots] =
+    useState(availabilitySlotOptions);
+
+  const [availabilitySaving, setAvailabilitySaving] =
+    useState(false);
+
+  const [availabilityMessage, setAvailabilityMessage] =
+    useState('');
+
   async function loadDashboard() {
     setLoading(true);
     setError('');
@@ -266,6 +281,20 @@ export default function PsychologistDashboard() {
        * NÃO pode apagar o perfil profissional.
        */
       setProfile(psychologist);
+
+      setAvailabilityDays(
+        Array.isArray(psychologist.available_days) &&
+        psychologist.available_days.length
+          ? psychologist.available_days
+          : availabilityDayOptions
+      );
+
+      setAvailabilitySlots(
+        Array.isArray(psychologist.available_slots) &&
+        psychologist.available_slots.length
+          ? psychologist.available_slots
+          : availabilitySlotOptions
+      );
 
       /*
        * A agenda é secundária.
@@ -340,6 +369,47 @@ export default function PsychologistDashboard() {
       setAppointments([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveAvailability() {
+    if (!profile?.id) {
+      setAvailabilityMessage('Não foi possível identificar seu perfil profissional.');
+      return;
+    }
+
+    if (!availabilityDays.length || !availabilitySlots.length) {
+      setAvailabilityMessage('Selecione pelo menos um dia e um horário.');
+      return;
+    }
+
+    setAvailabilitySaving(true);
+    setAvailabilityMessage('');
+
+    try {
+      const { data, error: updateError } = await supabase
+        .from('psychologists')
+        .update({
+          available_days: availabilityDays,
+          available_slots: availabilitySlots,
+        })
+        .eq('id', profile.id)
+        .select('*')
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setProfile(data);
+      setAvailabilityMessage('Disponibilidade salva com sucesso.');
+    } catch (saveError) {
+      console.error('Erro ao salvar disponibilidade:', saveError);
+      setAvailabilityMessage(
+        'Não foi possível salvar. Verifique as permissões de atualização do perfil no Supabase.'
+      );
+    } finally {
+      setAvailabilitySaving(false);
     }
   }
 
@@ -626,6 +696,79 @@ export default function PsychologistDashboard() {
             {appointmentsWarning}
           </div>
         )}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Minha disponibilidade</h2>
+              <p className="text-sm text-slate-500 mt-1">Escolha os dias e horários que os pacientes podem agendar.</p>
+            </div>
+            <button
+              type="button"
+              onClick={saveAvailability}
+              disabled={availabilitySaving}
+              className="rounded-xl bg-blue-600 px-5 py-2.5 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+            >
+              {availabilitySaving ? 'Salvando...' : 'Salvar horários'}
+            </button>
+          </div>
+
+          <p className="text-sm font-semibold text-slate-700 mb-2">Dias</p>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {availabilityDayOptions.map((day) => {
+              const selected = availabilityDays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setAvailabilityMessage('');
+                    setAvailabilityDays((current) =>
+                      selected
+                        ? current.filter((item) => item !== day)
+                        : [...current, day]
+                    );
+                  }}
+                  className={`rounded-xl border px-4 py-2 text-sm font-medium ${selected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-sm font-semibold text-slate-700 mb-2">Horários</p>
+          <div className="flex flex-wrap gap-2">
+            {availabilitySlotOptions.map((slot) => {
+              const selected = availabilitySlots.includes(slot);
+              return (
+                <button
+                  key={slot}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setAvailabilityMessage('');
+                    setAvailabilitySlots((current) =>
+                      selected
+                        ? current.filter((item) => item !== slot)
+                        : [...current, slot].sort()
+                    );
+                  }}
+                  className={`rounded-xl border px-4 py-2 text-sm font-medium ${selected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  {slot}
+                </button>
+              );
+            })}
+          </div>
+
+          {availabilityMessage && (
+            <p role="status" className="mt-4 text-sm text-slate-600">
+              {availabilityMessage}
+            </p>
+          )}
+        </section>
 
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
