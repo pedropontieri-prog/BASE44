@@ -292,6 +292,7 @@ export default function BookingConfirmation() {
                     to="/videochamada"
                     state={{
                       roomId,
+                      appointmentId: appointment?.id,
                       role: 'patient',
                       psychologistName,
                       time: slot
