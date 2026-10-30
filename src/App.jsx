@@ -217,6 +217,11 @@ function AuthenticatedApp() {
           path="/painel-profissional"
           element={<PsychologistDashboard />}
         />
+
+        <Route
+          path="/agenda"
+          element={<PsychologistDashboard />}
+        />
       </Route>
 
       <Route
