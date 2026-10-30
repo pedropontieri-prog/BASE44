@@ -71,7 +71,7 @@ export default function Navbar() {
 
   const painelPath = isProfessional
     ? "/painel-profissional"
-    : "/painel";
+    : "/painel-paciente";
 
   const handleLogout = async () => {
     try {
