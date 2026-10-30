@@ -256,7 +256,7 @@ export default function Register() {
     try {
       const returnTo = safeReturnTo();
 
-      const redirectUrl = new URL("/login", window.location.origin);
+      const redirectUrl = new URL("/login", "https://site-oficial-u5ei.onrender.com");
       if (returnTo !== "/") {
         redirectUrl.searchParams.set("returnTo", returnTo);
       }
