@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, Calendar, User, ShieldCheck, Lock, Info, Check } from 'lucide-react';
 import PageShell from '@/components/PageShell';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabase';
 
 const CAT = {
   appointments: { icon: Calendar, color: 'text-primary', bg: 'bg-violet-soft' },
@@ -15,26 +15,86 @@ const CAT = {
 export default function Notifications() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    (async () => {
+    let active = true;
+
+    const load = async () => {
       try {
-        const u = await base44.auth.me();
-        const list = await base44.entities.Notification.filter({ user_id: u.id }, '-created_date', 50);
-        setItems(list);
-      } catch (e) { } finally { setLoading(false); }
-    })();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        if (!user) {
+          if (active) setItems([]);
+          return;
+        }
+
+        const { data, error: queryError } = await supabase
+          .from('notifications')
+          .select('id,user_id,category,read,link,title,body,created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (queryError) throw queryError;
+        if (active) setItems(data || []);
+      } catch (err) {
+        console.error('Erro ao carregar notificações:', err);
+        if (active) setError('Não foi possível carregar suas notificações.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { active = false; };
   }, []);
 
   const markRead = async (id) => {
-    await base44.entities.Notification.update(id, { read: true });
-    setItems(items.map(n => n.id === id ? { ...n, read: true } : n));
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      setError('Entre novamente para atualizar as notificações.');
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      console.error('Erro ao marcar notificação:', updateError);
+      setError('Não foi possível atualizar a notificação.');
+      return;
+    }
+
+    setItems(current => current.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   const markAll = async () => {
     const unread = items.filter(n => !n.read);
-    await base44.entities.Notification.bulkUpdate(unread.map(n => ({ id: n.id, read: true })));
-    setItems(items.map(n => ({ ...n, read: true })));
+    if (!unread.length) return;
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      setError('Entre novamente para atualizar as notificações.');
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', user.id)
+      .eq('read', false);
+
+    if (updateError) {
+      console.error('Erro ao marcar notificações:', updateError);
+      setError('Não foi possível atualizar as notificações.');
+      return;
+    }
+
+    setItems(current => current.map(n => ({ ...n, read: true })));
   };
 
   const unread = items.filter(n => !n.read).length;
@@ -49,6 +109,8 @@ export default function Notifications() {
           </div>
           {unread > 0 && <button onClick={markAll} className="text-xs font-medium text-primary hover:underline">Marcar todas como lidas</button>}
         </div>
+
+        {error && <div role="alert" className="mb-4 p-3 rounded-xl bg-destructive/10 text-destructive text-sm">{error}</div>}
 
         {loading ? (
           <div className="space-y-3">{[0, 1, 2].map(i => <div key={i} className="h-20 animate-shimmer rounded-2xl" />)}</div>
