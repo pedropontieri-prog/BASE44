@@ -135,12 +135,14 @@ export const AuthProvider = ({ children }) => {
           profile.email ||
           "",
         name:
+          profile.nickname ||
           profile.name ||
           profile.full_name ||
           userData.name,
         full_name:
           profile.full_name ||
           profile.name ||
+          profile.nickname ||
           userData.full_name,
         avatar_url:
           profile.avatar_url ||
