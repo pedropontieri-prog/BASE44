@@ -443,7 +443,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const redirectUrl = new URL("/login", window.location.origin);
+      const redirectUrl = new URL("/login", "https://site-oficial-u5ei.onrender.com");
       if (returnTo && returnTo !== "/") {
         redirectUrl.searchParams.set("returnTo", returnTo);
       }
