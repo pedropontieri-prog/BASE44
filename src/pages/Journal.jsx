@@ -346,9 +346,9 @@ export default function Journal() {
                       {formatDate(entry.created_at)}
                     </div>
 
-                    {entry.mood && (
+                    {Array.isArray(entry.emotions) && entry.emotions.length > 0 && (
                       <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs">
-                        {entry.mood}
+                        {entry.emotions.join(', ')}
                       </span>
                     )}
                   </div>
