@@ -54,6 +54,42 @@ function LoadingScreen() {
   );
 }
 
+function LegacyPanelRedirect() {
+  const { user, isLoadingAuth, authChecked } = useAuth();
+
+  if (isLoadingAuth || !authChecked) {
+    return <LoadingScreen />;
+  }
+
+  const metadata = user?.user_metadata || {};
+  const role = String(
+    user?.role ||
+    metadata.role ||
+    metadata.account_type ||
+    metadata.user_type ||
+    metadata.profile_type ||
+    ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const isProfessional = [
+    "professional",
+    "profissional",
+    "psychologist",
+    "psicologo",
+  ].includes(role);
+
+  return (
+    <Navigate
+      to={isProfessional ? "/painel-profissional" : user ? "/painel-paciente" : "/login"}
+      replace
+    />
+  );
+}
+
 function AuthenticatedApp() {
   const {
     isLoadingAuth,
@@ -94,6 +130,11 @@ function AuthenticatedApp() {
       <Route
         path="/reset-password"
         element={<ResetPassword />}
+      />
+
+      <Route
+        path="/painel"
+        element={<LegacyPanelRedirect />}
       />
 
       <Route
