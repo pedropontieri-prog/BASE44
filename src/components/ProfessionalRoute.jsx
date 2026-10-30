@@ -74,7 +74,7 @@ export default function ProfessionalRoute() {
   if (!isProfessional) {
     return (
       <Navigate
-        to="/painel"
+        to="/painel-paciente"
         replace
       />
     );
