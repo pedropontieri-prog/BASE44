@@ -894,14 +894,14 @@ export default function PsychologistDashboard() {
           </div>
         )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <div id="atendimentos" className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white overflow-hidden">
           <div className="p-6 border-b border-slate-200 flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-900">
               Próximos atendimentos
             </h2>
 
             <Link
-              to="/agenda"
+              to="/agenda#atendimentos"
               className="text-sm inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
             >
               Ver agenda
