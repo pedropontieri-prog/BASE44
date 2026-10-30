@@ -52,7 +52,7 @@ export default function Journal() {
       }
 
       const { data, error: entriesError } = await supabase
-        .from('journal_entries')
+        .from('diary_entries')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -94,10 +94,10 @@ export default function Journal() {
 
       if (editingId) {
         const { error: updateError } = await supabase
-          .from('journal_entries')
+          .from('diary_entries')
           .update({
             content: content.trim(),
-            mood: mood || null,
+            emotions: mood ? [mood] : [],
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingId)
@@ -106,11 +106,11 @@ export default function Journal() {
         if (updateError) throw updateError;
       } else {
         const { error: insertError } = await supabase
-          .from('journal_entries')
+          .from('diary_entries')
           .insert({
             user_id: user.id,
             content: content.trim(),
-            mood: mood || null,
+            emotions: mood ? [mood] : [],
           });
 
         if (insertError) throw insertError;
@@ -141,7 +141,7 @@ export default function Journal() {
       if (!user) return;
 
       const { error: deleteError } = await supabase
-        .from('journal_entries')
+        .from('diary_entries')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
@@ -160,7 +160,7 @@ export default function Journal() {
   function handleEdit(entry) {
     setEditingId(entry.id);
     setContent(entry.content || '');
-    setMood(entry.mood || '');
+    setMood(Array.isArray(entry.emotions) ? entry.emotions[0] || '' : '');
 
     window.scrollTo({
       top: 0,
