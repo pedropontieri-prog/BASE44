@@ -10,7 +10,8 @@ import {
   Globe,
   ArrowRight,
   ShieldCheck,
-  Heart
+  Heart,
+  MessageCircle
 } from 'lucide-react';
 
 import PageShell from '@/components/PageShell';
@@ -269,6 +270,13 @@ export default function PsychologistProfile() {
     p.session_price ??
     p.price ??
     null;
+
+  const contactPhone = String(p.phone || '').replace(/\\D/g, '');
+  const whatsappPhone = contactPhone
+    ? contactPhone.startsWith('55')
+      ? contactPhone
+      : `55${contactPhone}`
+    : '';
 
   const handleSchedule = () => {
     if (!selectedSlot || !days[selectedDay]) return;
@@ -585,6 +593,18 @@ export default function PsychologistProfile() {
 
                 <ArrowRight size={17} />
               </button>
+
+              {whatsappPhone && (
+                <a
+                  href={`https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`Olá, ${name}! Encontrei seu perfil no EntreNós e gostaria de saber mais sobre os atendimentos.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full mt-3 py-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all inline-flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={17} />
+                  Conversar pelo WhatsApp
+                </a>
+              )}
 
               <button
                 onClick={toggleFav}
