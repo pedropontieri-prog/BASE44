@@ -725,7 +725,10 @@ export default function VideoCall() {
           if (
             state === 'failed'
           ) {
-            setStatus('waiting');
+            setPermissionError(
+              'A conexão de vídeo falhou. Verifique sua rede e tente novamente.'
+            );
+            setStatus('error');
           }
 
           if (
