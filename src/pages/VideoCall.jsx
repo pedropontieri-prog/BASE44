@@ -24,10 +24,19 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const STUN_SERVERS = [
+const ICE_SERVERS = [
   {
     urls: 'stun:stun.l.google.com:19302',
   },
+  ...(import.meta.env.VITE_TURN_URL &&
+  import.meta.env.VITE_TURN_USERNAME &&
+  import.meta.env.VITE_TURN_CREDENTIAL
+    ? [{
+        urls: import.meta.env.VITE_TURN_URL,
+        username: import.meta.env.VITE_TURN_USERNAME,
+        credential: import.meta.env.VITE_TURN_CREDENTIAL,
+      }]
+    : []),
 ];
 
 function createConnectionId(roomId) {
@@ -622,8 +631,8 @@ export default function VideoCall() {
 
       const pc =
         new RTCPeerConnection({
-          iceServers:
-            STUN_SERVERS,
+          iceServers: ICE_SERVERS,
+          iceCandidatePoolSize: 10,
         });
 
       pcRef.current = pc;
@@ -743,7 +752,12 @@ export default function VideoCall() {
           if (
             state === 'failed'
           ) {
-            setStatus('waiting');
+            setPermissionError(
+              ICE_SERVERS.length > 1
+                ? 'A conexão de vídeo falhou. Verifique sua rede e tente novamente.'
+                : 'A rede bloqueou a conexão direta. Configure um servidor TURN nas variáveis VITE_TURN_URL, VITE_TURN_USERNAME e VITE_TURN_CREDENTIAL para permitir chamadas entre redes diferentes.'
+            );
+            setStatus('error');
           }
         };
 
@@ -1232,10 +1246,13 @@ export default function VideoCall() {
         const subscription =
           await channel.subscribe(
             async (subscribeStatus) => {
-              if (
-                subscribeStatus !==
-                'SUBSCRIBED'
-              ) {
+              if (subscribeStatus !== 'SUBSCRIBED') {
+                if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscribeStatus)) {
+                  setPermissionError(
+                    'Não foi possível autenticar a sala de vídeo. Confirme sua conexão e as permissões do canal Realtime no Supabase.'
+                  );
+                  setStatus('error');
+                }
                 return;
               }
 
@@ -1248,11 +1265,22 @@ export default function VideoCall() {
                * Isso garante que cada sala
                * tenha dois lugares previsíveis.
                */
-              const seat =
-                role ===
-                'psychologist'
-                  ? 1
-                  : 0;
+              const normalizedParticipantRole = String(role || '')
+                .trim()
+                .toLowerCase();
+
+              const isProfessional = [
+                'psychologist',
+                'professional',
+                'profissional',
+                'psicologo',
+              ].includes(normalizedParticipantRole);
+
+              const participantRole = isProfessional
+                ? 'psychologist'
+                : 'patient';
+
+              const seat = isProfessional ? 1 : 0;
 
               mySeatRef.current =
                 seat;
@@ -1262,7 +1290,7 @@ export default function VideoCall() {
               await channel.track({
                 connectionId,
                 seat,
-                role,
+                role: participantRole,
                 joinedAt:
                   new Date().toISOString(),
               });
@@ -1525,8 +1553,9 @@ export default function VideoCall() {
   };
 
   const peerLabel =
-    peerRole ===
-    'psychologist'
+    ['psychologist', 'professional', 'profissional'].includes(
+      String(peerRole || '').toLowerCase()
+    )
       ? peerName
       : peerRole === 'patient'
         ? 'Paciente'
