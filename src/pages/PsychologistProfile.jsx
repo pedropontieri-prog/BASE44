@@ -271,7 +271,7 @@ export default function PsychologistProfile() {
     p.price ??
     null;
 
-  const contactPhone = String(p.phone || '').replace(/\\D/g, '');
+  const contactPhone = String(p.phone || '').replace(/\D/g, '');
   const whatsappPhone = contactPhone
     ? contactPhone.startsWith('55')
       ? contactPhone
