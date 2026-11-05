@@ -972,7 +972,7 @@ export default function VideoCall() {
           error: appointmentError,
         } = await supabase
           .from('appointments')
-          .select('id, patient_id, psychologist_id, status')
+          .select('id, patient_id, psychologist_id, status, mode')
           .eq('id', appointmentId)
           .maybeSingle();
 
@@ -1012,6 +1012,10 @@ export default function VideoCall() {
 
         if (['cancelled', 'canceled', 'completed', 'no_show'].includes(String(appointment.status || '').toLowerCase())) {
           throw new Error('Esta consulta não está disponível para videochamada.');
+        }
+
+        if (!['online', 'video', 'videochamada', 'video_call', 'video-call'].includes(String(appointment.mode || '').toLowerCase())) {
+          throw new Error('Esta consulta foi agendada como presencial e não possui sala de vídeo.');
         }
       } catch (authorizationError) {
         console.error('Acesso à videochamada negado:', authorizationError);
